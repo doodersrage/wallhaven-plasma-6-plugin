@@ -14,17 +14,162 @@ function boolTriplet(values) {
     return result;
 }
 
+function thumbsObject(wallpaper) {
+    if (!wallpaper) {
+        return null;
+    }
+    return wallpaper.thumbs || null;
+}
+
 function wallpaperUrl(wallpaper, quality) {
     if (!wallpaper) {
         return "";
     }
-    if (quality === "original") {
-        return wallpaper.path || wallpaper.large || wallpaper.thumb || "";
-    }
+    var thumbs = thumbsObject(wallpaper);
+    // Wallhaven only serves full wallpapers at `path`. thumbs.* are previews.
+    // small = low-bandwidth preview thumb; large/original = full wallpaper file.
     if (quality === "small") {
-        return wallpaper.thumb || wallpaper.large || wallpaper.path || "";
+        return (thumbs && thumbs.large)
+            || (thumbs && thumbs.original)
+            || wallpaper.thumb
+            || (thumbs && thumbs.small)
+            || thumbUrlForId(wallpaper.id)
+            || wallpaper.path
+            || "";
     }
-    return wallpaper.large || wallpaper.path || wallpaper.thumb || "";
+    return wallpaper.path
+        || wallpaper.large
+        || (thumbs && thumbs.original)
+        || (thumbs && thumbs.large)
+        || thumbUrlForId(wallpaper.id)
+        || "";
+}
+
+function thumbUrl(wallpaper) {
+    if (!wallpaper) {
+        return "";
+    }
+    var thumbs = thumbsObject(wallpaper);
+    if (thumbs && thumbs.large) {
+        return thumbs.large;
+    }
+    if (thumbs && thumbs.original) {
+        return thumbs.original;
+    }
+    if (wallpaper.thumb) {
+        return wallpaper.thumb;
+    }
+    if (thumbs && thumbs.small) {
+        return thumbs.small;
+    }
+    return thumbUrlForId(wallpaper.id);
+}
+
+function thumbUrlForId(id) {
+    id = String(id || "");
+    if (id.length >= 2) {
+        return "https://th.wallhaven.cc/lg/" + id.substring(0, 2) + "/" + id + ".jpg";
+    }
+    return "";
+}
+
+function parseSeenIds(raw) {
+    if (!raw) {
+        return [];
+    }
+    try {
+        var parsed = JSON.parse(raw);
+        if (parsed && parsed.length) {
+            return parsed.map(function(id) { return String(id); });
+        }
+    } catch (e) {
+        // fall through
+    }
+    return String(raw).split(",").map(function(id) {
+        return id.trim();
+    }).filter(function(id) {
+        return id.length > 0;
+    });
+}
+
+function serializeSeenIds(ids) {
+    if (!ids || !ids.length) {
+        return "[]";
+    }
+    return JSON.stringify(ids.slice(-500));
+}
+
+var DISK_CACHE_SLOTS = 40;
+
+function diskCacheSlotCount() {
+    return DISK_CACHE_SLOTS;
+}
+
+function parseDiskCacheIndex(raw) {
+    var empty = { ids: [], next: 0 };
+    if (!raw) {
+        return empty;
+    }
+    try {
+        var parsed = JSON.parse(raw);
+        if (!parsed || !parsed.ids || !parsed.ids.length) {
+            return {
+                ids: [],
+                next: Math.max(0, parseInt(parsed && parsed.next, 10) || 0),
+            };
+        }
+        return {
+            ids: parsed.ids.map(function(id) { return id === null || id === undefined ? "" : String(id); }),
+            next: Math.max(0, parseInt(parsed.next, 10) || 0),
+        };
+    } catch (e) {
+        return empty;
+    }
+}
+
+function serializeDiskCacheIndex(index) {
+    if (!index) {
+        return "{\"ids\":[],\"next\":0}";
+    }
+    return JSON.stringify({
+        ids: index.ids || [],
+        next: index.next || 0,
+    });
+}
+
+function diskCacheSlotForId(index, id) {
+    if (!index || !index.ids || !id) {
+        return -1;
+    }
+    return index.ids.indexOf(String(id));
+}
+
+function allocateDiskCacheSlot(index, id, maxSlots) {
+    maxSlots = maxSlots || DISK_CACHE_SLOTS;
+    id = String(id || "");
+    if (!id) {
+        return -1;
+    }
+    if (!index.ids) {
+        index.ids = [];
+    }
+    var existing = index.ids.indexOf(id);
+    if (existing !== -1) {
+        return existing;
+    }
+    var slot = (index.next || 0) % maxSlots;
+    while (index.ids.length < maxSlots) {
+        index.ids.push("");
+    }
+    index.ids[slot] = id;
+    index.next = (slot + 1) % maxSlots;
+    return slot;
+}
+
+function diskCacheFileName(slot) {
+    var n = Math.max(0, parseInt(slot, 10) || 0);
+    var padded = n < 10 ? ("0" + n) : String(n);
+    return "wallhaven-cache-" + padded + ".jpg";
 }
 
 function getEffectiveSearchText(cfg) {
@@ -34,6 +179,63 @@ function getEffectiveSearchText(cfg) {
         return isDay ? cfg.DaySearch : cfg.NightSearch;
     }
     return cfg.SearchText || "";
+}
+
+// Wallhaven only accepts these palette values for the colors= filter.
+var WALLHAVEN_COLORS = [
+    "660000", "990000", "cc0000", "cc3333", "ea4c88",
+    "993399", "663399", "333399", "0066cc", "0099cc",
+    "66cccc", "77cc33", "669900", "336600", "666600",
+    "999900", "cccc33", "ffff00", "ffcc33", "ff9900",
+    "ff6600", "cc6633", "996633", "663300", "000000",
+    "999999", "cccccc", "ffffff", "424153",
+];
+
+function parseHexColor(hex) {
+    hex = String(hex || "").replace("#", "").trim().toLowerCase();
+    if (hex.length === 3) {
+        hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+    if (hex.length !== 6 || !/^[0-9a-f]{6}$/.test(hex)) {
+        return null;
+    }
+    return {
+        hex: hex,
+        r: parseInt(hex.substring(0, 2), 16),
+        g: parseInt(hex.substring(2, 4), 16),
+        b: parseInt(hex.substring(4, 6), 16),
+    };
+}
+
+function nearestWallhavenColor(hex) {
+    var color = parseHexColor(hex);
+    if (!color) {
+        return "";
+    }
+    var best = "";
+    var bestDist = Infinity;
+    for (var i = 0; i < WALLHAVEN_COLORS.length; i++) {
+        var candidate = parseHexColor(WALLHAVEN_COLORS[i]);
+        var dr = color.r - candidate.r;
+        var dg = color.g - candidate.g;
+        var db = color.b - candidate.b;
+        var dist = dr * dr + dg * dg + db * db;
+        if (dist < bestDist) {
+            bestDist = dist;
+            best = WALLHAVEN_COLORS[i];
+        }
+    }
+    return best;
+}
+
+function getEffectiveColorFilter(cfg, state) {
+    if (!cfg.ColorFilter) {
+        return "";
+    }
+    if (cfg.ColorFilter === "system") {
+        return nearestWallhavenColor(state && state.systemAccentHex);
+    }
+    return cfg.ColorFilter;
 }
 
 function buildSearchUrl(cfg, state) {
@@ -77,8 +279,9 @@ function buildSearchUrl(cfg, state) {
     if (cfg.Ratio) {
         params.push("ratios=" + encodeURIComponent(cfg.Ratio));
     }
-    if (cfg.ColorFilter) {
-        params.push("colors=" + encodeURIComponent(cfg.ColorFilter));
+    var colorFilter = getEffectiveColorFilter(cfg, state);
+    if (colorFilter) {
+        params.push("colors=" + encodeURIComponent(colorFilter));
     }
     if (cfg.ApiKey) {
         params.push("apikey=" + encodeURIComponent(cfg.ApiKey.trim()));
@@ -155,35 +358,40 @@ function pickRandomIndex(wallpapers, usedIndices, seenIds, dedupEnabled) {
     }
 
     if (!available.length) {
-        return 0;
+        return -1;
     }
 
     return available[(Math.random() * available.length) | 0];
 }
 
-function advanceIndex(cfg, state, wallpapers, dryRun) {
-    var snapshot = dryRun ? JSON.parse(JSON.stringify(state)) : null;
+function findNextWallpaper(cfg, state, wallpapers) {
     var pageLength = wallpapers.length;
+    if (!pageLength) {
+        return { wallpaper: null, exhausted: true };
+    }
+
     var index = state.index;
+    var usedIndices = state.usedIndices.slice();
 
     switch (cfg.LocalSortings) {
     case "random":
         index = pickRandomIndex(
             wallpapers,
-            state.usedIndices,
+            usedIndices,
             state.seenIds,
             cfg.DedupEnabled,
         );
-        if (!dryRun) {
-            state.usedIndices.push(index);
+        if (index < 0) {
+            return { wallpaper: null, exhausted: true };
         }
+        usedIndices.push(index);
         break;
     case "descending":
-        index--;
+        if (state.totalShown > 0) {
+            index--;
+        }
         if (index < 0) {
-            index = state.lastPage === state.page
-                ? state.total - (state.lastPage - 1) * WALLPAPERS_PER_PAGE
-                : WALLPAPERS_PER_PAGE;
+            index = pageLength - 1;
         }
         break;
     case "ascending":
@@ -191,56 +399,162 @@ function advanceIndex(cfg, state, wallpapers, dryRun) {
         if (state.totalShown > 0) {
             index++;
         }
-        if (index > WALLPAPERS_PER_PAGE) {
-            index = 0;
+        if (index >= pageLength) {
+            return { wallpaper: null, exhausted: true };
         }
         break;
     }
 
-    if (cfg.DedupEnabled && !dryRun) {
+    if (cfg.DedupEnabled) {
         var attempts = 0;
-        while (attempts < pageLength && state.seenIds.indexOf(String(wallpapers[index].id)) !== -1) {
+        while (attempts < pageLength
+               && state.seenIds.indexOf(String(wallpapers[index].id)) !== -1) {
             if (cfg.LocalSortings === "random") {
-                index = pickRandomIndex(wallpapers, state.usedIndices, state.seenIds, true);
-                state.usedIndices.push(index);
+                var nextIndex = pickRandomIndex(wallpapers, usedIndices, state.seenIds, false);
+                if (nextIndex < 0) {
+                    return { wallpaper: null, exhausted: true };
+                }
+                if (usedIndices.indexOf(nextIndex) === -1) {
+                    usedIndices.push(nextIndex);
+                }
+                index = nextIndex;
+            } else if (cfg.LocalSortings === "descending") {
+                index--;
+                if (index < 0) {
+                    return { wallpaper: null, exhausted: true };
+                }
+            } else {
+                index++;
+                if (index >= pageLength) {
+                    return { wallpaper: null, exhausted: true };
+                }
+            }
+            attempts++;
+        }
+        if (attempts >= pageLength) {
+            return { wallpaper: null, exhausted: true };
+        }
+    }
+
+    state.index = index;
+    state.usedIndices = usedIndices;
+    return { wallpaper: wallpapers[index] || null, exhausted: false };
+}
+
+function pickNextWallpaper(cfg, state, wallpapers) {
+    return findNextWallpaper(cfg, state, wallpapers);
+}
+
+function pickWallpaper(cfg, state, wallpapers, preferRandom) {
+    var pageLength = wallpapers.length;
+    if (!pageLength) {
+        return null;
+    }
+
+    var index = 0;
+    if (preferRandom || cfg.LocalSortings === "random") {
+        index = pickRandomIndex(wallpapers, [], state.seenIds, cfg.DedupEnabled);
+    }
+
+    if (cfg.DedupEnabled) {
+        var attempts = 0;
+        while (attempts < pageLength
+               && state.seenIds.indexOf(String(wallpapers[index].id)) !== -1) {
+            if (preferRandom || cfg.LocalSortings === "random") {
+                index = pickRandomIndex(wallpapers, [], state.seenIds, false);
             } else {
                 index = (index + 1) % pageLength;
             }
             attempts++;
         }
-    }
-
-    if (dryRun && snapshot) {
-        return wallpapers[index] || wallpapers[0];
+        if (attempts >= pageLength) {
+            return null;
+        }
     }
 
     state.index = index;
-    return wallpapers[index] || wallpapers[0];
+    state.usedIndices = (preferRandom || cfg.LocalSortings === "random") ? [index] : [];
+    return wallpapers[index] || null;
 }
 
-function updatePageState(cfg, state) {
+function peekNextWallpaper(cfg, state, wallpapers) {
+    var preview = {
+        page: state.page,
+        index: state.index,
+        seed: state.seed,
+        lastPage: state.lastPage,
+        total: state.total,
+        totalShown: state.totalShown,
+        usedIndices: state.usedIndices.slice(),
+        seenIds: state.seenIds.slice(),
+        screenWidth: state.screenWidth,
+        screenHeight: state.screenHeight,
+        searchQuery: state.searchQuery,
+        favoritesUser: state.favoritesUser,
+        favoritesId: state.favoritesId,
+    };
+    var result = findNextWallpaper(cfg, preview, wallpapers);
+    return result.wallpaper;
+}
+
+function advanceIndex(cfg, state, wallpapers, dryRun) {
+    if (dryRun) {
+        return peekNextWallpaper(cfg, state, wallpapers);
+    }
+    return pickNextWallpaper(cfg, state, wallpapers).wallpaper;
+}
+
+function updatePageState(cfg, state, pageLength) {
+    pageLength = pageLength || WALLPAPERS_PER_PAGE;
     var positionOnPage;
     switch (cfg.LocalSortings) {
     case "random":
         positionOnPage = state.usedIndices.length;
         break;
     case "descending":
-        positionOnPage = WALLPAPERS_PER_PAGE - state.index;
+        positionOnPage = pageLength - state.index;
         break;
     case "ascending":
     default:
-        positionOnPage = state.index;
+        positionOnPage = state.index + 1;
         break;
     }
 
-    var reachedEnd = state.lastPage === state.page
-        && (state.page - 1) * WALLPAPERS_PER_PAGE + positionOnPage >= state.total;
+    var reachedEnd = state.lastPage > 0
+        && state.page >= state.lastPage
+        && (state.page - 1) * pageLength + positionOnPage >= state.total;
 
     if (reachedEnd) {
         state.usedIndices = [];
         state.page = 1;
-    } else if (positionOnPage >= WALLPAPERS_PER_PAGE) {
-        state.usedIndices = [];
-        state.page++;
+        state.index = 0;
+        state.needsNewSeed = true;
+        state.needsSeenClear = true;
+        return;
     }
+
+    if (cfg.LocalSortings !== "random" || positionOnPage < pageLength) {
+        return;
+    }
+
+    state.usedIndices = [];
+    state.page++;
+    if (state.lastPage > 0 && state.page > state.lastPage) {
+        state.page = 1;
+        state.needsNewSeed = true;
+        state.needsSeenClear = true;
+    }
+    state.index = 0;
+}
+
+function allWallpapersSeen(wallpapers, seenIds) {
+    if (!wallpapers || !wallpapers.length || !seenIds || !seenIds.length) {
+        return false;
+    }
+    for (var i = 0; i < wallpapers.length; i++) {
+        if (seenIds.indexOf(String(wallpapers[i].id)) === -1) {
+            return false;
+        }
+    }
+    return true;
 }

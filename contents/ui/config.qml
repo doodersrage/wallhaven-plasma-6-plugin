@@ -2,9 +2,60 @@ import QtQuick
 import QtQuick.Controls as QtControls2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
+import org.kde.plasma.plasmoid
+import "../code/wallhaven.js" as Wallhaven
 
 ColumnLayout {
     id: root
+
+    property var wallpaperConfiguration
+    property alias formLayout: sourceForm
+
+    readonly property var liveWallpaper: (typeof Plasmoid !== "undefined" && Plasmoid.wallpaperGraphicsObject)
+        ? Plasmoid.wallpaperGraphicsObject
+        : null
+
+    readonly property string previewAttribution: {
+        if (wallpaperConfiguration && wallpaperConfiguration.PreviewAttribution) {
+            return wallpaperConfiguration.PreviewAttribution;
+        }
+        if (liveWallpaper && liveWallpaper.attributionText) {
+            return liveWallpaper.attributionText;
+        }
+        return "";
+    }
+
+    readonly property string previewWallpaperId: {
+        if (wallpaperConfiguration && wallpaperConfiguration.PreviewWallpaperId) {
+            return wallpaperConfiguration.PreviewWallpaperId;
+        }
+        var match = /Wallhaven #([a-z0-9]+)/i.exec(previewAttribution);
+        return match ? match[1] : "";
+    }
+
+    readonly property string previewThumbUrl: {
+        if (previewWallpaperId) {
+            return Wallhaven.thumbUrlForId(previewWallpaperId);
+        }
+        if (wallpaperConfiguration && wallpaperConfiguration.PreviewThumbUrl) {
+            return wallpaperConfiguration.PreviewThumbUrl;
+        }
+        return "";
+    }
+
+    readonly property string previewFileUrl: {
+        if (!wallpaperConfiguration) {
+            return "";
+        }
+        var value = wallpaperConfiguration.PreviewImage;
+        if (!value || value === "null") {
+            return "";
+        }
+        return value;
+    }
+
+    readonly property real previewWidth: Math.min(420, Math.max(280, width > 0 ? Math.round(width * 0.55) : 360))
+    readonly property real previewHeight: Math.round(previewWidth * 9 / 16)
 
     property alias cfg_SearchText: searchTextField.text
     property alias cfg_ApiKey: apiKeyField.text
@@ -34,270 +85,591 @@ ColumnLayout {
     property alias cfg_KenBurnsEnabled: kenBurnsCheck.checked
     property alias cfg_KenBurnsSpeed: kenBurnsSpeedSpin.value
     property alias cfg_ShowAttribution: attributionCheck.checked
-    property alias cfg_ClicksToAdvance: clicksAdvanceSpin.value
-    property alias cfg_ClicksToGoBack: clicksBackSpin.value
+    property alias cfg_RequestTimeoutSec: requestTimeoutSpin.value
+    property alias cfg_RetryDelaySec: retryDelaySpin.value
+    property alias cfg_RetryAttempts: retryAttemptsSpin.value
+    property alias cfg_NotifyOnRefresh: notifyRefreshCheck.checked
+    property alias cfg_NotifyOnError: notifyErrorCheck.checked
+    property alias cfg_ShowStatusBanner: statusBannerCheck.checked
+    property alias cfg_DiskCacheEnabled: diskCacheCheck.checked
     property alias cfg_TimeOfDayEnabled: timeOfDayCheck.checked
     property alias cfg_DaySearch: daySearchField.text
     property alias cfg_NightSearch: nightSearchField.text
 
-    Kirigami.FormLayout {
+    function saveConfig() {
+        // Keep PreviewImage / attribution keys; they are runtime state for the settings preview.
+    }
+
+    spacing: Kirigami.Units.smallSpacing
+
+    // Current wallpaper: landscape preview above description, centered
+    ColumnLayout {
+        id: previewColumn
         Layout.fillWidth: true
+        Layout.alignment: Qt.AlignHCenter
+        Layout.topMargin: Kirigami.Units.smallSpacing
+        Layout.bottomMargin: Kirigami.Units.smallSpacing
+        Layout.maximumWidth: Math.min(root.previewWidth + Kirigami.Units.largeSpacing * 2, root.width)
+        spacing: Kirigami.Units.smallSpacing
 
-        Kirigami.Separator {
-            Kirigami.FormData.label: i18n("Search & Source")
-            Kirigami.FormData.isSection: true
+        Kirigami.Heading {
+            text: i18n("Current Wallpaper")
+            level: 3
+            Layout.alignment: Qt.AlignHCenter
         }
 
-        QtControls2.ComboBox {
-            id: browseModeCombo
-            Kirigami.FormData.label: i18n("Browse mode:")
-            textRole: "label"
-            valueRole: "value"
-            model: [
-                { label: i18n("Search"), value: "search" },
-                { label: i18n("Collection"), value: "collection" },
-                { label: i18n("Favorites"), value: "favorites" },
-            ]
+        Rectangle {
+            id: previewFrame
+            Layout.preferredWidth: root.previewWidth
+            Layout.preferredHeight: root.previewHeight
+            Layout.alignment: Qt.AlignHCenter
+            color: Kirigami.Theme.backgroundColor
+            border.color: Kirigami.Theme.disabledTextColor
+            border.width: 1
+            radius: Kirigami.Units.smallSpacing
+            clip: true
+
+            // Prefer Wallhaven thumb; cache is a screen-grab fallback.
+            Image {
+                id: thumbPreviewImage
+                anchors.fill: parent
+                anchors.margins: 1
+                fillMode: Image.PreserveAspectCrop
+                source: root.previewThumbUrl
+                asynchronous: true
+                cache: false
+                visible: status === Image.Ready
+            }
+
+            Image {
+                id: filePreviewImage
+                anchors.fill: parent
+                anchors.margins: 1
+                fillMode: Image.PreserveAspectCrop
+                source: root.previewFileUrl
+                asynchronous: true
+                cache: false
+                visible: !thumbPreviewImage.visible && status === Image.Ready
+            }
+
+            Kirigami.Icon {
+                anchors.centerIn: parent
+                width: Kirigami.Units.iconSizes.large
+                height: width
+                source: (root.previewFileUrl || root.previewThumbUrl)
+                    ? "image-loading"
+                    : "image-x-generic"
+                visible: !thumbPreviewImage.visible && !filePreviewImage.visible
+            }
         }
 
-        QtControls2.TextField {
-            id: searchTextField
-            Kirigami.FormData.label: i18n("Search string:")
-            placeholderText: i18n("Tags, keywords, e.g. nature anime")
+        QtControls2.Label {
+            Layout.fillWidth: true
+            Layout.maximumWidth: root.previewWidth
+            Layout.alignment: Qt.AlignHCenter
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.WordWrap
+            text: root.previewAttribution !== ""
+                ? root.previewAttribution
+                : i18n("No wallpaper loaded yet. Apply Wallhaven as the wallpaper type and wait for the first image.")
+            opacity: root.previewAttribution !== "" ? 1 : 0.7
         }
 
-        QtControls2.TextField {
-            id: apiKeyField
-            Kirigami.FormData.label: i18n("API key:")
-            placeholderText: i18n("Optional; required for NSFW and favorites")
-            echoMode: TextInput.Password
+        QtControls2.Label {
+            Layout.fillWidth: true
+            Layout.maximumWidth: root.previewWidth
+            Layout.alignment: Qt.AlignHCenter
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.WordWrap
+            font.pointSize: Kirigami.Theme.smallFont.pointSize
+            opacity: 0.7
+            text: i18n("Use desktop → Wallpaper Actions for Reload / Next / Previous / Open in Browser / Save.")
+        }
+    }
+
+    Item {
+        Layout.fillWidth: true
+        Layout.preferredHeight: tabBar.implicitHeight
+
+        QtControls2.TabBar {
+            id: tabBar
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: implicitWidth
+
+            QtControls2.TabButton { text: i18n("Source") }
+            QtControls2.TabButton { text: i18n("Filters") }
+            QtControls2.TabButton { text: i18n("Playback") }
+            QtControls2.TabButton { text: i18n("Advanced") }
+        }
+    }
+
+    StackLayout {
+        id: tabs
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        currentIndex: tabBar.currentIndex
+
+        // Source
+        QtControls2.ScrollView {
+            id: sourceScroll
+            contentWidth: availableWidth
+            clip: true
+
+            Kirigami.FormLayout {
+                id: sourceForm
+                width: sourceScroll.availableWidth
+                twinFormLayouts: typeof appearanceRoot !== "undefined" ? [appearanceRoot.parentLayout] : []
+
+                QtControls2.ComboBox {
+                    id: browseModeCombo
+                    Kirigami.FormData.label: i18n("Browse mode:")
+                    textRole: "label"
+                    valueRole: "value"
+                    model: [
+                        { label: i18n("Search"), value: "search" },
+                        { label: i18n("Collection"), value: "collection" },
+                        { label: i18n("Favorites"), value: "favorites" },
+                    ]
+                }
+
+                QtControls2.TextField {
+                    id: searchTextField
+                    Kirigami.FormData.label: i18n("Search string:")
+                    placeholderText: i18n("Tags, keywords, e.g. nature anime")
+                    visible: browseModeCombo.currentValue === "search"
+                }
+
+                QtControls2.TextField {
+                    id: apiKeyField
+                    Kirigami.FormData.label: i18n("API key:")
+                    placeholderText: i18n("Optional; required for NSFW and favorites")
+                    echoMode: TextInput.Password
+                }
+
+                QtControls2.TextField {
+                    id: collectionUserField
+                    Kirigami.FormData.label: i18n("Collection user:")
+                    placeholderText: i18n("Username for collection/favorites override")
+                    visible: browseModeCombo.currentValue !== "search"
+                }
+
+                QtControls2.TextField {
+                    id: collectionIdField
+                    Kirigami.FormData.label: i18n("Collection ID:")
+                    visible: browseModeCombo.currentValue === "collection"
+                }
+
+                QtControls2.ComboBox {
+                    id: sortingsCombo
+                    Kirigami.FormData.label: i18n("API sorting:")
+                    textRole: "label"
+                    valueRole: "value"
+                    visible: browseModeCombo.currentValue === "search"
+                    model: [
+                        { label: i18n("Random"), value: "random" },
+                        { label: i18n("Date added"), value: "date_added" },
+                        { label: i18n("Relevance"), value: "relevance" },
+                        { label: i18n("Views"), value: "views" },
+                        { label: i18n("Favorites"), value: "favorites" },
+                        { label: i18n("Toplist"), value: "toplist" },
+                    ]
+                }
+
+                QtControls2.ComboBox {
+                    id: topRangeCombo
+                    Kirigami.FormData.label: i18n("Toplist range:")
+                    textRole: "label"
+                    valueRole: "value"
+                    visible: browseModeCombo.currentValue === "search" && sortingsCombo.currentValue === "toplist"
+                    model: [
+                        { label: "1d", value: "1d" },
+                        { label: "1w", value: "1w" },
+                        { label: "1M", value: "1M" },
+                        { label: "3M", value: "3M" },
+                        { label: "1y", value: "1y" },
+                    ]
+                }
+
+                QtControls2.ComboBox {
+                    id: orderCombo
+                    Kirigami.FormData.label: i18n("API order:")
+                    textRole: "label"
+                    valueRole: "value"
+                    visible: browseModeCombo.currentValue === "search"
+                    model: [
+                        { label: i18n("Descending"), value: "desc" },
+                        { label: i18n("Ascending"), value: "asc" },
+                    ]
+                }
+
+                QtControls2.ComboBox {
+                    id: localSortingsCombo
+                    Kirigami.FormData.label: i18n("Local sorting:")
+                    textRole: "label"
+                    valueRole: "value"
+                    model: [
+                        { label: i18n("Ascending"), value: "ascending" },
+                        { label: i18n("Descending"), value: "descending" },
+                        { label: i18n("Random"), value: "random" },
+                    ]
+                }
+            }
         }
 
-        QtControls2.TextField {
-            id: collectionUserField
-            Kirigami.FormData.label: i18n("Collection user:")
-            placeholderText: i18n("Username for collection/favorites override")
+        // Filters
+        QtControls2.ScrollView {
+            id: filtersScroll
+            contentWidth: availableWidth
+            clip: true
+
+            Kirigami.FormLayout {
+                width: filtersScroll.availableWidth
+
+                readonly property bool searchFilters: browseModeCombo.currentValue === "search"
+
+                Kirigami.InlineMessage {
+                    Layout.fillWidth: true
+                    visible: !parent.searchFilters
+                    type: Kirigami.MessageType.Information
+                    text: i18n("Category, purity, ratio, color, blacklist, and time-of-day filters apply to Search mode only. Collection and Favorites use the collection API as-is.")
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Categories")
+                    Kirigami.FormData.isSection: true
+                    visible: parent.searchFilters
+                }
+
+                QtControls2.CheckBox { id: generalCheck; Kirigami.FormData.label: i18n("General:"); text: i18n("Enabled"); visible: parent.searchFilters }
+                QtControls2.CheckBox { id: animeCheck; Kirigami.FormData.label: i18n("Anime:"); text: i18n("Enabled"); visible: parent.searchFilters }
+                QtControls2.CheckBox { id: peopleCheck; Kirigami.FormData.label: i18n("People:"); text: i18n("Enabled"); visible: parent.searchFilters }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Purity")
+                    Kirigami.FormData.isSection: true
+                    visible: parent.searchFilters
+                }
+
+                QtControls2.CheckBox { id: sfwCheck; Kirigami.FormData.label: i18n("SFW:"); text: i18n("Enabled"); visible: parent.searchFilters }
+                QtControls2.CheckBox { id: sketchyCheck; Kirigami.FormData.label: i18n("Sketchy:"); text: i18n("Enabled"); visible: parent.searchFilters }
+                QtControls2.CheckBox { id: nsfwCheck; Kirigami.FormData.label: i18n("NSFW:"); text: i18n("Enabled"); visible: parent.searchFilters }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Resolution & Ratio")
+                    Kirigami.FormData.isSection: true
+                    visible: parent.searchFilters
+                }
+
+                QtControls2.TextField {
+                    id: minWidthField
+                    Kirigami.FormData.label: i18n("Min width:")
+                    placeholderText: i18n("Empty = screen width")
+                    visible: parent.searchFilters
+                }
+
+                QtControls2.TextField {
+                    id: minHeightField
+                    Kirigami.FormData.label: i18n("Min height:")
+                    placeholderText: i18n("Empty = screen height")
+                    visible: parent.searchFilters
+                }
+
+                QtControls2.TextField {
+                    id: resolutionsField
+                    Kirigami.FormData.label: i18n("Exact resolutions:")
+                    placeholderText: i18n("e.g. 1920x1080,2560x1440")
+                    visible: parent.searchFilters
+                }
+
+                QtControls2.ComboBox {
+                    id: ratioCombo
+                    Kirigami.FormData.label: i18n("Ratio:")
+                    textRole: "label"
+                    valueRole: "value"
+                    visible: parent.searchFilters
+                    model: [
+                        { label: i18n("All wide"), value: "landscape" },
+                        { label: "16×9", value: "16x9" },
+                        { label: "21×9", value: "21x9" },
+                        { label: "32×9", value: "32x9" },
+                        { label: i18n("All portrait"), value: "portrait" },
+                        { label: "9×16", value: "9x16" },
+                    ]
+                }
+
+                QtControls2.ComboBox {
+                    id: colorCombo
+                    Kirigami.FormData.label: i18n("Color:")
+                    textRole: "label"
+                    valueRole: "value"
+                    visible: parent.searchFilters
+                    model: [
+                        { label: i18n("Any"), value: "" },
+                        { label: i18n("System color scheme"), value: "system" },
+                        { label: i18n("Red"), value: "660000" },
+                        { label: i18n("Dark Red"), value: "990000" },
+                        { label: i18n("Bright Red"), value: "cc0000" },
+                        { label: i18n("Pink Red"), value: "cc3333" },
+                        { label: i18n("Pink"), value: "ea4c88" },
+                        { label: i18n("Purple"), value: "993399" },
+                        { label: i18n("Dark Purple"), value: "663399" },
+                        { label: i18n("Blue Purple"), value: "333399" },
+                        { label: i18n("Blue"), value: "0066cc" },
+                        { label: i18n("Cyan Blue"), value: "0099cc" },
+                        { label: i18n("Teal"), value: "66cccc" },
+                        { label: i18n("Green"), value: "77cc33" },
+                        { label: i18n("Dark Green"), value: "669900" },
+                        { label: i18n("Forest"), value: "336600" },
+                        { label: i18n("Olive"), value: "666600" },
+                        { label: i18n("Yellow Green"), value: "999900" },
+                        { label: i18n("Yellow"), value: "cccc33" },
+                        { label: i18n("Bright Yellow"), value: "ffff00" },
+                        { label: i18n("Gold"), value: "ffcc33" },
+                        { label: i18n("Orange"), value: "ff9900" },
+                        { label: i18n("Dark Orange"), value: "ff6600" },
+                        { label: i18n("Brown"), value: "cc6633" },
+                        { label: i18n("Tan"), value: "996633" },
+                        { label: i18n("Dark Brown"), value: "663300" },
+                        { label: i18n("Black"), value: "000000" },
+                        { label: i18n("Gray"), value: "999999" },
+                        { label: i18n("Light Gray"), value: "cccccc" },
+                        { label: i18n("White"), value: "ffffff" },
+                        { label: i18n("Slate"), value: "424153" },
+                    ]
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Other")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.CheckBox {
+                    id: blacklistCheck
+                    Kirigami.FormData.label: i18n("Account blacklist:")
+                    text: i18n("Apply Wallhaven tag blacklist (Search + API key)")
+                    visible: parent.searchFilters
+                }
+
+                QtControls2.CheckBox {
+                    id: dedupCheck
+                    Kirigami.FormData.label: i18n("Duplicates:")
+                    text: i18n("Avoid recent duplicates (saved across restarts)")
+                }
+            }
         }
 
-        QtControls2.TextField {
-            id: collectionIdField
-            Kirigami.FormData.label: i18n("Collection ID:")
+        // Playback & effects
+        QtControls2.ScrollView {
+            id: playbackScroll
+            contentWidth: availableWidth
+            clip: true
+
+            Kirigami.FormLayout {
+                width: playbackScroll.availableWidth
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Slideshow")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.SpinBox {
+                    id: intervalSpin
+                    Kirigami.FormData.label: i18n("Interval (min):")
+                    from: 0
+                    to: 10080
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    text: i18n("0 = manual only (desktop Wallpaper Actions)")
+                    opacity: 0.7
+                    wrapMode: Text.WordWrap
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Effects")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.ComboBox {
+                    id: qualityCombo
+                    Kirigami.FormData.label: i18n("Image quality:")
+                    textRole: "label"
+                    valueRole: "value"
+                    model: [
+                        { label: i18n("Small (thumbnail, low bandwidth)"), value: "small" },
+                        { label: i18n("Large (full wallpaper)"), value: "large" },
+                        { label: i18n("Original (full wallpaper)"), value: "original" },
+                    ]
+                }
+
+                QtControls2.SpinBox {
+                    id: crossfadeSpin
+                    Kirigami.FormData.label: i18n("Crossfade (ms):")
+                    from: 0
+                    to: 3000
+                    stepSize: 100
+                }
+
+                QtControls2.CheckBox {
+                    id: kenBurnsCheck
+                    Kirigami.FormData.label: i18n("Ken Burns:")
+                    text: i18n("Slow pan/zoom")
+                }
+
+                QtControls2.SpinBox {
+                    id: kenBurnsSpeedSpin
+                    Kirigami.FormData.label: i18n("Ken Burns speed:")
+                    from: 1
+                    to: 100
+                    enabled: kenBurnsCheck.checked
+                }
+
+                QtControls2.CheckBox {
+                    id: attributionCheck
+                    Kirigami.FormData.label: i18n("Attribution:")
+                    text: i18n("Show overlay on desktop")
+                }
+            }
         }
 
-        Kirigami.Separator {
-            Kirigami.FormData.label: i18n("Filters")
-            Kirigami.FormData.isSection: true
+        // Advanced
+        QtControls2.ScrollView {
+            id: advancedScroll
+            contentWidth: availableWidth
+            clip: true
+
+            Kirigami.FormLayout {
+                width: advancedScroll.availableWidth
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Network & Retries")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.SpinBox {
+                    id: requestTimeoutSpin
+                    Kirigami.FormData.label: i18n("Request timeout (sec):")
+                    from: 5
+                    to: 120
+                }
+
+                QtControls2.SpinBox {
+                    id: retryDelaySpin
+                    Kirigami.FormData.label: i18n("Retry delay (sec):")
+                    from: 1
+                    to: 300
+                }
+
+                QtControls2.SpinBox {
+                    id: retryAttemptsSpin
+                    Kirigami.FormData.label: i18n("Max retry attempts:")
+                    from: 1
+                    to: 20
+                }
+
+                QtControls2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: i18n("Timeout is per request. Retries use the delay with exponential backoff, up to the max attempts.")
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Notifications")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.CheckBox {
+                    id: notifyRefreshCheck
+                    Kirigami.FormData.label: i18n("On refresh:")
+                    text: i18n("System notification when wallpaper changes")
+                }
+
+                QtControls2.CheckBox {
+                    id: notifyErrorCheck
+                    Kirigami.FormData.label: i18n("On errors:")
+                    text: i18n("System notification for errors and warnings")
+                }
+
+                QtControls2.CheckBox {
+                    id: statusBannerCheck
+                    Kirigami.FormData.label: i18n("Desktop banner:")
+                    text: i18n("Show status messages on the wallpaper")
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Performance")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.CheckBox {
+                    id: diskCacheCheck
+                    Kirigami.FormData.label: i18n("Disk cache:")
+                    text: i18n("Cache recent wallpapers locally (faster revisits)")
+                }
+
+                QtControls2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: i18n("Images are decoded to screen size. The inactive crossfade layer is released, and settings preview writes are deferred.")
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Time of Day")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: i18n("Time-of-day searches apply in Search mode only (6am–8pm day, otherwise night).")
+                }
+
+                QtControls2.CheckBox {
+                    id: timeOfDayCheck
+                    Kirigami.FormData.label: i18n("Time of day:")
+                    text: i18n("Use separate day/night searches")
+                }
+
+                QtControls2.TextField {
+                    id: daySearchField
+                    Kirigami.FormData.label: i18n("Day search:")
+                    placeholderText: i18n("6am–8pm")
+                    enabled: timeOfDayCheck.checked
+                }
+
+                QtControls2.TextField {
+                    id: nightSearchField
+                    Kirigami.FormData.label: i18n("Night search:")
+                    placeholderText: i18n("8pm–6am")
+                    enabled: timeOfDayCheck.checked
+                }
+            }
         }
+    }
 
-        QtControls2.CheckBox { id: generalCheck; Kirigami.FormData.label: i18n("General:"); text: i18n("Enabled") }
-        QtControls2.CheckBox { id: animeCheck; Kirigami.FormData.label: i18n("Anime:"); text: i18n("Enabled") }
-        QtControls2.CheckBox { id: peopleCheck; Kirigami.FormData.label: i18n("People:"); text: i18n("Enabled") }
-        QtControls2.CheckBox { id: sfwCheck; Kirigami.FormData.label: i18n("SFW:"); text: i18n("Enabled") }
-        QtControls2.CheckBox { id: sketchyCheck; Kirigami.FormData.label: i18n("Sketchy:"); text: i18n("Enabled") }
-        QtControls2.CheckBox { id: nsfwCheck; Kirigami.FormData.label: i18n("NSFW:"); text: i18n("Enabled") }
-
-        QtControls2.TextField {
-            id: minWidthField
-            Kirigami.FormData.label: i18n("Min width:")
-            placeholderText: i18n("Empty = screen width")
+    Connections {
+        target: wallpaperConfiguration
+        enabled: wallpaperConfiguration !== null
+        function onPreviewImageChanged() {
+            filePreviewImage.source = "";
+            filePreviewImage.source = root.previewFileUrl;
         }
-
-        QtControls2.TextField {
-            id: minHeightField
-            Kirigami.FormData.label: i18n("Min height:")
-            placeholderText: i18n("Empty = screen height")
+        function onPreviewThumbUrlChanged() {
+            thumbPreviewImage.source = "";
+            thumbPreviewImage.source = root.previewThumbUrl;
         }
-
-        QtControls2.TextField {
-            id: resolutionsField
-            Kirigami.FormData.label: i18n("Exact resolutions:")
-            placeholderText: i18n("e.g. 1920x1080,2560x1440")
+        function onPreviewWallpaperIdChanged() {
+            thumbPreviewImage.source = "";
+            thumbPreviewImage.source = root.previewThumbUrl;
         }
-
-        QtControls2.ComboBox {
-            id: ratioCombo
-            Kirigami.FormData.label: i18n("Ratio:")
-            textRole: "label"
-            valueRole: "value"
-            model: [
-                { label: i18n("All wide"), value: "landscape" },
-                { label: "16×9", value: "16x9" },
-                { label: "21×9", value: "21x9" },
-                { label: "32×9", value: "32x9" },
-                { label: "All portrait", value: "portrait" },
-                { label: "9×16", value: "9x16" },
-            ]
-        }
-
-        QtControls2.ComboBox {
-            id: colorCombo
-            Kirigami.FormData.label: i18n("Color:")
-            textRole: "label"
-            valueRole: "value"
-            model: [
-                { label: i18n("Any"), value: "" },
-                { label: i18n("Blue"), value: "0066cc" },
-                { label: i18n("Green"), value: "77cc33" },
-                { label: i18n("Red"), value: "cc0000" },
-                { label: i18n("Purple"), value: "663399" },
-                { label: i18n("Black"), value: "000000" },
-            ]
-        }
-
-        QtControls2.ComboBox {
-            id: sortingsCombo
-            Kirigami.FormData.label: i18n("API sorting:")
-            textRole: "label"
-            valueRole: "value"
-            model: [
-                { label: "random", value: "random" },
-                { label: "date_added", value: "date_added" },
-                { label: "relevance", value: "relevance" },
-                { label: "views", value: "views" },
-                { label: "favorites", value: "favorites" },
-                { label: "toplist", value: "toplist" },
-            ]
-        }
-
-        QtControls2.ComboBox {
-            id: topRangeCombo
-            Kirigami.FormData.label: i18n("Toplist range:")
-            textRole: "label"
-            valueRole: "value"
-            model: [
-                { label: "1d", value: "1d" },
-                { label: "1w", value: "1w" },
-                { label: "1M", value: "1M" },
-                { label: "3M", value: "3M" },
-                { label: "1y", value: "1y" },
-            ]
-        }
-
-        QtControls2.ComboBox {
-            id: localSortingsCombo
-            Kirigami.FormData.label: i18n("Local sorting:")
-            textRole: "label"
-            valueRole: "value"
-            model: [
-                { label: i18n("Ascending"), value: "ascending" },
-                { label: i18n("Descending"), value: "descending" },
-                { label: i18n("Random"), value: "random" },
-            ]
-        }
-
-        QtControls2.ComboBox {
-            id: orderCombo
-            Kirigami.FormData.label: i18n("API order:")
-            textRole: "label"
-            valueRole: "value"
-            model: [
-                { label: i18n("Descending"), value: "desc" },
-                { label: i18n("Ascending"), value: "asc" },
-            ]
-        }
-
-        QtControls2.CheckBox {
-            id: blacklistCheck
-            Kirigami.FormData.label: i18n("Account blacklist:")
-            text: i18n("Apply Wallhaven tag blacklist")
-        }
-
-        QtControls2.CheckBox {
-            id: dedupCheck
-            Kirigami.FormData.label: i18n("Duplicates:")
-            text: i18n("Avoid recent duplicates (session)")
-        }
-
-        Kirigami.Separator {
-            Kirigami.FormData.label: i18n("Playback")
-            Kirigami.FormData.isSection: true
-        }
-
-        QtControls2.SpinBox {
-            id: intervalSpin
-            Kirigami.FormData.label: i18n("Interval (min):")
-            from: 0
-            to: 10080
-        }
-
-        QtControls2.SpinBox {
-            id: clicksAdvanceSpin
-            Kirigami.FormData.label: i18n("Clicks forward:")
-            from: 1
-            to: 10
-        }
-
-        QtControls2.SpinBox {
-            id: clicksBackSpin
-            Kirigami.FormData.label: i18n("Clicks back:")
-            from: 0
-            to: 10
-        }
-
-        Kirigami.Separator {
-            Kirigami.FormData.label: i18n("Effects")
-            Kirigami.FormData.isSection: true
-        }
-
-        QtControls2.ComboBox {
-            id: qualityCombo
-            Kirigami.FormData.label: i18n("Image quality:")
-            textRole: "label"
-            valueRole: "value"
-            model: [
-                { label: i18n("Small"), value: "small" },
-                { label: i18n("Large"), value: "large" },
-                { label: i18n("Original"), value: "original" },
-            ]
-        }
-
-        QtControls2.SpinBox {
-            id: crossfadeSpin
-            Kirigami.FormData.label: i18n("Crossfade (ms):")
-            from: 0
-            to: 3000
-            stepSize: 100
-        }
-
-        QtControls2.CheckBox {
-            id: kenBurnsCheck
-            Kirigami.FormData.label: i18n("Ken Burns:")
-            text: i18n("Slow pan/zoom")
-        }
-
-        QtControls2.SpinBox {
-            id: kenBurnsSpeedSpin
-            Kirigami.FormData.label: i18n("Ken Burns speed:")
-            from: 1
-            to: 100
-        }
-
-        QtControls2.CheckBox {
-            id: attributionCheck
-            Kirigami.FormData.label: i18n("Attribution:")
-            text: i18n("Show overlay")
-        }
-
-        Kirigami.Separator {
-            Kirigami.FormData.label: i18n("Time of Day")
-            Kirigami.FormData.isSection: true
-        }
-
-        QtControls2.CheckBox {
-            id: timeOfDayCheck
-            Kirigami.FormData.label: i18n("Time of day:")
-            text: i18n("Use separate day/night searches")
-        }
-
-        QtControls2.TextField {
-            id: daySearchField
-            Kirigami.FormData.label: i18n("Day search:")
-            placeholderText: i18n("6am–8pm")
-        }
-
-        QtControls2.TextField {
-            id: nightSearchField
-            Kirigami.FormData.label: i18n("Night search:")
+        function onPreviewAttributionChanged() {
+            // Aspect may change between portrait/landscape wallpapers.
+            thumbPreviewImage.source = "";
+            thumbPreviewImage.source = root.previewThumbUrl;
         }
     }
 }

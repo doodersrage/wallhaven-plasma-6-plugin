@@ -30,13 +30,24 @@
         <entry name="ExactResolutions" type="String"><default></default></entry>
         <entry name="UseBlacklist" type="Bool"><default>false</default></entry>
         <entry name="DedupEnabled" type="Bool"><default>true</default></entry>
+        <entry name="SeenIdsJson" type="String"><default>[]</default></entry>
         <entry name="KenBurnsEnabled" type="Bool"><default>false</default></entry>
         <entry name="KenBurnsSpeed" type="Int"><default>30</default></entry>
-        <entry name="ShowAttribution" type="Bool"><default>false</default></entry>
-        <entry name="ClicksToAdvance" type="Int"><default>5</default></entry>
-        <entry name="ClicksToGoBack" type="Int"><default>5</default></entry>
+        <entry name="ShowAttribution" type="Bool"><default>true</default></entry>
+        <entry name="RequestTimeoutSec" type="Int"><default>30</default></entry>
+        <entry name="RetryDelaySec" type="Int"><default>15</default></entry>
+        <entry name="RetryAttempts" type="Int"><default>5</default></entry>
+        <entry name="NotifyOnRefresh" type="Bool"><default>false</default></entry>
+        <entry name="NotifyOnError" type="Bool"><default>true</default></entry>
+        <entry name="ShowStatusBanner" type="Bool"><default>true</default></entry>
+        <entry name="DiskCacheEnabled" type="Bool"><default>true</default></entry>
+        <entry name="DiskCacheIndexJson" type="String"><default>{"ids":[],"next":0}</default></entry>
         <entry name="TimeOfDayEnabled" type="Bool"><default>false</default></entry>
         <entry name="DaySearch" type="String"><default></default></entry>
         <entry name="NightSearch" type="String"><default></default></entry>
+        <entry name="PreviewImage" type="String"><default>null</default></entry>
+        <entry name="PreviewWallpaperId" type="String"><default></default></entry>
+        <entry name="PreviewThumbUrl" type="String"><default></default></entry>
+        <entry name="PreviewAttribution" type="String"><default></default></entry>
     </group>
 </kcfg>

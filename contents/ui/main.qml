@@ -1,12 +1,53 @@
 import QtQuick
 import QtQuick.Controls as QQC2
+import QtQuick.Dialogs
+import QtCore
+import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
+import org.kde.kirigami as Kirigami
+import org.kde.notification
 import "../code/wallhaven.js" as Wallhaven
 
 WallpaperItem {
     id: root
 
-    readonly property var cfg: wallpaper.configuration
+    readonly property var cfg: root.configuration
+    readonly property string previewCacheFile: StandardPaths.writableLocation(StandardPaths.CacheLocation)
+        + "/wallhaven-preview.png"
+    readonly property string diskCacheDir: StandardPaths.writableLocation(StandardPaths.CacheLocation)
+
+    // Decode near display size (slightly larger when Ken Burns pans/zooms) to cut RAM/VRAM.
+    readonly property size wallpaperSourceSize: {
+        var w = Math.max(640, Math.round(width) || 1920);
+        var h = Math.max(360, Math.round(height) || 1080);
+        if (cfg.KenBurnsEnabled) {
+            w = Math.round(w * 1.25);
+            h = Math.round(h * 1.25);
+        }
+        var maxEdge = 3840;
+        var edge = Math.max(w, h);
+        if (edge > maxEdge) {
+            var scale = maxEdge / edge;
+            w = Math.round(w * scale);
+            h = Math.round(h * scale);
+        }
+        return Qt.size(w, h);
+    }
+
+    readonly property string systemAccentHex: {
+        var c = Kirigami.Theme.highlightColor;
+        function channel(value) {
+            var hex = Math.max(0, Math.min(255, Math.round(value * 255))).toString(16);
+            return hex.length === 1 ? "0" + hex : hex;
+        }
+        return channel(c.r) + channel(c.g) + channel(c.b);
+    }
+
+    onSystemAccentHexChanged: {
+        if (root._configured && cfg.ColorFilter === "system") {
+            engine.resetSlideshow();
+        }
+    }
 
     property string currentUrl: ""
     property string statusMessage: ""
@@ -14,10 +55,261 @@ WallpaperItem {
     property bool statusVisible: false
     property string attributionText: ""
     property bool activeIsForeground: false
+    property var currentWallpaper: null
 
-    property int _forwardClicks: 0
-    property int _backClicks: 0
     property bool _configured: false
+    property bool _previewCapturePending: false
+    property string _timeOfDayPeriod: currentTimeOfDayPeriod()
+    property int _lastScreenWidth: 0
+    property int _lastScreenHeight: 0
+    property int _imageErrorCount: 0
+    property string _pendingImageUrl: ""
+    property string _pendingRemoteUrl: ""
+    property string _pendingWallpaperId: ""
+    property bool _pendingUsedCache: false
+    property bool _configWritePending: false
+    property var _diskCacheIndex: ({ ids: [], next: 0 })
+    property var _diskCacheSaveRequest: null
+    property int _fetchRetryCount: 0
+
+    function currentTimeOfDayPeriod() {
+        var hour = new Date().getHours();
+        return (hour >= 6 && hour < 20) ? "day" : "night";
+    }
+
+    function checkScreenResize() {
+        if (!root._configured || cfg.MinWidth || cfg.MinHeight) {
+            return;
+        }
+        var w = Math.round(root.width);
+        var h = Math.round(root.height);
+        if (root._lastScreenWidth === 0) {
+            root._lastScreenWidth = w;
+            root._lastScreenHeight = h;
+            return;
+        }
+        if (Math.abs(w - root._lastScreenWidth) > 80 || Math.abs(h - root._lastScreenHeight) > 80) {
+            root._lastScreenWidth = w;
+            root._lastScreenHeight = h;
+            engine.resetSlideshow();
+        }
+    }
+
+    onWidthChanged: checkScreenResize()
+    onHeightChanged: checkScreenResize()
+
+    contextualActions: [reloadAction, nextAction, previousAction, openInBrowserAction, saveWallpaperAction]
+
+    PlasmaCore.Action {
+        id: reloadAction
+        text: i18n("Reload Wallpaper")
+        icon.name: "view-refresh"
+        onTriggered: root.reloadWallpaper()
+    }
+
+    PlasmaCore.Action {
+        id: nextAction
+        text: i18n("Next Wallpaper")
+        icon.name: "go-next"
+        onTriggered: root.advanceWallpaper()
+    }
+
+    PlasmaCore.Action {
+        id: previousAction
+        text: i18n("Previous Wallpaper")
+        icon.name: "go-previous"
+        onTriggered: engine.previousWallpaper()
+    }
+
+    PlasmaCore.Action {
+        id: openInBrowserAction
+        text: i18n("Open in Browser")
+        icon.name: "internet-web-browser"
+        enabled: root.currentPageUrl !== ""
+        onTriggered: Qt.openUrlExternally(root.currentPageUrl)
+    }
+
+    PlasmaCore.Action {
+        id: saveWallpaperAction
+        text: i18n("Save Wallpaper…")
+        icon.name: "document-save"
+        enabled: root.currentSaveUrl !== ""
+        onTriggered: root.openSaveWallpaperDialog()
+    }
+
+    readonly property string currentPageUrl: {
+        if (currentWallpaper && currentWallpaper.url) {
+            return currentWallpaper.url;
+        }
+        if (currentWallpaper && currentWallpaper.id) {
+            return "https://wallhaven.cc/w/" + currentWallpaper.id;
+        }
+        if (configuration && configuration.PreviewWallpaperId) {
+            return "https://wallhaven.cc/w/" + configuration.PreviewWallpaperId;
+        }
+        return "";
+    }
+
+    readonly property string currentSaveUrl: {
+        if (currentWallpaper && currentWallpaper.path) {
+            return currentWallpaper.path;
+        }
+        if (currentUrl) {
+            return currentUrl.split("?")[0];
+        }
+        return "";
+    }
+
+    readonly property string currentWallpaperId: {
+        if (currentWallpaper && currentWallpaper.id) {
+            return String(currentWallpaper.id);
+        }
+        if (configuration && configuration.PreviewWallpaperId) {
+            return String(configuration.PreviewWallpaperId);
+        }
+        return "wallpaper";
+    }
+
+    function urlToLocalPath(url) {
+        var path = String(url);
+        if (path.indexOf("file://") === 0) {
+            path = path.substring(7);
+        }
+        return decodeURIComponent(path);
+    }
+
+    function scheduleConfigWrite() {
+        _configWritePending = true;
+        configWriteTimer.restart();
+    }
+
+    function flushConfigWrite() {
+        if (!_configWritePending || !root.configuration || !root.configuration.writeConfig) {
+            _configWritePending = false;
+            return;
+        }
+        _configWritePending = false;
+        root.configuration.writeConfig();
+    }
+
+    function loadDiskCacheIndex() {
+        if (!root.configuration) {
+            _diskCacheIndex = { ids: [], next: 0 };
+            return;
+        }
+        _diskCacheIndex = Wallhaven.parseDiskCacheIndex(root.configuration.DiskCacheIndexJson || "");
+    }
+
+    function persistDiskCacheIndex() {
+        if (!root.configuration) {
+            return;
+        }
+        root.configuration.DiskCacheIndexJson = Wallhaven.serializeDiskCacheIndex(_diskCacheIndex);
+        scheduleConfigWrite();
+    }
+
+    function diskCacheLocalPath(slot) {
+        return diskCacheDir + "/" + Wallhaven.diskCacheFileName(slot);
+    }
+
+    function diskCacheLocalUrl(slot) {
+        return Qt.resolvedUrl("file://" + diskCacheLocalPath(slot)).toString();
+    }
+
+    function resolveImageSource(wallpaper, remoteUrl) {
+        if (!remoteUrl) {
+            return "";
+        }
+        if (!cfg.DiskCacheEnabled || !wallpaper || !wallpaper.id) {
+            return remoteUrl;
+        }
+        var slot = Wallhaven.diskCacheSlotForId(_diskCacheIndex, wallpaper.id);
+        if (slot < 0) {
+            return remoteUrl;
+        }
+        return diskCacheLocalUrl(slot);
+    }
+
+    function releaseInactiveLayer() {
+        if (activeIsForeground) {
+            backgroundImage.source = "";
+        } else {
+            foregroundImage.source = "";
+        }
+    }
+
+    function scheduleDiskCacheSave(img) {
+        if (!cfg.DiskCacheEnabled || !img || _pendingUsedCache || !_pendingWallpaperId) {
+            return;
+        }
+        if (String(img.source) !== String(_pendingImageUrl)) {
+            return;
+        }
+        _diskCacheSaveRequest = {
+            id: _pendingWallpaperId,
+            remoteUrl: _pendingRemoteUrl,
+            image: img,
+        };
+        diskCacheSaveTimer.restart();
+    }
+
+    function writeDiskCacheFromImage() {
+        var req = _diskCacheSaveRequest;
+        _diskCacheSaveRequest = null;
+        if (!req || !req.image || !req.id || !cfg.DiskCacheEnabled) {
+            return;
+        }
+        if (req.image.status !== Image.Ready) {
+            return;
+        }
+        var slot = Wallhaven.allocateDiskCacheSlot(_diskCacheIndex, req.id, Wallhaven.diskCacheSlotCount());
+        if (slot < 0) {
+            return;
+        }
+        var path = diskCacheLocalPath(slot);
+        var size = wallpaperSourceSize;
+        req.image.grabToImage(function(result) {
+            if (!result) {
+                return;
+            }
+            if (result.saveToFile(path)) {
+                persistDiskCacheIndex();
+            }
+        }, size);
+    }
+
+    function openSaveWallpaperDialog() {
+        if (currentSaveUrl === "") {
+            engine.showStatus(i18n("No wallpaper available to save."), "warn");
+            return;
+        }
+        var pictures = StandardPaths.writableLocation(StandardPaths.PicturesLocation);
+        if (!pictures) {
+            pictures = StandardPaths.writableLocation(StandardPaths.HomeLocation);
+        }
+        var folderUrl = "file://" + pictures;
+        var fileName = "wallhaven-" + currentWallpaperId + ".png";
+        saveDialog.currentFolder = folderUrl;
+        saveDialog.selectedFile = folderUrl + "/" + fileName;
+        saveDialog.open();
+    }
+
+    function saveCurrentWallpaper(destUrl) {
+        var destPath = urlToLocalPath(destUrl);
+        if (!destPath) {
+            engine.showStatus(i18n("Could not save wallpaper."), "error");
+            return;
+        }
+        if (destPath.indexOf(".") === -1) {
+            destPath += ".png";
+        }
+
+        engine.showStatus(i18n("Saving wallpaper…"), "info", false);
+        saveSourceImage.pendingPath = destPath;
+        // Force reload even if the same source was used before.
+        saveSourceImage.source = "";
+        saveSourceImage.source = currentSaveUrl;
+    }
 
     QtObject {
         id: engine
@@ -38,8 +330,61 @@ WallpaperItem {
         property string favoritesId: ""
         property bool busy: false
         property string nextPreloadedUrl: ""
+        property int cachedApiPage: 0
+        property int requestId: 0
+        property var activeXhrs: []
+
+        function invalidateRequests() {
+            requestId++;
+            for (var i = 0; i < activeXhrs.length; i++) {
+                try {
+                    activeXhrs[i].abort();
+                } catch (e) {
+                }
+            }
+            activeXhrs = [];
+        }
+
+        function endBusy() {
+            busy = false;
+            root.loading = false;
+        }
+
+        function applyState(state) {
+            page = state.page;
+            index = state.index;
+            usedIndices = state.usedIndices;
+            searchQuery = state.searchQuery;
+            favoritesUser = state.favoritesUser;
+            favoritesId = state.favoritesId;
+        }
+
+        function loadSeenIds() {
+            if (!root.configuration) {
+                return;
+            }
+            seenIds = Wallhaven.parseSeenIds(root.configuration.SeenIdsJson || "[]");
+        }
+
+        function persistSeenIds() {
+            if (!root.configuration) {
+                return;
+            }
+            root.configuration.SeenIdsJson = Wallhaven.serializeSeenIds(seenIds);
+            root.scheduleConfigWrite();
+        }
+
+        function clearSeenIds() {
+            seenIds = [];
+            persistSeenIds();
+        }
 
         function resetSlideshow() {
+            retryTimer.stop();
+            invalidateRequests();
+            endBusy();
+            root._fetchRetryCount = 0;
+            root._imageErrorCount = 0;
             randomSeed = Wallhaven.createRandomSeed();
             page = 1;
             index = 0;
@@ -47,13 +392,78 @@ WallpaperItem {
             total = 0;
             totalShown = 0;
             usedIndices = [];
+            clearSeenIds();
             history = [];
             historyIndex = -1;
             apiData = null;
             searchQuery = "";
             favoritesUser = "";
             favoritesId = "";
-            nextWallpaper(false);
+            nextPreloadedUrl = "";
+            cachedApiPage = 0;
+            fetchFreshWallpaper(false);
+        }
+
+        function fetchFreshWallpaper(fromHistory) {
+            if (busy) {
+                return;
+            }
+            invalidateRequests();
+            busy = true;
+            root.loading = true;
+
+            var activeRequest = requestId;
+
+            function finish(wallpaper, url) {
+                if (activeRequest !== requestId) {
+                    return;
+                }
+                if (!wallpaper || !url) {
+                    showStatus(i18n("Could not load wallpaper."), "warn");
+                    endBusy();
+                    return;
+                }
+                markSeen(wallpaper.id);
+                if (!fromHistory) {
+                    pushHistory({
+                        wallpaper: wallpaper,
+                        url: url,
+                        index: index,
+                        page: page,
+                    });
+                }
+                showStatus("");
+                displayWallpaper(wallpaper, url, true);
+                notifyRefresh(wallpaper);
+                preloadNext();
+                endBusy();
+            }
+
+            function processData(data) {
+                if (activeRequest !== requestId) {
+                    return;
+                }
+                if (!data || !data.data || !data.data.length) {
+                    showStatus(i18n("No wallpapers match your current filters."), "warn");
+                    endBusy();
+                    return;
+                }
+
+                var state = stateObject();
+                var wallpaper = Wallhaven.pickWallpaper(configObject(), state, data.data, true);
+                if (!wallpaper) {
+                    showStatus(i18n("No more wallpapers match your current filters."), "warn");
+                    endBusy();
+                    return;
+                }
+
+                applyState(state);
+                totalShown++;
+                var url = Wallhaven.wallpaperUrl(wallpaper, cfg.ImageQuality);
+                finish(wallpaper, url);
+            }
+
+            fetchApiData(processData, activeRequest);
         }
 
         function configObject() {
@@ -94,37 +504,118 @@ WallpaperItem {
                 lastPage: lastPage,
                 total: total,
                 totalShown: totalShown,
-                usedIndices: usedIndices,
-                seenIds: seenIds,
-                screenWidth: Math.round(root.width),
-                screenHeight: Math.round(root.height),
+                usedIndices: usedIndices.slice(),
+                seenIds: seenIds.slice(),
+                screenWidth: Math.round(root.width) || 1920,
+                screenHeight: Math.round(root.height) || 1080,
                 searchQuery: searchQuery,
                 favoritesUser: favoritesUser,
                 favoritesId: favoritesId,
+                systemAccentHex: root.systemAccentHex,
             };
         }
 
-        function showStatus(message, type, autoHide) {
+        function showStatus(message, type, autoHide, opts) {
+            opts = opts || {};
+            type = type || "info";
             root.statusMessage = message;
-            root.statusType = type || "info";
-            root.statusVisible = message !== "";
-            if (autoHide !== false && message !== "") {
+            root.statusType = type;
+            var showBanner = cfg.ShowStatusBanner !== false;
+            root.statusVisible = showBanner && message !== "";
+            if (autoHide !== false && message !== "" && showBanner) {
                 statusHideTimer.restart();
             }
+            if (message && (type === "error" || type === "warn") && cfg.NotifyOnError && opts.notify !== false) {
+                root.sendSystemNotification(i18n("Wallhaven"), message, true);
+            }
+        }
+
+        function notifyRefresh(wallpaper) {
+            if (!cfg.NotifyOnRefresh || !wallpaper) {
+                return;
+            }
+            var resolution = wallpaper.resolution || (wallpaper.dimension_x + "x" + wallpaper.dimension_y);
+            var text = i18n("Wallpaper #%1", wallpaper.id);
+            if (resolution) {
+                text += " · " + resolution;
+            }
+            root.sendSystemNotification(i18n("Wallhaven"), text, false);
+        }
+
+        function scheduleRetry(delayMs, statusCode) {
+            var baseSec = Math.max(1, cfg.RetryDelaySec || 15);
+            var delay = delayMs;
+            if (!delay || delay < 1000) {
+                delay = baseSec * 1000;
+            }
+            delay = Math.max(1000, Math.min(delay, 300000));
+            retryTimer.interval = delay;
+            var seconds = Math.round(delay / 1000);
+            var attempt = root._fetchRetryCount;
+            var maxAttempts = Math.max(1, cfg.RetryAttempts || 5);
+            // System-notify on the first failure only; later retries stay on the desktop banner.
+            var opts = { notify: attempt <= 1 };
+            if (statusCode === 429) {
+                showStatus(i18n("Rate limited by Wallhaven. Retry %1/%2 in %3s…", attempt, maxAttempts, seconds), "error", false, opts);
+            } else if (statusCode === 0) {
+                showStatus(i18n("Request timed out. Retry %1/%2 in %3s…", attempt, maxAttempts, seconds), "error", false, opts);
+            } else {
+                showStatus(i18n("Request failed (%1). Retry %2/%3 in %4s…", statusCode, attempt, maxAttempts, seconds), "error", false, opts);
+            }
+            retryTimer.restart();
         }
 
         function requestJson(url, onSuccess, onError) {
             var xhr = new XMLHttpRequest();
+            var settled = false;
+            activeXhrs.push(xhr);
+
+            function finishXhr() {
+                var idx = activeXhrs.indexOf(xhr);
+                if (idx !== -1) {
+                    activeXhrs.splice(idx, 1);
+                }
+            }
+
+            function settleError(status, text) {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                finishXhr();
+                onError(status, text);
+            }
+
+            function settleSuccess(json) {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                finishXhr();
+                onSuccess(json);
+            }
+
             xhr.open("GET", url);
             xhr.setRequestHeader("Accept", "application/json");
+            xhr.timeout = Math.max(5, cfg.RequestTimeoutSec || 30) * 1000;
+            xhr.ontimeout = function() {
+                settleError(0, "timeout");
+            };
+            xhr.onerror = function() {
+                settleError(0, "network error");
+            };
             xhr.onreadystatechange = function() {
                 if (xhr.readyState !== XMLHttpRequest.DONE) {
                     return;
                 }
                 if (xhr.status === 200) {
-                    onSuccess(JSON.parse(xhr.responseText));
+                    try {
+                        settleSuccess(JSON.parse(xhr.responseText));
+                    } catch (e) {
+                        settleError(0, "invalid json");
+                    }
                 } else {
-                    onError(xhr.status, xhr.statusText);
+                    settleError(xhr.status, xhr.statusText || "");
                 }
             };
             xhr.send();
@@ -157,8 +648,8 @@ WallpaperItem {
         function resolveFavorites(callback) {
             var config = configObject();
             if (!config.ApiKey) {
-                showStatus("API key required for favorites mode.", "error");
-                busy = false;
+                showStatus(i18n("API key required for favorites mode."), "error");
+                endBusy();
                 return;
             }
             requestJson(Wallhaven.buildCollectionsUrl(config.ApiKey), function(json) {
@@ -175,8 +666,8 @@ WallpaperItem {
                     }
                 }
                 if (!favorite) {
-                    showStatus("No favorites collection found.", "error");
-                    busy = false;
+                    showStatus(i18n("No favorites collection found."), "error");
+                    endBusy();
                     return;
                 }
                 favoritesUser = config.CollectionUser
@@ -187,20 +678,28 @@ WallpaperItem {
                 favoritesId = String(favorite.id);
                 callback();
             }, function(status) {
-                showStatus("Failed to load favorites (" + status + ").", "error");
-                busy = false;
+                showStatus(i18n("Failed to load favorites (%1).", status), "error");
+                endBusy();
             });
         }
 
-        function fetchApiData(onDone) {
+        function fetchApiData(onDone, expectedRequestId) {
             var config = configObject();
+            var fetchRequestId = expectedRequestId !== undefined ? expectedRequestId : requestId;
+
+            function isStale() {
+                return fetchRequestId !== requestId;
+            }
 
             function doFetch() {
+                if (isStale()) {
+                    return;
+                }
                 var url;
                 if (config.BrowseMode === "collection") {
                     if (!config.CollectionUser || !config.CollectionId) {
-                        showStatus("Collection username and ID are required.", "error");
-                        busy = false;
+                        showStatus(i18n("Collection username and ID are required."), "error");
+                        endBusy();
                         return;
                     }
                     url = Wallhaven.buildCollectionUrl(config, stateObject());
@@ -211,20 +710,43 @@ WallpaperItem {
                 }
 
                 requestJson(url, function(json) {
-                    if (!json.data || !json.data.length) {
-                        showStatus("No wallpapers match your current filters.", "warn");
-                        busy = false;
+                    if (isStale()) {
                         onDone(null);
                         return;
                     }
+                    if (!json.data || !json.data.length) {
+                        showStatus(i18n("No wallpapers match your current filters."), "warn");
+                        endBusy();
+                        onDone(null);
+                        return;
+                    }
+                    root._fetchRetryCount = 0;
                     apiData = json;
                     lastPage = json.meta.last_page;
                     total = json.meta.total;
+                    cachedApiPage = page;
                     onDone(json);
                 }, function(status) {
-                    showStatus("Wallhaven request failed (" + status + "). Retrying…", "error");
-                    retryTimer.start();
-                    busy = false;
+                    if (isStale()) {
+                        onDone(null);
+                        return;
+                    }
+                    root._fetchRetryCount++;
+                    var maxAttempts = Math.max(1, cfg.RetryAttempts || 5);
+                    var baseSec = Math.max(1, cfg.RetryDelaySec || 15);
+                    if (root._fetchRetryCount > maxAttempts) {
+                        showStatus(i18n("Wallhaven request failed after %1 attempts.", maxAttempts), "error");
+                        endBusy();
+                        onDone(null);
+                        return;
+                    }
+                    var delay = baseSec * 1000 * Math.pow(2, Math.min(root._fetchRetryCount - 1, 3));
+                    delay = Math.min(delay, 300000);
+                    if (status === 429) {
+                        delay = Math.max(delay, baseSec * 1000);
+                    }
+                    scheduleRetry(delay, status);
+                    endBusy();
                     onDone(null);
                 });
             }
@@ -250,12 +772,14 @@ WallpaperItem {
                 if (seenIds.length > 500) {
                     seenIds = seenIds.slice(-500);
                 }
+                persistSeenIds();
             }
         }
 
         function updateAttribution(wallpaper) {
-            if (!cfg.ShowAttribution || !wallpaper) {
+            if (!wallpaper) {
                 root.attributionText = "";
+                root.syncPreviewMetadata(null);
                 return;
             }
             var resolution = wallpaper.resolution || (wallpaper.dimension_x + "x" + wallpaper.dimension_y);
@@ -263,6 +787,11 @@ WallpaperItem {
             root.attributionText = "Wallhaven #" + wallpaper.id + "\n"
                 + resolution + " · " + wallpaper.category + " · " + wallpaper.purity + "\n"
                 + link;
+            root.syncPreviewMetadata(wallpaper);
+
+            if (!cfg.ShowAttribution) {
+                return;
+            }
 
             requestJson(Wallhaven.buildWallpaperUrl(wallpaper.id, cfg.ApiKey), function(json) {
                 if (!json.data) {
@@ -273,6 +802,7 @@ WallpaperItem {
                     root.attributionText = "Wallhaven #" + wallpaper.id + "\n"
                         + resolution + " · " + wallpaper.category + " · " + wallpaper.purity + "\n"
                         + tags + "\n" + link;
+                    root.syncPreviewMetadata(wallpaper);
                 }
             }, function() {});
         }
@@ -281,8 +811,12 @@ WallpaperItem {
             if (!url) {
                 return;
             }
-            root.showImage(url, immediate);
-            root.currentUrl = url;
+            root.currentWallpaper = wallpaper;
+            root._pendingRemoteUrl = url;
+            root._pendingWallpaperId = wallpaper && wallpaper.id ? String(wallpaper.id) : "";
+            var source = root.resolveImageSource(wallpaper, url);
+            root._pendingUsedCache = source !== url && source.indexOf("file:") === 0;
+            root.showImage(source, immediate);
             updateAttribution(wallpaper);
             kenBurnsAnimation.restart();
         }
@@ -309,20 +843,56 @@ WallpaperItem {
             if (!apiData || !apiData.data || !apiData.data.length) {
                 return;
             }
-            var dryState = stateObject();
-            var wallpaper = Wallhaven.advanceIndex(configObject(), dryState, apiData.data, true);
-            preloadUrl(Wallhaven.wallpaperUrl(wallpaper, cfg.ImageQuality));
+            var state = stateObject();
+            var wallpaper = Wallhaven.peekNextWallpaper(configObject(), state, apiData.data);
+            if (wallpaper) {
+                var remote = Wallhaven.wallpaperUrl(wallpaper, cfg.ImageQuality);
+                preloadUrl(root.resolveImageSource(wallpaper, remote));
+            }
+        }
+
+        function advanceToNextPage() {
+            page++;
+            var wrapped = false;
+            if (lastPage > 0 && page > lastPage) {
+                page = 1;
+                randomSeed = Wallhaven.createRandomSeed();
+                wrapped = true;
+            }
+            index = 0;
+            usedIndices = [];
+            // Only clear dedup when the catalog wraps, so duplicates stay avoided across pages.
+            if (wrapped) {
+                clearSeenIds();
+            }
+            apiData = null;
+            cachedApiPage = 0;
+        }
+
+        function skipForward() {
+            retryTimer.stop();
+            endBusy();
+            showStatus(i18n("Loading next wallpaper…"), "info");
+            nextWallpaper(false);
         }
 
         function nextWallpaper(fromHistory) {
             if (busy) {
                 return;
             }
+            invalidateRequests();
             busy = true;
+            root.loading = true;
+
+            var activeRequest = requestId;
 
             function finish(wallpaper, url) {
+                if (activeRequest !== requestId) {
+                    return;
+                }
                 if (!wallpaper || !url) {
-                    busy = false;
+                    showStatus(i18n("Could not load the next wallpaper."), "warn");
+                    endBusy();
                     return;
                 }
                 markSeen(wallpaper.id);
@@ -334,33 +904,76 @@ WallpaperItem {
                         page: page,
                     });
                 }
+                showStatus("");
                 displayWallpaper(wallpaper, url, false);
+                notifyRefresh(wallpaper);
                 preloadNext();
-                busy = false;
-                root.statusVisible = false;
+                endBusy();
             }
 
-            function processData(data) {
-                if (!data) {
+            function processData(data, depth) {
+                if (activeRequest !== requestId) {
                     return;
                 }
-                var wallpaper = Wallhaven.advanceIndex(configObject(), engine, data.data, false);
-                Wallhaven.updatePageState(configObject(), engine);
+                if (!data || !data.data || !data.data.length) {
+                    if (depth > 0 && activeRequest === requestId) {
+                        showStatus(i18n("No more wallpapers match your current filters."), "warn");
+                    }
+                    endBusy();
+                    return;
+                }
+
+                depth = depth || 0;
+                var state = stateObject();
+                var result = Wallhaven.pickNextWallpaper(configObject(), state, data.data);
+
+                if (!result.wallpaper) {
+                    if (depth >= 20) {
+                        clearSeenIds();
+                        showStatus(i18n("No more wallpapers match your current filters."), "warn");
+                        endBusy();
+                        return;
+                    }
+                    advanceToNextPage();
+                    fetchApiData(function(nextData) {
+                        processData(nextData, depth + 1);
+                    }, activeRequest);
+                    return;
+                }
+
+                Wallhaven.updatePageState(configObject(), state, data.data.length);
+                if (state.needsNewSeed) {
+                    randomSeed = Wallhaven.createRandomSeed();
+                    apiData = null;
+                    cachedApiPage = 0;
+                }
+                if (state.needsSeenClear) {
+                    clearSeenIds();
+                }
+                applyState(state);
                 totalShown++;
-                var url = Wallhaven.wallpaperUrl(wallpaper, cfg.ImageQuality);
-                finish(wallpaper, url);
+
+                if (cachedApiPage !== page) {
+                    apiData = null;
+                    cachedApiPage = 0;
+                }
+
+                var url = Wallhaven.wallpaperUrl(result.wallpaper, cfg.ImageQuality);
+                finish(result.wallpaper, url);
             }
 
-            if (apiData && apiData.data && apiData.data.length) {
-                processData(apiData);
+            if (apiData && apiData.data && apiData.data.length && cachedApiPage === page) {
+                processData(apiData, 0);
                 return;
             }
-            fetchApiData(processData);
+            fetchApiData(function(data) {
+                processData(data, 0);
+            }, activeRequest);
         }
 
         function previousWallpaper() {
             if (historyIndex <= 0) {
-                showStatus("No previous wallpaper in history.", "info");
+                showStatus(i18n("No previous wallpaper in history."), "info");
                 return;
             }
             historyIndex--;
@@ -371,11 +984,70 @@ WallpaperItem {
         }
     }
 
+    function syncPreviewMetadata(wallpaper) {
+        if (!root.configuration) {
+            return;
+        }
+        root.configuration.PreviewAttribution = root.attributionText;
+        root.configuration.PreviewWallpaperId = wallpaper ? String(wallpaper.id) : "";
+        root.configuration.PreviewThumbUrl = wallpaper ? Wallhaven.thumbUrlForId(String(wallpaper.id)) : "";
+        scheduleConfigPreviewCapture();
+        scheduleConfigWrite();
+    }
+
+    function scheduleConfigPreviewCapture() {
+        previewCaptureTimer.restart();
+    }
+
+    function captureConfigPreview() {
+        if (!root.configuration || _previewCapturePending) {
+            return false;
+        }
+
+        var layer = backgroundLayer.opacity > 0 ? backgroundLayer : foregroundLayer;
+        var img = layer === backgroundLayer ? backgroundImage : foregroundImage;
+        if (img.status !== Image.Ready || !img.source) {
+            return false;
+        }
+
+        var captureW = 480;
+        var captureH = 270;
+        if (root.height > root.width && root.width > 0) {
+            captureW = 270;
+            captureH = 480;
+        } else if (root.width > 0 && root.height > 0) {
+            captureH = Math.max(180, Math.round(captureW * root.height / root.width));
+        }
+
+        _previewCapturePending = true;
+        layer.grabToImage(function(result) {
+            _previewCapturePending = false;
+            if (!result || !root.configuration) {
+                return;
+            }
+            if (result.saveToFile(previewCacheFile)) {
+                root.configuration.PreviewImage = Qt.resolvedUrl(previewCacheFile).toString();
+                scheduleConfigWrite();
+            }
+        }, Qt.size(captureW, captureH));
+        return true;
+    }
+
     function showImage(url, immediate) {
         if (!url) {
             return;
         }
 
+        var baseUrl = url.split("#")[0].split("?")[0];
+        var currentBase = currentUrl.split("#")[0].split("?")[0];
+        if (baseUrl === currentBase && currentUrl !== "") {
+            // Bust Qt image cache for forced reloads; keep file:// paths stable.
+            if (baseUrl.indexOf("file:") !== 0) {
+                url = baseUrl + "?_t=" + Date.now();
+            }
+        }
+
+        _pendingImageUrl = url;
         var crossfade = cfg.CrossfadeMs > 0 && !immediate && currentUrl !== "";
 
         if (crossfade) {
@@ -386,37 +1058,142 @@ WallpaperItem {
                 foregroundImage.source = url;
                 crossfadeToForeground.start();
             }
+            currentUrl = url;
             return;
         }
 
         backgroundImage.source = url;
-        foregroundImage.opacity = 0;
+        backgroundLayer.opacity = 1;
+        foregroundLayer.opacity = 0;
+        foregroundImage.source = "";
         activeIsForeground = false;
+        currentUrl = url;
     }
 
-    Image {
-        id: backgroundImage
-        anchors.fill: parent
-        fillMode: Image.PreserveAspectCrop
-        asynchronous: true
-        cache: true
-        transformOrigin: Item.Center
-        scale: kenBurnsAnimation.bgScale
-        x: kenBurnsAnimation.bgX
-        y: kenBurnsAnimation.bgY
+    function handleImageStatus(img) {
+        if (!img || String(img.source) !== String(_pendingImageUrl)) {
+            return;
+        }
+        if (img.status === Image.Ready) {
+            _imageErrorCount = 0;
+            scheduleConfigPreviewCapture();
+            scheduleDiskCacheSave(img);
+            return;
+        }
+        if (img.status !== Image.Error) {
+            return;
+        }
+
+        // Stale/missing cache entry → fall back to the remote URL once.
+        if (_pendingUsedCache && _pendingRemoteUrl) {
+            _pendingUsedCache = false;
+            var slot = Wallhaven.diskCacheSlotForId(_diskCacheIndex, _pendingWallpaperId);
+            if (slot >= 0 && _diskCacheIndex.ids) {
+                _diskCacheIndex.ids[slot] = "";
+                persistDiskCacheIndex();
+            }
+            showImage(_pendingRemoteUrl, true);
+            return;
+        }
+
+        _imageErrorCount++;
+        if (currentWallpaper && currentWallpaper.id) {
+            engine.markSeen(currentWallpaper.id);
+        }
+        if (_imageErrorCount >= 5) {
+            engine.showStatus(i18n("Could not download wallpaper images. Check your connection."), "error");
+            return;
+        }
+        engine.showStatus(i18n("Image failed to load. Trying another…"), "warn");
+        Qt.callLater(function() {
+            engine.skipForward();
+        });
     }
 
-    Image {
-        id: foregroundImage
+    function reloadWallpaper() {
+        engine.showStatus(i18n("Reloading wallpapers…"), "info");
+        engine.resetSlideshow();
+    }
+
+    function advanceWallpaper() {
+        engine.skipForward();
+    }
+
+    function sendSystemNotification(title, text, isError) {
+        if (!text) {
+            return;
+        }
+        var notification = notificationComponent.createObject(root, {
+            title: title || i18n("Wallhaven"),
+            text: text,
+            iconName: isError ? "dialog-error" : "preferences-desktop-wallpaper",
+            urgency: isError ? Notification.HighUrgency : Notification.LowUrgency,
+        });
+        if (notification) {
+            notification.sendEvent();
+        }
+    }
+
+    Component {
+        id: notificationComponent
+        Notification {
+            componentName: "plasma_workspace"
+            eventId: "notification"
+            autoDelete: true
+        }
+    }
+
+    Item {
+        id: backgroundLayer
         anchors.fill: parent
-        fillMode: Image.PreserveAspectCrop
-        asynchronous: true
-        cache: true
+        clip: true
+
+        Item {
+            id: backgroundTransform
+            anchors.centerIn: parent
+            width: parent.width
+            height: parent.height
+            scale: kenBurnsAnimation.bgScale
+            x: kenBurnsAnimation.bgX
+            y: kenBurnsAnimation.bgY
+
+            Image {
+                id: backgroundImage
+                anchors.fill: parent
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                cache: false
+                sourceSize: root.wallpaperSourceSize
+                onStatusChanged: root.handleImageStatus(backgroundImage)
+            }
+        }
+    }
+
+    Item {
+        id: foregroundLayer
+        anchors.fill: parent
+        clip: true
         opacity: 0
-        transformOrigin: Item.Center
-        scale: kenBurnsAnimation.fgScale
-        x: kenBurnsAnimation.fgX
-        y: kenBurnsAnimation.fgY
+
+        Item {
+            id: foregroundTransform
+            anchors.centerIn: parent
+            width: parent.width
+            height: parent.height
+            scale: kenBurnsAnimation.fgScale
+            x: kenBurnsAnimation.fgX
+            y: kenBurnsAnimation.fgY
+
+            Image {
+                id: foregroundImage
+                anchors.fill: parent
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                cache: false
+                sourceSize: root.wallpaperSourceSize
+                onStatusChanged: root.handleImageStatus(foregroundImage)
+            }
+        }
     }
 
     Image {
@@ -424,20 +1201,86 @@ WallpaperItem {
         visible: false
         width: 1
         height: 1
+        asynchronous: true
+        cache: false
+        sourceSize: root.wallpaperSourceSize
+    }
+
+    Image {
+        id: saveSourceImage
+        visible: false
+        asynchronous: true
+        cache: false
+        property string pendingPath: ""
+
+        onStatusChanged: {
+            if (!pendingPath) {
+                return;
+            }
+            if (status === Image.Error) {
+                var failedPath = pendingPath;
+                pendingPath = "";
+                engine.showStatus(i18n("Could not download wallpaper to save."), "error");
+                return;
+            }
+            if (status !== Image.Ready) {
+                return;
+            }
+
+            var destPath = pendingPath;
+            pendingPath = "";
+            var width = sourceSize.width > 0 ? sourceSize.width : 1920;
+            var height = sourceSize.height > 0 ? sourceSize.height : 1080;
+            // Cap extremely large images so grab stays reliable.
+            var maxEdge = 5120;
+            if (width > maxEdge || height > maxEdge) {
+                var scale = maxEdge / Math.max(width, height);
+                width = Math.round(width * scale);
+                height = Math.round(height * scale);
+            }
+
+            grabToImage(function(result) {
+                if (result && result.saveToFile(destPath)) {
+                    engine.showStatus(i18n("Wallpaper saved."), "info");
+                } else {
+                    engine.showStatus(i18n("Could not save wallpaper."), "error");
+                }
+            }, Qt.size(width, height));
+        }
+    }
+
+    FileDialog {
+        id: saveDialog
+        fileMode: FileDialog.SaveFile
+        title: i18n("Save Wallpaper")
+        nameFilters: [
+            i18n("PNG image (*.png)"),
+            i18n("JPEG image (*.jpg *.jpeg)"),
+        ]
+        defaultSuffix: "png"
+        onAccepted: root.saveCurrentWallpaper(selectedFile)
     }
 
     ParallelAnimation {
         id: crossfadeToForeground
-        NumberAnimation { target: foregroundImage; property: "opacity"; to: 1; duration: cfg.CrossfadeMs }
-        NumberAnimation { target: backgroundImage; property: "opacity"; to: 0; duration: cfg.CrossfadeMs }
+        NumberAnimation { target: foregroundLayer; property: "opacity"; to: 1; duration: cfg.CrossfadeMs }
+        NumberAnimation { target: backgroundLayer; property: "opacity"; to: 0; duration: cfg.CrossfadeMs }
         onStarted: activeIsForeground = true
+        onFinished: {
+            root.releaseInactiveLayer();
+            scheduleConfigPreviewCapture();
+        }
     }
 
     ParallelAnimation {
         id: crossfadeToBackground
-        NumberAnimation { target: backgroundImage; property: "opacity"; to: 1; duration: cfg.CrossfadeMs }
-        NumberAnimation { target: foregroundImage; property: "opacity"; to: 0; duration: cfg.CrossfadeMs }
+        NumberAnimation { target: backgroundLayer; property: "opacity"; to: 1; duration: cfg.CrossfadeMs }
+        NumberAnimation { target: foregroundLayer; property: "opacity"; to: 0; duration: cfg.CrossfadeMs }
         onStarted: activeIsForeground = false
+        onFinished: {
+            root.releaseInactiveLayer();
+            scheduleConfigPreviewCapture();
+        }
     }
 
     QtObject {
@@ -449,7 +1292,17 @@ WallpaperItem {
         property real fgX: 0
         property real fgY: 0
 
+        function stopAll() {
+            bgKenBurns.stop();
+            fgKenBurns.stop();
+            bgPanX.stop();
+            fgPanX.stop();
+            bgPanY.stop();
+            fgPanY.stop();
+        }
+
         function restart() {
+            stopAll();
             if (!cfg.KenBurnsEnabled) {
                 bgScale = fgScale = 1;
                 bgX = bgY = fgX = fgY = 0;
@@ -458,17 +1311,31 @@ WallpaperItem {
             var panX = (Math.random() - 0.5) * root.width * 0.04;
             var panY = (Math.random() - 0.5) * root.height * 0.03;
             if (activeIsForeground) {
-                fgScale = 1.06; fgX = panX; fgY = panY;
-                fgKenBurns.from = 1.06; fgKenBurns.to = 1.14;
-                fgPanX.from = panX; fgPanX.to = -panX;
-                fgPanY.from = panY; fgPanY.to = -panY;
-                fgKenBurns.start(); fgPanX.start(); fgPanY.start();
+                fgScale = 1.06;
+                fgX = panX;
+                fgY = panY;
+                fgKenBurns.from = 1.06;
+                fgKenBurns.to = 1.14;
+                fgPanX.from = panX;
+                fgPanX.to = -panX;
+                fgPanY.from = panY;
+                fgPanY.to = -panY;
+                fgKenBurns.start();
+                fgPanX.start();
+                fgPanY.start();
             } else {
-                bgScale = 1.06; bgX = panX; bgY = panY;
-                bgKenBurns.from = 1.06; bgKenBurns.to = 1.14;
-                bgPanX.from = panX; bgPanX.to = -panX;
-                bgPanY.from = panY; bgPanY.to = -panY;
-                bgKenBurns.start(); bgPanX.start(); bgPanY.start();
+                bgScale = 1.06;
+                bgX = panX;
+                bgY = panY;
+                bgKenBurns.from = 1.06;
+                bgKenBurns.to = 1.14;
+                bgPanX.from = panX;
+                bgPanX.to = -panX;
+                bgPanY.from = panY;
+                bgPanY.to = -panY;
+                bgKenBurns.start();
+                bgPanX.start();
+                bgPanY.start();
             }
         }
     }
@@ -489,18 +1356,46 @@ WallpaperItem {
     NumberAnimation { id: fgPanY; target: kenBurnsAnimation; property: "fgY"; duration: root.kenBurnsDuration; easing.type: Easing.InOutSine }
 
     Timer {
+        id: previewCaptureTimer
+        interval: 1200
+        repeat: true
+        property int attempts: 0
+        onTriggered: {
+            attempts++;
+            if (captureConfigPreview() || attempts >= 8) {
+                stop();
+            }
+        }
+        onRunningChanged: if (running) attempts = 0
+    }
+
+    Timer {
+        id: configWriteTimer
+        interval: 1500
+        repeat: false
+        onTriggered: root.flushConfigWrite()
+    }
+
+    Timer {
+        id: diskCacheSaveTimer
+        interval: 700
+        repeat: false
+        onTriggered: root.writeDiskCacheFromImage()
+    }
+
+    Timer {
         id: intervalTimer
         interval: Math.max(cfg.RandomInterval, 0) * 60 * 1000
         running: cfg.RandomInterval > 0
         repeat: true
-        onTriggered: engine.nextWallpaper(false)
+        onTriggered: engine.skipForward()
     }
 
     Timer {
         id: retryTimer
         interval: 60000
         repeat: false
-        onTriggered: engine.nextWallpaper(false)
+        onTriggered: engine.skipForward()
     }
 
     Timer {
@@ -515,53 +1410,28 @@ WallpaperItem {
         interval: 60000
         running: cfg.TimeOfDayEnabled
         repeat: true
-        onTriggered: engine.resetSlideshow()
-    }
-
-    Timer {
-        id: clickResetTimer
-        interval: 300
-        repeat: false
         onTriggered: {
-            root._forwardClicks = 0;
-            root._backClicks = 0;
-        }
-    }
-
-    MouseArea {
-        anchors.fill: parent
-        z: 1
-        acceptedButtons: Qt.LeftButton
-        propagateComposedEvents: true
-        onClicked: function(mouse) {
-            clickResetTimer.restart();
-            if (mouse.x < root.width * 0.5 && cfg.ClicksToGoBack > 0) {
-                root._backClicks++;
-                root._forwardClicks = 0;
-                if (root._backClicks >= cfg.ClicksToGoBack) {
-                    root._backClicks = 0;
-                    engine.previousWallpaper();
-                }
-            } else {
-                root._forwardClicks++;
-                root._backClicks = 0;
-                if (root._forwardClicks >= cfg.ClicksToAdvance) {
-                    root._forwardClicks = 0;
-                    engine.nextWallpaper(false);
-                }
+            var period = root.currentTimeOfDayPeriod();
+            if (period !== root._timeOfDayPeriod) {
+                root._timeOfDayPeriod = period;
+                engine.resetSlideshow();
             }
-            mouse.accepted = false;
         }
     }
 
     Rectangle {
+        id: statusBanner
+        z: 100
         anchors.top: parent.top
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.topMargin: 16
-        width: Math.min(statusLabel.width + 24, parent.width - 32)
-        height: statusLabel.height + 16
-        radius: 8
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        height: statusVisible ? statusLabel.implicitHeight + 16 : 0
         visible: root.statusVisible
+        radius: 8
         color: root.statusType === "error" ? "#cc1e1e"
              : root.statusType === "warn" ? "#785014"
              : "#1e3c64"
@@ -570,7 +1440,7 @@ WallpaperItem {
         QQC2.Label {
             id: statusLabel
             anchors.centerIn: parent
-            width: Math.min(implicitWidth, parent.parent.width - 56)
+            width: parent.width - 32
             wrapMode: Text.WordWrap
             horizontalAlignment: Text.AlignHCenter
             color: "white"
@@ -579,20 +1449,25 @@ WallpaperItem {
     }
 
     Rectangle {
+        id: attributionBanner
+        z: 100
         anchors.left: parent.left
         anchors.bottom: parent.bottom
         anchors.margins: 16
-        width: Math.min(attributionLabel.width + 24, parent.width - 32)
-        height: attributionLabel.height + 16
+        anchors.right: parent.right
+        anchors.rightMargin: 16
+        height: attributionVisible ? attributionLabel.implicitHeight + 16 : 0
+        visible: attributionVisible
         radius: 8
-        visible: cfg.ShowAttribution && root.attributionText !== ""
         color: "#000000"
-        opacity: 0.55
+        opacity: 0.65
+
+        readonly property bool attributionVisible: cfg.ShowAttribution && root.attributionText !== ""
 
         QQC2.Label {
             id: attributionLabel
             anchors.centerIn: parent
-            width: Math.min(implicitWidth, parent.parent.width - 56)
+            width: parent.width - 32
             wrapMode: Text.WordWrap
             color: "#ffffff"
             font.pointSize: 9
@@ -601,7 +1476,7 @@ WallpaperItem {
     }
 
     Connections {
-        target: wallpaper.configuration
+        target: root.configuration
         function onSearchTextChanged() { if (root._configured) engine.resetSlideshow(); }
         function onApiKeyChanged() { if (root._configured) engine.resetSlideshow(); }
         function onBrowseModeChanged() { if (root._configured) engine.resetSlideshow(); }
@@ -627,10 +1502,20 @@ WallpaperItem {
         function onNightSearchChanged() { if (root._configured) engine.resetSlideshow(); }
         function onTimeOfDayEnabledChanged() { if (root._configured) engine.resetSlideshow(); }
         function onImageQualityChanged() { if (root._configured) engine.resetSlideshow(); }
+        function onKenBurnsEnabledChanged() { kenBurnsAnimation.restart(); }
+        function onKenBurnsSpeedChanged() { if (cfg.KenBurnsEnabled) kenBurnsAnimation.restart(); }
     }
 
     Component.onCompleted: {
-        engine.nextWallpaper(false);
+        root.loading = true;
+        engine.loadSeenIds();
+        root.loadDiskCacheIndex();
+        engine.fetchFreshWallpaper(false);
         root._configured = true;
+        scheduleConfigPreviewCapture();
+    }
+
+    Component.onDestruction: {
+        flushConfigWrite();
     }
 }
