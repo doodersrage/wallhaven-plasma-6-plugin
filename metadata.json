@@ -1,0 +1,21 @@
+{
+    "KPackageStructure": "Plasma/Wallpaper",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Wallhaven Plasma Port"
+            }
+        ],
+        "Category": "Multimedia",
+        "Description": "Random and search-based wallpapers from wallhaven.cc with slideshow, filters, and effects.",
+        "Icon": "preferences-desktop-wallpaper",
+        "Id": "org.robertsm.wallhaven",
+        "License": "GPL-2.0-or-later",
+        "Name": "Wallhaven",
+        "Version": "1.0.0",
+        "Website": "https://wallhaven.cc"
+    },
+    "Keywords": "wallhaven,wallpaper,slideshow,anime",
+    "X-KDE-ParentApp": "org.kde.plasmashell",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

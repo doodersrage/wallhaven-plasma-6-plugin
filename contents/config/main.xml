@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+      http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+    <kcfgfile name=""/>
+    <group name="">
+        <entry name="SearchText" type="String"><default></default></entry>
+        <entry name="ApiKey" type="String"><default></default></entry>
+        <entry name="BrowseMode" type="String"><default>search</default></entry>
+        <entry name="CollectionUser" type="String"><default></default></entry>
+        <entry name="CollectionId" type="String"><default></default></entry>
+        <entry name="RandomInterval" type="Int"><default>0</default></entry>
+        <entry name="CrossfadeMs" type="Int"><default>0</default></entry>
+        <entry name="ImageQuality" type="String"><default>large</default></entry>
+        <entry name="Sortings" type="String"><default>random</default></entry>
+        <entry name="LocalSortings" type="String"><default>ascending</default></entry>
+        <entry name="Order" type="String"><default>desc</default></entry>
+        <entry name="CategoryGeneral" type="Bool"><default>true</default></entry>
+        <entry name="CategoryAnime" type="Bool"><default>true</default></entry>
+        <entry name="CategoryPeople" type="Bool"><default>true</default></entry>
+        <entry name="PuritySfw" type="Bool"><default>true</default></entry>
+        <entry name="PuritySketchy" type="Bool"><default>true</default></entry>
+        <entry name="PurityNsfw" type="Bool"><default>false</default></entry>
+        <entry name="MinWidth" type="String"><default></default></entry>
+        <entry name="MinHeight" type="String"><default></default></entry>
+        <entry name="Ratio" type="String"><default>landscape</default></entry>
+        <entry name="ColorFilter" type="String"><default></default></entry>
+        <entry name="TopRange" type="String"><default>1M</default></entry>
+        <entry name="ExactResolutions" type="String"><default></default></entry>
+        <entry name="UseBlacklist" type="Bool"><default>false</default></entry>
+        <entry name="DedupEnabled" type="Bool"><default>true</default></entry>
+        <entry name="KenBurnsEnabled" type="Bool"><default>false</default></entry>
+        <entry name="KenBurnsSpeed" type="Int"><default>30</default></entry>
+        <entry name="ShowAttribution" type="Bool"><default>false</default></entry>
+        <entry name="ClicksToAdvance" type="Int"><default>5</default></entry>
+        <entry name="ClicksToGoBack" type="Int"><default>5</default></entry>
+        <entry name="TimeOfDayEnabled" type="Bool"><default>false</default></entry>
+        <entry name="DaySearch" type="String"><default></default></entry>
+        <entry name="NightSearch" type="String"><default></default></entry>
+    </group>
+</kcfg>
