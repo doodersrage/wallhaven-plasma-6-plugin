@@ -684,6 +684,9 @@ msgstr ""
 msgid "No previous wallpaper in history."
 msgstr ""
 
+msgid "No settings match %1. Try another tab or clear the filter."
+msgstr ""
+
 msgid "Notifications"
 msgstr ""
 

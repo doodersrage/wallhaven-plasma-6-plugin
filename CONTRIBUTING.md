@@ -32,6 +32,7 @@ Wallhaven uses JSON translation catalogs under `po/catalog/` and compiles them t
 | de | German | `po/catalog/de.json` |
 | fr | French | `po/catalog/fr.json` |
 | es | Spanish | `po/catalog/es.json` |
+| it | Italian | `po/catalog/it.json` |
 | en | English (source) | keys in POT / `po/en.po` |
 
 ## Development workflow

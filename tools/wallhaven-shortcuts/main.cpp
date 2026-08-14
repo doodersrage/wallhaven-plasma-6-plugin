@@ -1,6 +1,6 @@
 #include <QAction>
 #include <QCoreApplication>
-#include <QDir>
+#include <QFile>
 #include <QProcess>
 #include <QStandardPaths>
 
@@ -13,8 +13,17 @@ static QString ctlPath()
     if (!env.isEmpty()) {
         return QString::fromLocal8Bit(env);
     }
-    const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
-    return QDir(home).filePath(QStringLiteral(".local/share/wallhaven-plasma/tools/wallhaven-ctl.sh"));
+    const QStringList candidates = {
+        QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
+            + QStringLiteral("/.local/share/wallhaven-plasma/tools/wallhaven-ctl.sh"),
+        QStringLiteral("/usr/share/wallhaven-plasma/tools/wallhaven-ctl.sh"),
+    };
+    for (const QString &path : candidates) {
+        if (QFile::exists(path)) {
+            return path;
+        }
+    }
+    return candidates.constFirst();
 }
 
 static void runCtl(const QString &cmd)

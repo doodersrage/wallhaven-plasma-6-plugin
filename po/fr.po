@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 2.2.0\n"
+"Project-Id-Version: org.robertsm.wallhaven 2.3.0\n"
 "Language: fr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -682,6 +682,9 @@ msgstr "(aucun trouvé)"
 
 msgid "No previous wallpaper in history."
 msgstr "Aucun fond d'écran précédent dans l'historique."
+
+msgid "No settings match %1. Try another tab or clear the filter."
+msgstr "Aucun paramètre ne correspond à %1. Essayez un autre onglet ou effacez le filtre."
 
 msgid "Notifications"
 msgstr "Notifications"

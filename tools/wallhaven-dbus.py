@@ -37,7 +37,6 @@ PLASMA_CACHE = os.path.join(CACHE, "plasmashell")
 CONTROL_FILE = os.path.join(PLASMA_CACHE, "wallhaven-control.json")
 STATUS_FILE = os.path.join(PLASMA_CACHE, "wallhaven-status.json")
 DBUS_CONFIG_FILE = os.path.join(PLASMA_CACHE, "wallhaven-dbus-config.json")
-VARIETY_CONFIG = os.path.join(config_home(), "variety", "variety.conf")
 ALLOWED_COMMANDS = {
     "python3",
     "bash",
@@ -53,6 +52,9 @@ HOME_READ_BLOCKED = (".ssh", ".gnupg", ".local/share/keyrings/")
 
 def config_home() -> str:
     return os.path.realpath(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")))
+
+
+VARIETY_CONFIG = os.path.join(config_home(), "variety", "variety.conf")
 
 
 def validate_cache_path(path: str) -> str:

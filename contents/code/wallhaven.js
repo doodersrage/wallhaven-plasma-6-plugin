@@ -1035,7 +1035,7 @@ function buildPresetShareUrl(preset) {
 }
 
 function pluginVersion() {
-    return "2.2.0";
+    return "2.3.0";
 }
 
 function appendDebugLogLine(existing, line, maxLines) {

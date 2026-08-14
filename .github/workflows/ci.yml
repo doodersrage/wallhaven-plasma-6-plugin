@@ -28,6 +28,9 @@ jobs:
       - name: Run wallhaven.js tests
         run: node tests/test-wallhaven.js
 
+      - name: Variety D-Bus tests
+        run: python3 tests/test-variety-dbus.py
+
       - name: QML smoke checks
         run: chmod +x tests/validate-qml.sh && ./tests/validate-qml.sh
 
@@ -52,9 +55,11 @@ jobs:
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/locale/de/LC_MESSAGES/org.robertsm.wallhaven.mo'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/locale/fr/LC_MESSAGES/org.robertsm.wallhaven.mo'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/locale/es/LC_MESSAGES/org.robertsm.wallhaven.mo'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'po/de.po'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'po/fr.po'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/locale/it/LC_MESSAGES/org.robertsm.wallhaven.mo'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'po/es.po'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'po/it.po'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'docs/CONTROL.md'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'docs/KDE_STORE.md'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'screenshots/desktop-wallpaper.png'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'share/wallhaven-shortcuts.desktop.in'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'metainfo/org.robertsm.wallhaven.metainfo.xml'

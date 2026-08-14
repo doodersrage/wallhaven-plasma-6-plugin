@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.3.0 — 2026-08-14
+
+Store-ready release: shortcuts build fix, Italian i18n, control docs, and distribution polish.
+
+### Added
+- **Italian UI translation** — full ~415 string catalog (`po/catalog/it.json`)
+- **Control guide** — `docs/CONTROL.md` (plasmoid, shortcuts, KRunner, D-Bus)
+- **KDE Store guide** — `docs/KDE_STORE.md` with screenshot checklist and submission steps
+- **Settings filter hint** — message when no settings match the filter query
+- **Variety D-Bus tests** — `tests/test-variety-dbus.py` for config parsing
+- **Desktop screenshot helper** — `scripts/capture-desktop-screenshot.sh` (spectacle)
+- **PKGBUILD shortcuts** — `PKGBUILD.release` builds and ships `wallhaven-shortcuts` + autostart
+- **Neon CI** — container job builds shortcuts and runs variety tests
+
+### Fixed
+- **KGlobalAccel build on Arch** — per-component `KF6GlobalAccel` CMake finds (no umbrella `KF6` module path)
+- **`install-shortcuts`** — dependency hints, clean rebuild dir, clearer errors
+
+### Changed
+- **Real desktop screenshot** — `screenshots/desktop-wallpaper.png` captured from live session (1280×720)
+- **Release tarball** — includes `docs/` directory
+
 ## 2.2.0 — 2026-08-14
 
 Discoverability and control release: shortcuts, Spanish i18n, plasmoid polish, Variety watch, and distribution CI.

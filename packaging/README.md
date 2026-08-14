@@ -40,11 +40,13 @@ Optional automation: `.github/workflows/aur-publish.yml` (requires `AUR_SSH_PRIV
 
 ### Stable release (tarball)
 
-Use `packaging/PKGBUILD.release` for versioned GitHub releases (`wallhaven-plasma-2.2.0.tar.xz`).
+Use `packaging/PKGBUILD.release` for versioned GitHub releases (`wallhaven-plasma-2.3.0.tar.xz`).
 
 Optional global shortcuts (requires KDE dev packages to build):
 
 ```bash
+# Arch — only extra-cmake-modules is usually missing if Plasma is installed
+sudo pacman -S extra-cmake-modules
 ./dev-helper.sh install-shortcuts
 ```
 
@@ -57,7 +59,8 @@ Optional global shortcuts (requires KDE dev packages to build):
 | `krunner/dplugins/` | KRunner commands |
 | `metainfo/` | AppStream metadata |
 | `knotifications6/` | Desktop notifications |
-| `locale/*/LC_MESSAGES/*.mo` | Translations (German, French, Spanish, English) |
+| `locale/*/LC_MESSAGES/*.mo` | Translations (German, French, Spanish, Italian, English) |
+| `/usr/bin/wallhaven-shortcuts` | Optional global shortcuts (Meta+Alt+arrows, release PKGBUILD) |
 | `lib/systemd/user/wallhaven-dbus.service` | D-Bus control + MPRIS service |
 | `wallhaven-plasma/tools/` | CLI, Variety bridge, preset import |
 | `applications/wallhaven-preset.desktop` | `wallhaven://preset/` URL handler |

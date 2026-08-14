@@ -40,6 +40,11 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="2.3.0" date="2026-08-14">
+      <description>
+        <p>Italian i18n, shortcuts CMake fix, control and KDE Store docs, settings filter hint, PKGBUILD global shortcuts, and real desktop screenshot.</p>
+      </description>
+    </release>
     <release version="2.2.0" date="2026-08-14">
       <description>
         <p>Spanish i18n, KGlobalAccel shortcuts, plasmoid v3 controls, Variety watch mode, settings D-Bus banner, Flatpak CI smoke, and CONTRIBUTING translator guide.</p>

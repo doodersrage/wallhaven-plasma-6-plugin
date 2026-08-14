@@ -17,6 +17,7 @@ LOCALES: tuple[tuple[str, str, Path], ...] = (
     ("de", "de", CATALOG_DIR / "de.json"),
     ("fr", "fr", CATALOG_DIR / "fr.json"),
     ("es", "es", CATALOG_DIR / "es.json"),
+    ("it", "it", CATALOG_DIR / "it.json"),
 )
 
 

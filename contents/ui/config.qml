@@ -139,6 +139,13 @@ ColumnLayout {
     property alias cfg_PauseWhenInactive: pauseInactiveCheck.checked
     property alias cfg_SmartColorFromWallpaper: smartColorCheck.checked
     property string settingsFilter: ""
+    readonly property var settingsFilterKeywords: [
+        "search", "filter", "settings", "source", "tags", "query", "cache", "variety",
+        "dbus", "slideshow", "blocklist", "preset", "history", "sync", "shortcut",
+        "debug", "import", "export", "favorites", "collection", "interval", "transition",
+        "attribution", "ken", "parallax", "panel", "battery", "offline", "kwallet",
+        "toplist", "wotd", "refresh", "playback", "advanced", "similar", "quality",
+    ]
     property bool showSetupWizard: wallpaperConfiguration && !wallpaperConfiguration.SetupWizardCompleted
     readonly property bool dbusServiceOnline: liveWallpaper && liveWallpaper.isDbusServiceAvailable
         ? liveWallpaper.isDbusServiceAvailable() : false
@@ -153,6 +160,18 @@ ColumnLayout {
             if (String(keywords[i]).toLowerCase().indexOf(needle) >= 0)
                 return true;
 
+        }
+        return false;
+    }
+
+    function settingsFilterMatchesAny() {
+        if (!settingsFilter)
+            return true;
+
+        var needle = settingsFilter.toLowerCase();
+        for (var i = 0; i < settingsFilterKeywords.length; i++) {
+            if (String(settingsFilterKeywords[i]).toLowerCase().indexOf(needle) >= 0)
+                return true;
         }
         return false;
     }
@@ -799,6 +818,14 @@ ColumnLayout {
             onTextChanged: root.settingsFilter = text.trim()
         }
 
+    }
+
+    QtControls2.Label {
+        Layout.fillWidth: true
+        wrapMode: Text.WordWrap
+        opacity: 0.65
+        visible: root.settingsFilter !== "" && !root.settingsFilterMatchesAny()
+        text: i18n("No settings match %1. Try another tab or clear the filter.", root.settingsFilter)
     }
 
     Item {

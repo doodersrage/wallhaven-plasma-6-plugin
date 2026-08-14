@@ -1,20 +1,27 @@
 # Maintainer: Wallhaven Plasma Port
 pkgname=wallhaven-plasma
-pkgver=2.2.0
+pkgver=2.3.0
 pkgrel=1
 pkgdesc="Wallhaven.cc wallpaper plugin for KDE Plasma 6"
 arch=('any')
 url="https://github.com/doodersrage/wallhaven-plasma-6-plugin"
 license=('GPL-2.0-or-later')
-depends=('plasma-framework' 'nodejs' 'python-dbus' 'python-gobject')
+depends=('plasma-framework' 'nodejs' 'python-dbus' 'python-gobject' 'kglobalaccel' 'qt6-base')
 optdepends=(
     'kwallet: API key storage'
     'spectacle: screenshot capture helper'
     'variety: wallpaper bridge'
+    'extra-cmake-modules: build global shortcuts from source'
 )
-makedepends=('gettext')
+makedepends=('gettext' 'cmake' 'extra-cmake-modules' 'kglobalaccel' 'ki18n' 'kcoreaddons' 'qt6-base')
 source=("wallhaven-plasma-${pkgver}.tar.xz::${url}/releases/download/v${pkgver}/wallhaven-plasma-${pkgver}.tar.xz")
 sha256sums=('SKIP')
+
+build() {
+    cd "${srcdir}/wallhaven-plasma-${pkgver}"
+    cmake -S tools/wallhaven-shortcuts -B build-shortcuts -DCMAKE_BUILD_TYPE=Release
+    cmake --build build-shortcuts
+}
 
 package() {
     cd "${srcdir}/wallhaven-plasma-${pkgver}"
@@ -45,4 +52,9 @@ package() {
         "${pkgdir}/usr/share/applications/wallhaven-preset.desktop"
     sed -i "s|/home/USER/.local/share/wallhaven-plasma/tools|/usr/share/wallhaven-plasma/tools|g" \
         "${pkgdir}/usr/share/applications/wallhaven-preset.desktop"
+    install -Dm755 build-shortcuts/wallhaven-shortcuts "${pkgdir}/usr/bin/wallhaven-shortcuts"
+    install -Dm644 share/wallhaven-shortcuts.desktop.in \
+        "${pkgdir}/etc/xdg/autostart/wallhaven-shortcuts.desktop"
+    sed -i "s|@INSTALL_DIR@/bin/wallhaven-shortcuts|/usr/bin/wallhaven-shortcuts|g" \
+        "${pkgdir}/etc/xdg/autostart/wallhaven-shortcuts.desktop"
 }

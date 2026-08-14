@@ -12,6 +12,28 @@ System Settings → Appearance → Wallpaper → **Wallhaven**
 
 Enable **Wallhaven** in System Settings → Search → Plasma Search (KRunner).
 
+**Control without opening settings:** see [docs/CONTROL.md](docs/CONTROL.md) (plasmoid, Meta+Alt shortcuts, KRunner, D-Bus).
+
+**KDE Store submission:** see [docs/KDE_STORE.md](docs/KDE_STORE.md).
+
+## v2.3.0 — store ready
+
+| Area | Highlights |
+|------|------------|
+| **i18n** | Italian UI (~415 strings) + DE/FR/ES |
+| **Shortcuts** | Fixed Arch CMake build; PKGBUILD ships binary + autostart |
+| **Docs** | Control guide + KDE Store checklist |
+| **UX** | Settings filter “no matches” hint |
+| **CI** | Neon shortcuts build + variety D-Bus tests |
+
+```bash
+./dev-helper.sh deploy
+sudo pacman -S extra-cmake-modules   # Arch
+./dev-helper.sh install-shortcuts
+./scripts/capture-screenshots.sh     # replace placeholder PNGs
+./dev-helper.sh release              # tag v2.3.0
+```
+
 ## v2.2.0 — discover & control
 
 | Area | Highlights |

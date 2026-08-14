@@ -134,7 +134,7 @@ package_plugin() {
     local version
     version="$(grep -Po '"Version"\s*:\s*"\K[^"]+' "${SCRIPT_DIR}/metadata.json")"
     local archive="${SCRIPT_DIR}/wallhaven-plasma-${version}.tar.xz"
-    local files=(contents metadata.json plasmoid tools krunner examples metainfo share packaging po screenshots CONTRIBUTING.md)
+    local files=(contents metadata.json plasmoid tools krunner examples metainfo share packaging po screenshots docs CONTRIBUTING.md)
     if [[ -f "${SCRIPT_DIR}/preview.jpg" ]]; then
         files+=(preview.jpg)
     fi
@@ -178,7 +178,20 @@ install_shortcuts() {
         echo "cmake is required to build wallhaven-shortcuts" >&2
         exit 1
     fi
+    if ! command -v g++ >/dev/null 2>&1; then
+        echo "g++ is required to build wallhaven-shortcuts" >&2
+        exit 1
+    fi
+    if [[ ! -d /usr/share/ECM ]]; then
+        echo "KF6 CMake modules not found (extra-cmake-modules)." >&2
+        echo "Install build dependencies, then rerun:" >&2
+        echo "  Arch:   sudo pacman -S extra-cmake-modules qt6-base kglobalaccel ki18n kcoreaddons cmake gcc" >&2
+        echo "  Fedora: sudo dnf install kf6-extra-cmake-modules qt6-qtbase-devel kf6-kglobalaccel-devel kf6-ki18n-devel kf6-kcoreaddons-devel cmake gcc-c++" >&2
+        echo "  Debian: sudo apt install extra-cmake-modules qt6-base-dev libkf6globalaccel-dev libkf6i18n-dev libkf6coreaddons-dev cmake g++" >&2
+        exit 1
+    fi
     local build_dir="${SCRIPT_DIR}/build-shortcuts"
+    rm -rf "${build_dir}"
     cmake -S "${SCRIPT_DIR}/tools/wallhaven-shortcuts" -B "${build_dir}" -DCMAKE_BUILD_TYPE=Release
     cmake --build "${build_dir}"
     mkdir -p "${DATA_DIR}/bin"
@@ -189,7 +202,8 @@ install_shortcuts() {
         > "${HOME}/.config/autostart/wallhaven-shortcuts.desktop"
     echo "Installed wallhaven-shortcuts to ${DATA_DIR}/bin/wallhaven-shortcuts"
     echo "Autostart entry: ~/.config/autostart/wallhaven-shortcuts.desktop"
-    echo "Shortcuts: Meta+Alt+Right/Lef/P/R"
+    echo "Shortcuts: Meta+Alt+Right/Left/P/R"
+    echo "Log out and back in (or reboot) if shortcuts do not register immediately."
 }
 
 uninstall_shortcuts() {
