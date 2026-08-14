@@ -5,6 +5,7 @@ import QtCore
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.kirigami as Kirigami
+import org.kde.plasma.workspace.dbus as PDBus
 
 PlasmoidItem {
     id: root
@@ -24,21 +25,30 @@ PlasmoidItem {
     property int countdownMs: 0
 
     function sendCommand(cmd, query) {
-        var payload = {
-            cmd: cmd,
-            ts: Date.now(),
-            group: Plasmoid.configuration.syncGroup || "default",
-        };
+        var group = Plasmoid.configuration.syncGroup || "default";
+        var msg;
         if (query) {
-            payload.query = query;
+            msg = new PDBus.dbusMessage({
+                service: "org.robertsm.Wallhaven",
+                path: "/Wallhaven",
+                iface: "org.robertsm.Wallhaven",
+                member: "Search",
+                signature: "ss",
+                arguments: [query, group],
+            });
+        } else {
+            msg = new PDBus.dbusMessage({
+                service: "org.robertsm.Wallhaven",
+                path: "/Wallhaven",
+                iface: "org.robertsm.Wallhaven",
+                member: "CommandInGroup",
+                signature: "ss",
+                arguments: [cmd, group],
+            });
         }
-        var encoded = encodeURIComponent(JSON.stringify(payload));
-        writeProcess.command = [
-            "python3", "-c",
-            "import sys, urllib.parse, json; open(sys.argv[1],'w',encoding='utf-8').write(json.dumps(json.loads(urllib.parse.unquote(sys.argv[2]))))",
-            controlFile, encoded,
-        ];
-        writeProcess.start();
+        PDBus.SessionBus.asyncCall(msg, function() {}, function(err) {
+            console.warn("Wallhaven plasmoid D-Bus call failed:", err);
+        });
     }
 
     function loadStatus() {
@@ -80,8 +90,6 @@ PlasmoidItem {
         var sec = totalSec % 60;
         return min + ":" + (sec < 10 ? "0" : "") + sec;
     }
-
-    Process { id: writeProcess }
 
     Timer {
         interval: 1000

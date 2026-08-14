@@ -7,6 +7,7 @@ import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
 import org.kde.kirigami as Kirigami
 import org.kde.notification
+import org.kde.plasma.workspace.dbus as PDBus
 import "../code/wallhaven.js" as Wallhaven
 
 WallpaperItem {
@@ -31,7 +32,7 @@ WallpaperItem {
 
     function effectiveOfflineOnly() {
         return cfg.OfflineOnlyMode
-            || (cfg.MeteredCacheOnly && networkInfo.meteredConnection);
+            || (cfg.MeteredCacheOnly && root.meteredConnection);
     }
 
     function slideshowActive() {
@@ -129,11 +130,8 @@ WallpaperItem {
         return ((seed % 50) - 25) / 25 * (root.height || 1080) * 0.015 * strength;
     }
 
-    NetworkInformation {
-        id: networkInfo
-        readonly property bool meteredConnection: cfg.MeteredCacheOnly
-            && transportMedium === NetworkInformation.Cellular
-    }
+    readonly property bool meteredConnection: cfg.MeteredCacheOnly
+        && NetworkInformation.transportMedium === NetworkInformation.Cellular
 
     function currentTimeOfDayPeriod() {
         var hour = new Date().getHours();
@@ -583,13 +581,12 @@ WallpaperItem {
         if (!cfg.SyncLockScreen || !localPath) {
             return;
         }
-        lockScreenProcess.command = [
+        dbusHelper.runArgv([
             "bash", "-lc",
             "kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image && "
                 + "kwriteconfig6 --file kscreenlockerrc --group Greeter --key Wallpaper \""
                 + localPath.replace(/"/g, '\\"') + "\"",
-        ];
-        lockScreenProcess.start();
+        ]);
     }
 
     function updateVarietySymlink(localPath) {
@@ -598,12 +595,11 @@ WallpaperItem {
         }
         var folder = String(cfg.VarietyFolderPath).replace(/"/g, '\\"');
         var source = localPath.replace(/"/g, '\\"');
-        varietyLinkProcess.command = [
+        dbusHelper.runArgv([
             "bash", "-lc",
             "mkdir -p '" + folder + "' && ln -sf '" + source + "' '"
                 + folder + "/" + Wallhaven.varietySymlinkName() + "'",
-        ];
-        varietyLinkProcess.start();
+        ]);
     }
 
     function writePanelTint(hexColor, wallpaperId) {
@@ -627,12 +623,11 @@ WallpaperItem {
         if (!hexColor) {
             return;
         }
-        panelAccentProcess.command = [
+        dbusHelper.runArgv([
             "bash", "-lc",
             "command -v plasma-apply-colors >/dev/null && plasma-apply-colors --accent-color '#"
                 + hexColor.replace(/'/g, "") + "' || true",
-        ];
-        panelAccentProcess.start();
+        ]);
     }
 
     function applySmartColorFilter(hexColor) {
@@ -746,8 +741,7 @@ WallpaperItem {
         if (slot >= 0) {
             _diskCacheIndex.ids[slot] = "";
             persistDiskCacheIndex();
-            cacheRmProcess.command = ["rm", "-f", diskCacheLocalPath(slot)];
-            cacheRmProcess.start();
+            dbusHelper.runArgv(["rm", "-f", diskCacheLocalPath(slot)]);
             logDebug("Evicted cache id " + id);
         }
     }
@@ -833,8 +827,7 @@ WallpaperItem {
     function exportSettingsToFile(destUrl) {
         var json = Wallhaven.exportSettingsSnapshot(cfg);
         settingsFileWriter.writeFile(settingsExportFile, json, function() {
-            fileCopyProcess.command = ["cp", settingsExportFile, urlToLocalPath(destUrl)];
-            fileCopyProcess.start();
+            dbusHelper.runArgv(["cp", settingsExportFile, urlToLocalPath(destUrl)]);
             engine.showStatus(i18n("Settings exported."), "info");
         });
     }
@@ -844,13 +837,13 @@ WallpaperItem {
             return;
         }
         var tmp = diskCacheDir + "/kwallet-apikey.txt";
-        kwalletReadProcess.command = [
+        dbusHelper.runArgv([
             "bash", "-lc",
             "kwallet-query -r apikey -f org.robertsm.wallhaven -w wallhaven > '"
                 + tmp.replace(/'/g, "'\\''") + "' 2>/dev/null",
-        ];
-        kwalletReadProcess.pendingTmp = tmp;
-        kwalletReadProcess.start();
+        ], function() {
+            kwalletReadLoader.read(tmp);
+        });
     }
 
     function toggleSlideshowPause() {
@@ -1359,7 +1352,7 @@ WallpaperItem {
             var config = configObject();
             var fetchRequestId = expectedRequestId !== undefined ? expectedRequestId : requestId;
 
-            if (config.OfflineOnlyMode || (config.MeteredCacheOnly && networkInfo.meteredConnection)) {
+            if (config.OfflineOnlyMode || (config.MeteredCacheOnly && root.meteredConnection)) {
                 onDone(null);
                 return;
             }
@@ -1661,7 +1654,7 @@ WallpaperItem {
             var count = Wallhaven.computePreloadCount(
                 cfg,
                 root._connectivityOnline,
-                networkInfo.meteredConnection,
+                root.meteredConnection,
             );
             if (count <= 0) {
                 preloadImage.source = "";
@@ -2020,7 +2013,7 @@ WallpaperItem {
         }
     }
 
-    QQC2.TextEdit {
+    TextEdit {
         id: clipboardHelper
         visible: false
         width: 1
@@ -2041,74 +2034,57 @@ WallpaperItem {
                 return;
             }
             var path = pendingPaths.shift();
-            cacheRmProcess.command = ["rm", "-f", path];
-            cacheRmProcess.start();
+            dbusHelper.runArgv(["rm", "-f", path], deleteNext);
         }
     }
 
-    Process {
-        id: cacheRmProcess
-        onFinished: cacheFileDeleter.deleteNext()
+    QtObject {
+        id: dbusHelper
+
+        function wallhavenMessage(member, signature, args, callback) {
+            var msg = new PDBus.dbusMessage({
+                service: "org.robertsm.Wallhaven",
+                path: "/Wallhaven",
+                iface: "org.robertsm.Wallhaven",
+                member: member,
+                signature: signature,
+                arguments: args,
+            });
+            if (callback) {
+                PDBus.SessionBus.asyncCall(msg, callback, function(err) {
+                    console.warn("Wallhaven D-Bus call failed:", member, err);
+                });
+            } else {
+                PDBus.SessionBus.asyncCall(msg);
+            }
+        }
+
+        function writeFile(path, text, callback) {
+            wallhavenMessage("WriteTextFile", "ss", [path, text], callback);
+        }
+
+        function runArgv(argv, callback) {
+            wallhavenMessage("RunArgv", "s", [JSON.stringify(argv)], callback);
+        }
     }
 
     QtObject {
         id: settingsFileWriter
-        property var pendingCallback: null
-
         function writeFile(path, text, callback) {
-            pendingCallback = callback || null;
-            var encoded = Wallhaven.base64EncodeUtf8(text);
-            settingsWriteProcess.command = [
-                "python3", "-c",
-                "import base64,sys; open(sys.argv[1],'wb').write(base64.b64decode(sys.argv[2]))",
-                path, encoded,
-            ];
-            settingsWriteProcess.start();
+            dbusHelper.writeFile(path, text, callback);
         }
     }
 
-    Process {
-        id: settingsWriteProcess
-        onFinished: {
-            if (settingsFileWriter.pendingCallback) {
-                var cb = settingsFileWriter.pendingCallback;
-                settingsFileWriter.pendingCallback = null;
-                cb();
-            }
-        }
-    }
-
-    Process {
-        id: fileCopyProcess
-    }
-
-    Process {
-        id: lockScreenProcess
-    }
-
-    Process {
-        id: varietyLinkProcess
-    }
-
-    Timer {
-        id: statusPublishTimer
-        interval: 5000
-        running: root._configured
-        repeat: true
-        onTriggered: root.publishStatus()
-    }
-
-    Process {
-        id: kwalletReadProcess
-        property string pendingTmp: ""
-        onFinished: function(exitCode) {
-            if (exitCode !== 0 || !root.configuration || !pendingTmp) {
-                return;
-            }
+    QtObject {
+        id: kwalletReadLoader
+        function read(tmpPath) {
             var xhr = new XMLHttpRequest();
-            xhr.open("GET", "file://" + pendingTmp);
+            xhr.open("GET", "file://" + tmpPath);
             xhr.onreadystatechange = function() {
                 if (xhr.readyState !== XMLHttpRequest.DONE) {
+                    return;
+                }
+                if (!root.configuration) {
                     return;
                 }
                 var key = String(xhr.responseText || "").trim();
@@ -2121,25 +2097,54 @@ WallpaperItem {
         }
     }
 
+    Timer {
+        id: statusPublishTimer
+        interval: 5000
+        running: root._configured
+        repeat: true
+        onTriggered: root.publishStatus()
+    }
+
     QtObject {
         id: debugLogWriter
-        property string pending: ""
-
         function appendLine(line) {
-            pending = line;
-            debugLogProcess.command = [
+            dbusHelper.runArgv([
                 "python3", "-c",
                 "import sys; p=sys.argv[1]; l=sys.argv[2]; open(p,'a',encoding='utf-8').write(l+'\\n')",
                 debugLogFile, line,
-            ];
-            debugLogProcess.start();
+            ]);
         }
     }
 
-    Process { id: debugLogProcess }
+    QtObject {
+        id: batteryPollLoader
+        property var paths: [
+            "/sys/class/power_supply/BAT0/capacity",
+            "/sys/class/power_supply/BAT1/capacity",
+        ]
 
-    Process {
-        id: panelAccentProcess
+        function tryPath(index) {
+            if (index >= paths.length) {
+                return;
+            }
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "file://" + paths[index]);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== XMLHttpRequest.DONE) {
+                    return;
+                }
+                if (xhr.status === 0 || xhr.status === 200) {
+                    var pct = parseInt(String(xhr.responseText || "").trim(), 10);
+                    if (!isNaN(pct)) {
+                        root._batteryPercent = pct;
+                        root.evaluateSlideshowRules();
+                        return;
+                    }
+                }
+                tryPath(index + 1);
+            };
+            xhr.send();
+        }
     }
 
     Timer {
@@ -2147,38 +2152,7 @@ WallpaperItem {
         interval: 60000
         running: root._configured && cfg.PauseOnBatteryLow
         repeat: true
-        onTriggered: batteryPollProcess.start()
-    }
-
-    Process {
-        id: batteryPollProcess
-        property string batteryFile: diskCacheDir + "/battery-level.txt"
-        command: [
-            "python3", "-c",
-            "import glob,sys; out=sys.argv[1]; val=''\n"
-                + "for f in glob.glob('/sys/class/power_supply/BAT*/capacity'):\n"
-                + "  val=open(f).read().strip(); break\n"
-                + "open(out,'w').write(val)",
-            batteryFile,
-        ]
-        onFinished: function(exitCode) {
-            if (exitCode !== 0) {
-                return;
-            }
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", "file://" + batteryFile);
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState !== XMLHttpRequest.DONE) {
-                    return;
-                }
-                var pct = parseInt(String(xhr.responseText || "").trim(), 10);
-                if (!isNaN(pct)) {
-                    root._batteryPercent = pct;
-                    root.evaluateSlideshowRules();
-                }
-            };
-            xhr.send();
-        }
+        onTriggered: batteryPollLoader.tryPath(0)
     }
 
     Connections {

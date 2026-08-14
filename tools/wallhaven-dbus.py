@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 
@@ -35,6 +36,36 @@ CACHE = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
 PLASMA_CACHE = os.path.join(CACHE, "plasmashell")
 CONTROL_FILE = os.path.join(PLASMA_CACHE, "wallhaven-control.json")
 STATUS_FILE = os.path.join(PLASMA_CACHE, "wallhaven-status.json")
+ALLOWED_COMMANDS = {
+    "python3",
+    "bash",
+    "rm",
+    "cp",
+    "kwallet-query",
+    "plasma-apply-colors",
+    "kwriteconfig6",
+}
+
+
+def validate_cache_path(path: str) -> str:
+    if not path:
+        raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: empty path")
+    base = os.path.realpath(PLASMA_CACHE)
+    full = os.path.realpath(path)
+    if full == base or full.startswith(base + os.sep):
+        return full
+    raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: path outside cache")
+
+
+def run_argv(argv: list[str]) -> None:
+    if not argv:
+        raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: empty argv")
+    program = os.path.basename(str(argv[0]))
+    if program not in ALLOWED_COMMANDS:
+        raise dbus.exceptions.DBusException(
+            f"org.freedesktop.DBus.Error.AccessDenied: command not allowed: {program}",
+        )
+    subprocess.run(argv, check=False)
 
 
 def write_command(cmd: str, group: str = "default", query: str = "") -> None:
@@ -102,6 +133,25 @@ class WallhavenControl(dbus.service.Object):
     def Search(self, query: str, group: str = "") -> None:
         write_command("search", group or self.group, query)
 
+    @dbus.service.method(INTERFACE, in_signature="ss")
+    def WriteTextFile(self, path: str, content: str) -> None:
+        target = validate_cache_path(path)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(target, "w", encoding="utf-8") as handle:
+            handle.write(content)
+
+    @dbus.service.method(INTERFACE, in_signature="s")
+    def RunArgv(self, argv_json: str) -> None:
+        try:
+            argv = json.loads(argv_json)
+        except json.JSONDecodeError as exc:
+            raise dbus.exceptions.DBusException(
+                f"org.freedesktop.DBus.Error.InvalidArgs: invalid argv json: {exc}",
+            ) from exc
+        if not isinstance(argv, list):
+            raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: argv must be a list")
+        run_argv([str(part) for part in argv])
+
 
 class WallhavenPlayer(dbus.service.Object):
     def __init__(self, bus, group: str) -> None:
@@ -143,6 +193,38 @@ class MprisMediaPlayer2(dbus.service.Object):
         self._status_key = status_signature(self._status)
         super().__init__(bus, MPRIS_PATH)
 
+    def _mpris_props(self) -> dict[str, object]:
+        status = self._status
+        return {
+            "CanQuit": False,
+            "CanRaise": False,
+            "HasTrackList": False,
+            "Identity": "Wallhaven",
+            "PlaybackStatus": playback_status_from(status),
+            "Metadata": metadata_from(status),
+        }
+
+    @dbus.service.method(PROPERTIES_IFACE, in_signature="ss", out_signature="v")
+    def Get(self, interface_name: str, property_name: str):  # noqa: N802
+        if interface_name != MPRIS_IFACE:
+            raise dbus.exceptions.DBusException(
+                f"org.freedesktop.DBus.Error.UnknownInterface: {interface_name}",
+            )
+        props = self._mpris_props()
+        if property_name not in props:
+            raise dbus.exceptions.DBusException(
+                f"org.freedesktop.DBus.Error.UnknownProperty: {property_name}",
+            )
+        return props[property_name]
+
+    @dbus.service.method(PROPERTIES_IFACE, in_signature="s", out_signature="a{sv}")
+    def GetAll(self, interface_name: str):  # noqa: N802
+        if interface_name != MPRIS_IFACE:
+            raise dbus.exceptions.DBusException(
+                f"org.freedesktop.DBus.Error.UnknownInterface: {interface_name}",
+            )
+        return self._mpris_props()
+
     def refresh_status(self, force: bool = False) -> None:
         status = read_status()
         key = status_signature(status)
@@ -170,30 +252,6 @@ class MprisMediaPlayer2(dbus.service.Object):
     @dbus.service.method(MPRIS_IFACE, in_signature="", out_signature="")
     def Quit(self) -> None:
         pass
-
-    @dbus.service.property(MPRIS_IFACE, "b")
-    def CanQuit(self) -> bool:
-        return False
-
-    @dbus.service.property(MPRIS_IFACE, "b")
-    def CanRaise(self) -> bool:
-        return False
-
-    @dbus.service.property(MPRIS_IFACE, "b")
-    def HasTrackList(self) -> bool:
-        return False
-
-    @dbus.service.property(MPRIS_IFACE, "s")
-    def Identity(self) -> str:
-        return "Wallhaven"
-
-    @dbus.service.property(MPRIS_IFACE, "s", emit_change_signal=True)
-    def PlaybackStatus(self) -> str:
-        return playback_status_from(self._status)
-
-    @dbus.service.property(MPRIS_IFACE, "a{sv}", emit_change_signal=True)
-    def Metadata(self) -> dict[str, dbus.Object]:
-        return metadata_from(self._status)
 
     @dbus.service.method(MPRIS_PLAYER_IFACE)
     def Next(self) -> None:
