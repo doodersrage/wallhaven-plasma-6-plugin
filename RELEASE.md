@@ -44,9 +44,11 @@ service, and restarts plasmashell.
 
 ## KDE Store
 
-Manual upload of `wallhaven-plasma-*.tar.xz` plus AppStream metadata and screenshots.
+Published: [opendesktop.org/p/2368647](https://www.opendesktop.org/p/2368647/)
+
+Upload new `wallhaven-plasma-*.tar.xz` files on the product **Files** tab when releasing.
 Replace placeholder PNGs in `screenshots/` with real captures when possible.
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [docs/KDE_STORE.md](docs/KDE_STORE.md).
 
 ## Shortcuts
 

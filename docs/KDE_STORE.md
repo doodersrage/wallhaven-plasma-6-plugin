@@ -1,10 +1,22 @@
 # KDE Store submission
 
-Wallhaven is distributed as a source tarball plus AppStream metadata. KDE Store / Discover listing is manual.
+Wallhaven is published on OpenDesktop / KDE Store:
 
-## Prerequisites
+**https://www.opendesktop.org/p/2368647/**
 
-1. Release tarball: `wallhaven-plasma-2.3.0.tar.xz` from GitHub Releases
+## Updating the listing
+
+When you ship a new release:
+
+1. Build tarball: `./dev-helper.sh package` → `wallhaven-plasma-X.Y.Z.tar.xz`
+2. Upload the new file on the product **Files** tab at [opendesktop.org/p/2368647](https://www.opendesktop.org/p/2368647/)
+3. Replace screenshots if the UI changed (`./scripts/capture-screenshots.sh`)
+4. Update release notes on the store page (copy from `CHANGELOG.md` / `metainfo/` release entry)
+5. Bump AppStream in git so Discover metadata stays in sync
+
+## Prerequisites for each release
+
+1. Release tarball from GitHub Releases or `./dev-helper.sh release`
 2. Six screenshots at **1280×720** (or wider) in `screenshots/`
 3. AppStream file: `metainfo/org.robertsm.wallhaven.metainfo.xml`
 
@@ -36,13 +48,13 @@ Placeholder crops (when UI capture is unavailable):
 
 Commit updated PNGs and push before tagging a release.
 
-## Submit to KDE Store
+## First-time submission (done)
 
-1. Create/login at [KDE Developer](https://community.kde.org/Get_Involved/development)
-2. Open [KDE Store publisher](https://store.kde.org/publish/)
-3. Upload plugin tarball or link GitHub release asset
-4. Paste AppStream metadata / screenshots from this repo
-5. Set license **GPL-2.0-or-later**, category **Utilities**
+Listing created at [opendesktop.org/p/2368647](https://www.opendesktop.org/p/2368647/).
+
+Publisher portal: [store.kde.org/publish](https://store.kde.org/publish/)
+
+Set license **GPL-2.0-or-later**, category **Utilities**. Metadata reference: `metainfo/org.robertsm.wallhaven.metainfo.xml`.
 
 ## Discover (Flatpak)
 

@@ -2,6 +2,8 @@
 
 KDE Plasma 6 Wallhaven wallpaper plugin with search, collections, slideshow, effects, offline cache, blocklist, presets, KRunner, D-Bus control, and panel plasmoid.
 
+**Install from KDE Store / OpenDesktop:** [Wallhaven Extended (p/2368647)](https://www.opendesktop.org/p/2368647/)
+
 ## Quick start
 
 ```bash
@@ -14,7 +16,7 @@ Enable **Wallhaven** in System Settings → Search → Plasma Search (KRunner).
 
 **Control without opening settings:** see [docs/CONTROL.md](docs/CONTROL.md) (plasmoid, Meta+Alt shortcuts, KRunner, D-Bus).
 
-**KDE Store submission:** see [docs/KDE_STORE.md](docs/KDE_STORE.md).
+**KDE Store listing:** [opendesktop.org/p/2368647](https://www.opendesktop.org/p/2368647/) — see [docs/KDE_STORE.md](docs/KDE_STORE.md) for maintainer notes.
 
 ## v2.3.0 — store ready
 

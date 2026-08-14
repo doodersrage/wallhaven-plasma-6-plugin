@@ -24,6 +24,7 @@ jobs:
           ./scripts/validate.sh
           ./tests/validate-qml.sh
           ./dev-helper.sh test
+          python3 tests/test-variety-dbus.py
 
       - name: Sync translations
         run: |

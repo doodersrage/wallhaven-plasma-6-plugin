@@ -16,6 +16,8 @@
   <developer_name>Wallhaven Plasma Port</developer_name>
   <url type="homepage">https://wallhaven.cc</url>
   <url type="bugtracker">https://github.com/doodersrage/wallhaven-plasma-6-plugin/issues</url>
+  <url type="vcs">https://github.com/doodersrage/wallhaven-plasma-6-plugin</url>
+  <url type="details">https://www.opendesktop.org/p/2368647/</url>
   <launchable type="desktop-id">org.kde.plasmashell.desktop</launchable>
   <screenshots>
     <screenshot type="default">
