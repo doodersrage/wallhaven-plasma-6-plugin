@@ -178,7 +178,11 @@ var EXPORTABLE_SETTINGS_KEYS = [
     "RetryAttempts", "NotifyOnRefresh", "NotifyOnError", "ShowStatusBanner",
     "DiskCacheEnabled", "DiskCacheMaxSlots", "OfflineCacheFallback",
     "OfflineOnlyMode", "TimeOfDayEnabled", "DaySearch", "NightSearch",
-    "BlockedIdsJson", "SearchPresetsJson",
+    "BlockedIdsJson", "SearchPresetsJson", "FileTypeFilter", "IntervalJitterPercent",
+    "DayIntervalMin", "NightIntervalMin", "TransitionMode", "AttributionCorner",
+    "AttributionAutoHideSec", "AttributionFontScale", "UseKWalletForApiKey",
+    "MeteredCacheOnly", "SyncAdvanceEnabled", "SyncAdvanceGroup",
+    "VarietyMetadataEnabled", "ControlBusEnabled",
 ];
 
 function exportSettingsSnapshot(cfg) {
@@ -277,6 +281,19 @@ function tagsToCopyString(tags) {
         }
     }
     return names.join(", ");
+}
+
+function appendSearchModifiers(query, cfg) {
+    query = String(query || "").trim();
+    if (cfg.FileTypeFilter === "jpg" || cfg.FileTypeFilter === "png") {
+        query = (query ? query + " " : "") + "type:" + cfg.FileTypeFilter;
+    }
+    return query.trim();
+}
+
+function buildSimilarSearchQuery(wallpaperId) {
+    wallpaperId = String(wallpaperId || "").trim();
+    return wallpaperId ? ("like:" + wallpaperId) : "";
 }
 
 var DISK_CACHE_SLOTS = 40;
@@ -466,6 +483,155 @@ function getEffectiveSearchText(cfg) {
     return cfg.SearchText || "";
 }
 
+function isDayPeriod() {
+    var hour = new Date().getHours();
+    return hour >= 6 && hour < 20;
+}
+
+function baseIntervalMinutes(cfg, dayPeriod) {
+    if (dayPeriod && cfg.DayIntervalMin > 0) {
+        return cfg.DayIntervalMin;
+    }
+    if (!dayPeriod && cfg.NightIntervalMin > 0) {
+        return cfg.NightIntervalMin;
+    }
+    return Math.max(0, cfg.RandomInterval || 0);
+}
+
+function computeIntervalMs(cfg, dayPeriod) {
+    var minutes = baseIntervalMinutes(cfg, dayPeriod);
+    if (minutes <= 0) {
+        return 0;
+    }
+    var ms = minutes * 60 * 1000;
+    var jitter = Math.max(0, Math.min(50, cfg.IntervalJitterPercent || 0));
+    if (jitter > 0) {
+        var spread = ms * (jitter / 100);
+        ms = ms - spread / 2 + (Math.random() * spread);
+    }
+    return Math.max(60000, Math.round(ms));
+}
+
+function formatWallpaperDetails(wallpaper, apiData) {
+    if (!wallpaper) {
+        return "";
+    }
+    var data = apiData || wallpaper;
+    var lines = [];
+    lines.push("Wallhaven #" + wallpaper.id);
+    var resolution = wallpaper.resolution
+        || ((wallpaper.dimension_x || data.dimension_x || "?")
+            + "x"
+            + (wallpaper.dimension_y || data.dimension_y || "?"));
+    lines.push(resolution);
+    if (data.views !== undefined) {
+        lines.push("Views: " + data.views);
+    }
+    if (data.favorites !== undefined) {
+        lines.push("Favorites: " + data.favorites);
+    }
+    if (data.category || wallpaper.category) {
+        lines.push("Category: " + (data.category || wallpaper.category));
+    }
+    if (data.purity || wallpaper.purity) {
+        lines.push("Purity: " + (data.purity || wallpaper.purity));
+    }
+    if (data.uploader && data.uploader.username) {
+        lines.push("Uploader: " + data.uploader.username);
+    }
+    if (data.tags && data.tags.length) {
+        lines.push("Tags: " + tagsToCopyString(data.tags));
+    }
+    lines.push(buildWallpaperPageUrl(wallpaper.id));
+    return lines.join("\n");
+}
+
+function buildVarietyMetadata(wallpaper, imageUrl, localPath) {
+    return JSON.stringify({
+        id: wallpaper ? String(wallpaper.id) : "",
+        url: buildWallpaperPageUrl(wallpaper && wallpaper.id),
+        image: imageUrl || "",
+        localPath: localPath || "",
+        updatedAt: new Date().toISOString(),
+    }, null, 2);
+}
+
+function base64EncodeUtf8(str) {
+    var bytes = [];
+    for (var i = 0; i < str.length; i++) {
+        var code = str.charCodeAt(i);
+        if (code < 0x80) {
+            bytes.push(code);
+        } else if (code < 0x800) {
+            bytes.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f));
+        } else {
+            bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f));
+        }
+    }
+    var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    var output = "";
+    for (var j = 0; j < bytes.length; j += 3) {
+        var b1 = bytes[j];
+        var b2 = j + 1 < bytes.length ? bytes[j + 1] : 0;
+        var b3 = j + 2 < bytes.length ? bytes[j + 2] : 0;
+        var triplet = (b1 << 16) | (b2 << 8) | b3;
+        output += chars.charAt((triplet >> 18) & 63);
+        output += chars.charAt((triplet >> 12) & 63);
+        output += j + 1 < bytes.length ? chars.charAt((triplet >> 6) & 63) : "=";
+        output += j + 2 < bytes.length ? chars.charAt(triplet & 63) : "=";
+    }
+    return output;
+}
+
+function parseControlCommand(raw) {
+    if (!raw) {
+        return null;
+    }
+    try {
+        var parsed = JSON.parse(raw);
+        if (!parsed || !parsed.cmd) {
+            return null;
+        }
+        return {
+            cmd: String(parsed.cmd),
+            ts: parseInt(parsed.ts, 10) || 0,
+            group: parsed.group ? String(parsed.group) : "default",
+        };
+    } catch (e) {
+        return null;
+    }
+}
+
+function buildControlCommand(cmd, group) {
+    return JSON.stringify({
+        cmd: cmd,
+        ts: Date.now(),
+        group: group || "default",
+    });
+}
+
+function parseSyncAdvance(raw) {
+    if (!raw) {
+        return null;
+    }
+    try {
+        var parsed = JSON.parse(raw);
+        return {
+            advanceAt: parseInt(parsed.advanceAt, 10) || 0,
+            issuer: parsed.issuer ? String(parsed.issuer) : "",
+        };
+    } catch (e) {
+        return null;
+    }
+}
+
+function buildSyncAdvance(issuer) {
+    return JSON.stringify({
+        advanceAt: Date.now(),
+        issuer: issuer || "wallhaven",
+    });
+}
+
 // Wallhaven only accepts these palette values for the colors= filter.
 var WALLHAVEN_COLORS = [
     "660000", "990000", "cc0000", "cc3333", "ea4c88",
@@ -539,6 +705,7 @@ function buildSearchUrl(cfg, state) {
     }
 
     var query = state.searchQuery || getEffectiveSearchText(cfg);
+    query = appendSearchModifiers(query, cfg);
     if (query) {
         params.push("q=" + encodeURIComponent(query));
     }

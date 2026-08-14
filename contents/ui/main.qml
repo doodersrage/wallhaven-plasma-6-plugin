@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Dialogs
 import QtCore
+import QtNetwork
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
 import org.kde.kirigami as Kirigami
@@ -15,7 +16,24 @@ WallpaperItem {
     readonly property string previewCacheFile: StandardPaths.writableLocation(StandardPaths.CacheLocation)
         + "/wallhaven-preview.png"
     readonly property string diskCacheDir: StandardPaths.writableLocation(StandardPaths.CacheLocation)
+    readonly property string controlBusFile: diskCacheDir + "/wallhaven-control.json"
+    readonly property string varietyMetadataFile: diskCacheDir + "/wallhaven-variety.json"
+    readonly property string settingsExportFile: diskCacheDir + "/wallhaven-settings-export.json"
     readonly property int diskCacheEntryCount: Wallhaven.listCachedIds(_diskCacheIndex).length
+
+    function syncAdvanceFile() {
+        var group = (cfg.SyncAdvanceGroup || "default").replace(/[^a-zA-Z0-9_-]/g, "_");
+        return diskCacheDir + "/wallhaven-sync-" + group + ".json";
+    }
+
+    function effectiveOfflineOnly() {
+        return cfg.OfflineOnlyMode
+            || (cfg.MeteredCacheOnly && networkInfo.meteredConnection);
+    }
+
+    function slideshowActive() {
+        return Wallhaven.baseIntervalMinutes(cfg, Wallhaven.isDayPeriod()) > 0;
+    }
 
     function diskCacheMaxSlots() {
         return Math.max(5, Math.min(200, cfg.DiskCacheMaxSlots || 40));
@@ -80,6 +98,17 @@ WallpaperItem {
     property bool _needsReconnectFetch: false
     property string _currentTags: ""
     property int _offlineCacheCursor: -1
+    property string _pendingFadeUrl: ""
+    property int _lastControlTs: 0
+    property int _lastSyncAdvanceTs: 0
+    property string _instanceId: Math.random().toString(36).slice(2, 10)
+    property string wallpaperDetailsText: ""
+
+    NetworkInformation {
+        id: networkInfo
+        readonly property bool meteredConnection: cfg.MeteredCacheOnly
+            && transportMedium === NetworkInformation.Cellular
+    }
 
     function currentTimeOfDayPeriod() {
         var hour = new Date().getHours();
@@ -108,7 +137,7 @@ WallpaperItem {
     onHeightChanged: checkScreenResize()
 
     contextualActions: [
-        reloadAction, nextAction, previousAction, pauseResumeAction,
+        reloadAction, nextAction, previousAction, pauseResumeAction, similarAction,
         copyIdAction, copyTagsAction, copyUrlAction, favoriteAction,
         blockWallpaperAction, openInBrowserAction, saveWallpaperAction,
     ]
@@ -138,8 +167,16 @@ WallpaperItem {
         id: pauseResumeAction
         text: cfg.SlideshowPaused ? i18n("Resume Slideshow") : i18n("Pause Slideshow")
         icon.name: cfg.SlideshowPaused ? "media-playback-start" : "media-playback-pause"
-        enabled: cfg.RandomInterval > 0
+        enabled: root.slideshowActive()
         onTriggered: root.toggleSlideshowPause()
+    }
+
+    PlasmaCore.Action {
+        id: similarAction
+        text: i18n("Similar Wallpapers")
+        icon.name: "view-list-icons"
+        enabled: root.currentWallpaperId !== "" && root.currentWallpaperId !== "wallpaper"
+        onTriggered: root.loadSimilarWallpapers()
     }
 
     PlasmaCore.Action {
@@ -421,6 +458,95 @@ WallpaperItem {
         engine.showStatus(i18n("Blocklist cleared."), "info");
     }
 
+    function loadSimilarWallpapers() {
+        var id = currentWallpaperId;
+        if (!id || id === "wallpaper" || !root.configuration) {
+            return;
+        }
+        root.configuration.BrowseMode = "search";
+        root.configuration.SearchText = Wallhaven.buildSimilarSearchQuery(id);
+        scheduleConfigWrite();
+        engine.showStatus(i18n("Loading wallpapers similar to %1…", id), "info");
+        engine.resetSlideshow();
+    }
+
+    function restartIntervalTimer() {
+        if (!slideshowActive() || cfg.SlideshowPaused) {
+            intervalTimer.stop();
+            return;
+        }
+        intervalTimer.interval = Wallhaven.computeIntervalMs(cfg, Wallhaven.isDayPeriod());
+        intervalTimer.restart();
+    }
+
+    function writeControlCommand(cmd) {
+        if (!cfg.ControlBusEnabled) {
+            return;
+        }
+        settingsFileWriter.writeFile(
+            controlBusFile,
+            Wallhaven.buildControlCommand(cmd, cfg.SyncAdvanceGroup || "default"),
+        );
+    }
+
+    function pollControlBus() {
+        if (!cfg.ControlBusEnabled) {
+            return;
+        }
+        controlBusLoader.load(controlBusFile);
+    }
+
+    function broadcastSyncAdvance() {
+        if (!cfg.SyncAdvanceEnabled) {
+            return;
+        }
+        settingsFileWriter.writeFile(syncAdvanceFile(), Wallhaven.buildSyncAdvance(_instanceId));
+    }
+
+    function pollSyncAdvance() {
+        if (!cfg.SyncAdvanceEnabled) {
+            return;
+        }
+        syncAdvanceLoader.load(syncAdvanceFile());
+    }
+
+    function writeVarietyMetadata(wallpaper, imageUrl) {
+        if (!cfg.VarietyMetadataEnabled) {
+            return;
+        }
+        var localPath = resolveImageSource(wallpaper, imageUrl);
+        if (localPath.indexOf("file:") === 0) {
+            localPath = urlToLocalPath(localPath);
+        }
+        settingsFileWriter.writeFile(
+            varietyMetadataFile,
+            Wallhaven.buildVarietyMetadata(wallpaper, imageUrl, localPath),
+        );
+    }
+
+    function exportSettingsToFile(destUrl) {
+        var json = Wallhaven.exportSettingsSnapshot(cfg);
+        settingsFileWriter.writeFile(settingsExportFile, json, function() {
+            fileCopyProcess.command = ["cp", settingsExportFile, urlToLocalPath(destUrl)];
+            fileCopyProcess.start();
+            engine.showStatus(i18n("Settings exported."), "info");
+        });
+    }
+
+    function loadApiKeyFromKWallet() {
+        if (!cfg.UseKWalletForApiKey) {
+            return;
+        }
+        var tmp = diskCacheDir + "/kwallet-apikey.txt";
+        kwalletReadProcess.command = [
+            "bash", "-lc",
+            "kwallet-query -r apikey -f org.robertsm.wallhaven -w wallhaven > '"
+                + tmp.replace(/'/g, "'\\''") + "' 2>/dev/null",
+        ];
+        kwalletReadProcess.pendingTmp = tmp;
+        kwalletReadProcess.start();
+    }
+
     function toggleSlideshowPause() {
         if (!root.configuration) {
             return;
@@ -614,7 +740,7 @@ WallpaperItem {
         }
 
         function fetchFreshWallpaper(fromHistory) {
-            if (cfg.OfflineOnlyMode) {
+            if (root.effectiveOfflineOnly()) {
                 showOfflineWallpaper(fromHistory, true);
                 return;
             }
@@ -711,6 +837,8 @@ WallpaperItem {
                 DaySearch: cfg.DaySearch,
                 NightSearch: cfg.NightSearch,
                 OfflineOnlyMode: cfg.OfflineOnlyMode,
+                MeteredCacheOnly: cfg.MeteredCacheOnly,
+                FileTypeFilter: cfg.FileTypeFilter,
             };
         }
 
@@ -911,7 +1039,7 @@ WallpaperItem {
             var config = configObject();
             var fetchRequestId = expectedRequestId !== undefined ? expectedRequestId : requestId;
 
-            if (config.OfflineOnlyMode) {
+            if (config.OfflineOnlyMode || (config.MeteredCacheOnly && networkInfo.meteredConnection)) {
                 onDone(null);
                 return;
             }
@@ -1042,6 +1170,11 @@ WallpaperItem {
                     return;
                 }
                 root._currentTags = Wallhaven.tagsToCopyString(json.data.tags);
+                root.wallpaperDetailsText = Wallhaven.formatWallpaperDetails(wallpaper, json.data);
+                if (root.configuration) {
+                    root.configuration.PreviewWallpaperDetails = root.wallpaperDetailsText;
+                    scheduleConfigWrite();
+                }
                 var tags = Wallhaven.formatTags(json.data.tags);
                 if (tags) {
                     root.attributionText = "Wallhaven #" + wallpaper.id + "\n"
@@ -1063,6 +1196,7 @@ WallpaperItem {
             root._pendingUsedCache = source !== url && source.indexOf("file:") === 0;
             root.showImage(source, immediate);
             updateAttribution(wallpaper);
+            writeVarietyMetadata(wallpaper, url);
             kenBurnsAnimation.restart();
         }
 
@@ -1080,7 +1214,7 @@ WallpaperItem {
             if (!cfg.DiskCacheEnabled) {
                 return false;
             }
-            if (!cfg.OfflineCacheFallback && !cfg.OfflineOnlyMode) {
+            if (!cfg.OfflineCacheFallback && !root.effectiveOfflineOnly()) {
                 return false;
             }
             if (showNextCachedWallpaper(true, false)) {
@@ -1200,7 +1334,8 @@ WallpaperItem {
         function skipForward() {
             retryTimer.stop();
             endBusy();
-            if (cfg.OfflineOnlyMode) {
+            root.broadcastSyncAdvance();
+            if (root.effectiveOfflineOnly()) {
                 showStatus(i18n("Loading next cached wallpaper…"), "info");
                 showOfflineWallpaper(false, false);
                 return;
@@ -1210,7 +1345,7 @@ WallpaperItem {
         }
 
         function nextWallpaper(fromHistory) {
-            if (cfg.OfflineOnlyMode) {
+            if (root.effectiveOfflineOnly()) {
                 showOfflineWallpaper(fromHistory, false);
                 return;
             }
@@ -1385,7 +1520,14 @@ WallpaperItem {
         }
 
         _pendingImageUrl = url;
-        var crossfade = cfg.CrossfadeMs > 0 && !immediate && currentUrl !== "";
+        var useTransition = cfg.CrossfadeMs > 0 && !immediate && currentUrl !== "";
+        if (useTransition && cfg.TransitionMode === "fadeblack") {
+            _pendingFadeUrl = url;
+            fadeBlackOut.start();
+            currentUrl = url;
+            return;
+        }
+        var crossfade = useTransition && cfg.TransitionMode !== "instant";
 
         if (crossfade) {
             if (activeIsForeground) {
@@ -1509,6 +1651,150 @@ WallpaperItem {
     Process {
         id: cacheRmProcess
         onFinished: cacheFileDeleter.deleteNext()
+    }
+
+    QtObject {
+        id: settingsFileWriter
+        property var pendingCallback: null
+
+        function writeFile(path, text, callback) {
+            pendingCallback = callback || null;
+            var encoded = Wallhaven.base64EncodeUtf8(text);
+            settingsWriteProcess.command = [
+                "python3", "-c",
+                "import base64,sys; open(sys.argv[1],'wb').write(base64.b64decode(sys.argv[2]))",
+                path, encoded,
+            ];
+            settingsWriteProcess.start();
+        }
+    }
+
+    Process {
+        id: settingsWriteProcess
+        onFinished: {
+            if (settingsFileWriter.pendingCallback) {
+                var cb = settingsFileWriter.pendingCallback;
+                settingsFileWriter.pendingCallback = null;
+                cb();
+            }
+        }
+    }
+
+    Process {
+        id: fileCopyProcess
+    }
+
+    Process {
+        id: kwalletReadProcess
+        property string pendingTmp: ""
+        onFinished: function(exitCode) {
+            if (exitCode !== 0 || !root.configuration || !pendingTmp) {
+                return;
+            }
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "file://" + pendingTmp);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== XMLHttpRequest.DONE) {
+                    return;
+                }
+                var key = String(xhr.responseText || "").trim();
+                if (key) {
+                    root.configuration.ApiKey = key;
+                    scheduleConfigWrite();
+                }
+            };
+            xhr.send();
+        }
+    }
+
+    QtObject {
+        id: controlBusLoader
+        function load(path) {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "file://" + path);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== XMLHttpRequest.DONE) {
+                    return;
+                }
+                if (xhr.status !== 0 && xhr.status !== 200) {
+                    return;
+                }
+                var cmd = Wallhaven.parseControlCommand(xhr.responseText);
+                if (!cmd || cmd.ts <= root._lastControlTs) {
+                    return;
+                }
+                if (cmd.group !== (cfg.SyncAdvanceGroup || "default")) {
+                    return;
+                }
+                root._lastControlTs = cmd.ts;
+                switch (cmd.cmd) {
+                case "next": engine.skipForward(); break;
+                case "prev": engine.previousWallpaper(); break;
+                case "reload": root.reloadWallpaper(); break;
+                case "pause":
+                case "resume":
+                    root.toggleSlideshowPause();
+                    break;
+                default: break;
+                }
+            };
+            xhr.send();
+        }
+    }
+
+    QtObject {
+        id: syncAdvanceLoader
+        function load(path) {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "file://" + path);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== XMLHttpRequest.DONE) {
+                    return;
+                }
+                if (xhr.status !== 0 && xhr.status !== 200) {
+                    return;
+                }
+                var sync = Wallhaven.parseSyncAdvance(xhr.responseText);
+                if (!sync || sync.advanceAt <= root._lastSyncAdvanceTs) {
+                    return;
+                }
+                if (sync.issuer === root._instanceId) {
+                    return;
+                }
+                root._lastSyncAdvanceTs = sync.advanceAt;
+                if (!engine.busy) {
+                    engine.skipForward();
+                }
+            };
+            xhr.send();
+        }
+    }
+
+    Rectangle {
+        id: fadeBlackOverlay
+        z: 90
+        anchors.fill: parent
+        color: "#000000"
+        opacity: 0
+    }
+
+    SequentialAnimation {
+        id: fadeBlackOut
+        NumberAnimation { target: fadeBlackOverlay; property: "opacity"; to: 1; duration: cfg.CrossfadeMs / 2 }
+        ScriptAction {
+            script: {
+                var url = _pendingFadeUrl;
+                backgroundImage.source = url;
+                foregroundImage.source = "";
+                backgroundLayer.opacity = 1;
+                foregroundLayer.opacity = 0;
+                activeIsForeground = false;
+                _pendingImageUrl = url;
+            }
+        }
+        NumberAnimation { target: fadeBlackOverlay; property: "opacity"; to: 0; duration: cfg.CrossfadeMs / 2 }
+        onStarted: activeIsForeground = false
+        onFinished: scheduleConfigPreviewCapture()
     }
 
     Item {
@@ -1763,10 +2049,36 @@ WallpaperItem {
 
     Timer {
         id: intervalTimer
-        interval: Math.max(cfg.RandomInterval, 0) * 60 * 1000
-        running: cfg.RandomInterval > 0 && !cfg.SlideshowPaused
+        interval: Wallhaven.computeIntervalMs(cfg, Wallhaven.isDayPeriod())
+        running: root.slideshowActive() && !cfg.SlideshowPaused
+        repeat: false
+        onTriggered: {
+            engine.skipForward();
+            root.restartIntervalTimer();
+        }
+    }
+
+    Timer {
+        id: controlBusTimer
+        interval: 400
+        running: root._configured && cfg.ControlBusEnabled
         repeat: true
-        onTriggered: engine.skipForward()
+        onTriggered: root.pollControlBus()
+    }
+
+    Timer {
+        id: syncAdvanceTimer
+        interval: 800
+        running: root._configured && cfg.SyncAdvanceEnabled
+        repeat: true
+        onTriggered: root.pollSyncAdvance()
+    }
+
+    Timer {
+        id: attributionHideTimer
+        interval: Math.max(1, cfg.AttributionAutoHideSec) * 1000
+        repeat: false
+        onTriggered: attributionBanner.visible = false
     }
 
     Timer {
@@ -1849,11 +2161,8 @@ WallpaperItem {
     Rectangle {
         id: attributionBanner
         z: 100
-        anchors.left: parent.left
-        anchors.bottom: parent.bottom
         anchors.margins: 16
-        anchors.right: parent.right
-        anchors.rightMargin: 16
+        width: parent.width - 32
         height: attributionVisible ? attributionLabel.implicitHeight + 16 : 0
         visible: attributionVisible
         radius: 8
@@ -1861,6 +2170,21 @@ WallpaperItem {
         opacity: 0.65
 
         readonly property bool attributionVisible: cfg.ShowAttribution && root.attributionText !== ""
+        readonly property string corner: cfg.AttributionCorner || "bottom-left"
+
+        anchors.left: corner.indexOf("left") >= 0 ? parent.left : undefined
+        anchors.right: corner.indexOf("right") >= 0 ? parent.right : undefined
+        anchors.top: corner.indexOf("top") >= 0 ? parent.top : undefined
+        anchors.bottom: corner.indexOf("bottom") >= 0 ? parent.bottom : undefined
+        anchors.horizontalCenter: corner === "bottom-left" || corner === "bottom-right"
+            ? undefined : (corner.indexOf("top") >= 0 ? parent.horizontalCenter : undefined)
+
+        onAttributionVisibleChanged: {
+            if (attributionVisible && cfg.AttributionAutoHideSec > 0) {
+                visible = true;
+                attributionHideTimer.restart();
+            }
+        }
 
         QQC2.Label {
             id: attributionLabel
@@ -1868,7 +2192,7 @@ WallpaperItem {
             width: parent.width - 32
             wrapMode: Text.WordWrap
             color: "#ffffff"
-            font.pointSize: 9
+            font.pointSize: Math.max(7, Math.round(9 * (cfg.AttributionFontScale || 100) / 100))
             text: root.attributionText
         }
     }
@@ -1903,17 +2227,24 @@ WallpaperItem {
         function onKenBurnsEnabledChanged() { kenBurnsAnimation.restart(); }
         function onKenBurnsSpeedChanged() { if (cfg.KenBurnsEnabled) kenBurnsAnimation.restart(); }
         function onSlideshowPausedChanged() {
-            if (cfg.SlideshowPaused) {
-                intervalTimer.stop();
-            } else if (cfg.RandomInterval > 0) {
-                intervalTimer.restart();
-            }
+            root.restartIntervalTimer();
         }
         function onOfflineOnlyModeChanged() {
             if (root._configured) {
                 engine.resetSlideshow();
             }
         }
+        function onMeteredCacheOnlyChanged() {
+            if (root._configured && root.effectiveOfflineOnly()) {
+                engine.resetSlideshow();
+            }
+        }
+        function onRandomIntervalChanged() { root.restartIntervalTimer(); }
+        function onDayIntervalMinChanged() { root.restartIntervalTimer(); }
+        function onNightIntervalMinChanged() { root.restartIntervalTimer(); }
+        function onIntervalJitterPercentChanged() { root.restartIntervalTimer(); }
+        function onFileTypeFilterChanged() { if (root._configured) engine.resetSlideshow(); }
+        function onUseKWalletForApiKeyChanged() { root.loadApiKeyFromKWallet(); }
     }
 
     Component.onCompleted: {
@@ -1921,9 +2252,11 @@ WallpaperItem {
         engine.loadSeenIds();
         engine.loadBlockedIds();
         root.loadDiskCacheIndex();
+        root.loadApiKeyFromKWallet();
         engine.fetchFreshWallpaper(false);
         root._configured = true;
         scheduleConfigPreviewCapture();
+        root.restartIntervalTimer();
         Qt.callLater(function() { root.checkConnectivity(); });
     }
 

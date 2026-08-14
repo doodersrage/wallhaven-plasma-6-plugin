@@ -1,68 +1,50 @@
 # Wallhaven — KDE Plasma 6 Wallpaper
 
-KDE Plasma 6 port of the [Wallhaven Wallpaper Engine plugin](../wallhaven-wallpaper-engine). Fetches wallpapers from the [Wallhaven API](https://wallhaven.cc/help/api) with search, collections, favorites, slideshow controls, and visual effects.
+KDE Plasma 6 Wallhaven wallpaper plugin with search, collections, slideshow, effects, offline cache, blocklist, presets, external control, and a panel plasmoid.
 
-## Requirements
-
-- KDE Plasma 6
-- Network access to `wallhaven.cc` (unless **Offline only** mode is enabled)
-- Optional: [Wallhaven API key](https://wallhaven.cc/settings/account) for NSFW, favorites, and collection picker
-
-## Installation
+## Quick start
 
 ```bash
 ./dev-helper.sh install
 ./dev-helper.sh restart
 ```
 
-Then open **System Settings → Appearance → Wallpaper**, choose **Wallhaven**, configure, and apply.
+System Settings → Appearance → Wallpaper → **Wallhaven**
 
-### Package install
+Optional: add **Wallhaven Control** widget to panel/desk.
 
-```bash
-./dev-helper.sh package
-kpackagetool6 --type Plasma/Wallpaper --install wallhaven-plasma-1.2.0.tar.xz
-kquitapp6 plasmashell && plasmashell &
-```
-
-## Desktop actions
-
-Right-click desktop → **Wallpaper Actions**:
-
-Reload · Next · Previous · Pause · Copy ID · Copy Tags · Copy URL · Favorite on Wallhaven… · Block · Open in Browser · Save
-
-## Highlights
+## v1.3.0 highlights
 
 | Feature | Notes |
 |---------|--------|
-| Search / collection / favorites | Full Wallhaven API browsing |
-| Collection picker | Load collections with API key |
-| Search presets | Save/apply named filter profiles |
-| Blocklist | Skip wallpapers permanently |
-| Slideshow + pause | Timer or manual advance |
-| Offline fallback / offline-only | Disk cache when network fails or is disabled |
-| Settings backup | Export JSON to clipboard, import from file |
-| Effects | Crossfade, Ken Burns, attribution |
-| Performance | Screen-sized decode, dual preload, disk cache |
+| Similar wallpapers | Desktop action + `like:` search |
+| File type filter | JPEG / PNG in Filters |
+| Search test + API key test | Source tab |
+| Details panel | Views, favorites, tags in settings preview |
+| Slideshow jitter | ±% randomness |
+| Day/night intervals | Override base interval by time |
+| Fade-through-black | Transition mode in Playback |
+| Attribution tuning | Corner, auto-hide, font scale |
+| Control bus | `tools/wallhaven-ctl.sh next\|prev\|reload\|pause` |
+| Sync advance | Multi-monitor same group |
+| Metered mode | Cache-only on cellular |
+| KWallet | Optional API key load |
+| Variety metadata | JSON for external tools |
+| Export settings | Clipboard or file |
+| Plasmoid | `org.robertsm.wallhaven.control` |
 
-See `README` feature table in repo history for the full list.
-
-## Not ported (Plasma limits)
-
-- Audio reactive / RGB sync — no APIs
-- Click desktop to advance — Folder View intercepts clicks
-- Overlays above icons — wallpaper layer is underneath
-- One-click API favorite — Wallhaven has no public write API (browser fallback provided)
-
-## Development
+## Commands
 
 ```bash
 ./dev-helper.sh test
+./dev-helper.sh translations
 ./dev-helper.sh package
-./scripts/extract-messages.sh   # refresh translation template
+./tools/wallhaven-ctl.sh next
 ```
 
-Release steps: `RELEASE.md`
+## Flatpak
+
+See `flatpak/org.robertsm.wallhaven.yaml` (packages wallpaper + plasmoid into KDE runtime).
 
 ## License
 

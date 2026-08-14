@@ -12,8 +12,13 @@
         <entry name="CollectionId" type="String"><default></default></entry>
         <entry name="RandomInterval" type="Int"><default>0</default></entry>
         <entry name="SlideshowPaused" type="Bool"><default>false</default></entry>
+        <entry name="IntervalJitterPercent" type="Int"><default>0</default></entry>
+        <entry name="DayIntervalMin" type="Int"><default>0</default></entry>
+        <entry name="NightIntervalMin" type="Int"><default>0</default></entry>
         <entry name="CrossfadeMs" type="Int"><default>0</default></entry>
+        <entry name="TransitionMode" type="String"><default>crossfade</default></entry>
         <entry name="ImageQuality" type="String"><default>large</default></entry>
+        <entry name="FileTypeFilter" type="String"><default></default></entry>
         <entry name="Sortings" type="String"><default>random</default></entry>
         <entry name="LocalSortings" type="String"><default>ascending</default></entry>
         <entry name="Order" type="String"><default>desc</default></entry>
@@ -35,6 +40,9 @@
         <entry name="KenBurnsEnabled" type="Bool"><default>false</default></entry>
         <entry name="KenBurnsSpeed" type="Int"><default>30</default></entry>
         <entry name="ShowAttribution" type="Bool"><default>true</default></entry>
+        <entry name="AttributionCorner" type="String"><default>bottom-left</default></entry>
+        <entry name="AttributionAutoHideSec" type="Int"><default>0</default></entry>
+        <entry name="AttributionFontScale" type="Int"><default>100</default></entry>
         <entry name="RequestTimeoutSec" type="Int"><default>30</default></entry>
         <entry name="RetryDelaySec" type="Int"><default>15</default></entry>
         <entry name="RetryAttempts" type="Int"><default>5</default></entry>
@@ -45,6 +53,12 @@
         <entry name="DiskCacheMaxSlots" type="Int"><default>40</default></entry>
         <entry name="OfflineCacheFallback" type="Bool"><default>true</default></entry>
         <entry name="OfflineOnlyMode" type="Bool"><default>false</default></entry>
+        <entry name="MeteredCacheOnly" type="Bool"><default>false</default></entry>
+        <entry name="UseKWalletForApiKey" type="Bool"><default>false</default></entry>
+        <entry name="ControlBusEnabled" type="Bool"><default>true</default></entry>
+        <entry name="SyncAdvanceEnabled" type="Bool"><default>false</default></entry>
+        <entry name="SyncAdvanceGroup" type="String"><default>default</default></entry>
+        <entry name="VarietyMetadataEnabled" type="Bool"><default>false</default></entry>
         <entry name="BlockedIdsJson" type="String"><default>[]</default></entry>
         <entry name="SearchPresetsJson" type="String"><default>[]</default></entry>
         <entry name="DiskCacheIndexJson" type="String"><default>{"ids":[],"next":0}</default></entry>
@@ -55,5 +69,7 @@
         <entry name="PreviewWallpaperId" type="String"><default></default></entry>
         <entry name="PreviewThumbUrl" type="String"><default></default></entry>
         <entry name="PreviewAttribution" type="String"><default></default></entry>
+        <entry name="PreviewWallpaperDetails" type="String"><default></default></entry>
+        <entry name="ApiKeyValid" type="Bool"><default>false</default></entry>
     </group>
 </kcfg>

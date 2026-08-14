@@ -1,0 +1,24 @@
+id: org.robertsm.wallhaven
+runtime: org.kde.Platform
+runtime-version: "6.8"
+sdk: org.kde.Sdk
+command: plasmashell
+finish-args:
+  - --share=network
+  - --socket=wayland-x11
+  - --talk-name=org.kde.KWallet5
+  - --talk-name=org.freedesktop.Notifications
+modules:
+  - name: wallhaven-plasma
+    buildsystem: simple
+    build-commands:
+      - mkdir -p ${FLATPAK_DEST}/share/plasma/wallpapers/org.robertsm.wallhaven
+      - cp -r contents ${FLATPAK_DEST}/share/plasma/wallpapers/org.robertsm.wallhaven/
+      - cp metadata.json ${FLATPAK_DEST}/share/plasma/wallpapers/org.robertsm.wallhaven/
+      - cp preview.jpg ${FLATPAK_DEST}/share/plasma/wallpapers/org.robertsm.wallhaven/ || true
+      - mkdir -p ${FLATPAK_DEST}/share/plasma/plasmoids/org.robertsm.wallhaven.control
+      - cp -r plasmoid/contents ${FLATPAK_DEST}/share/plasma/plasmoids/org.robertsm.wallhaven.control/
+      - cp plasmoid/metadata.json ${FLATPAK_DEST}/share/plasma/plasmoids/org.robertsm.wallhaven.control/
+    sources:
+      - type: dir
+        path: ..

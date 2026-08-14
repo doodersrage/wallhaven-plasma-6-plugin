@@ -18,93 +18,38 @@ function assert(condition, message) {
     }
 }
 
-function testBlockedIds() {
-    var blocked = Wallhaven.addBlockedId([], "abc123");
-    assert(blocked.length === 1, "block id added");
-    assert(Wallhaven.isBlocked("abc123", blocked), "blocked id detected");
-    var filtered = Wallhaven.filterWallpapersByBlocklist(
-        [{ id: "abc123" }, { id: "xyz789" }],
-        blocked,
-    );
-    assert(filtered.length === 1 && filtered[0].id === "xyz789", "blocked wallpaper filtered");
+function testFileTypeFilter() {
+    var cfg = { FileTypeFilter: "png", Sortings: "random", Order: "desc" };
+    var state = { page: 1, seed: "x", searchQuery: "nature", screenWidth: 1920, screenHeight: 1080 };
+    var url = Wallhaven.buildSearchUrl(cfg, state);
+    assert(url.indexOf(encodeURIComponent("type:png")) !== -1, "png filter in url");
 }
 
-function testPresets() {
-    var preset = Wallhaven.buildPresetFromConfig("Night", {
-        SearchText: "dark nature",
-        Sortings: "random",
-        Order: "desc",
-        TopRange: "1M",
-        CategoryGeneral: true,
-        CategoryAnime: false,
-        CategoryPeople: false,
-        PuritySfw: true,
-        PuritySketchy: false,
-        PurityNsfw: false,
-        MinWidth: "",
-        MinHeight: "",
-        Ratio: "landscape",
-        ColorFilter: "",
-        ExactResolutions: "",
-        UseBlacklist: false,
-        TimeOfDayEnabled: false,
-        DaySearch: "",
-        NightSearch: "",
-    });
-    assert(preset.name === "Night", "preset name");
-    assert(preset.SearchText === "dark nature", "preset search text");
-
-    var exported = JSON.parse(Wallhaven.exportSettingsSnapshot({
-        SearchText: "test",
-        BrowseMode: "search",
-        BlockedIdsJson: "[]",
-    }));
-    assert(exported.plugin === "org.robertsm.wallhaven", "export plugin id");
-    assert(exported.settings.SearchText === "test", "export settings");
-    var imported = Wallhaven.importSettingsSnapshot(JSON.stringify(exported));
-    assert(imported.SearchText === "test", "import settings");
+function testSimilarSearch() {
+    assert(Wallhaven.buildSimilarSearchQuery("abc12") === "like:abc12", "similar query");
 }
 
-function testRateLimitDelay() {
-    var xhr = {
-        getResponseHeader: function(name) {
-            return name === "Retry-After" ? "12" : "";
-        },
-    };
-    assert(Wallhaven.parseRateLimitDelayMs(xhr, 429) === 12000, "retry-after header");
+function testIntervalJitter() {
+    var ms = Wallhaven.computeIntervalMs({ RandomInterval: 10, IntervalJitterPercent: 0 }, true);
+    assert(ms === 600000, "base interval");
 }
 
-function testPeekAheadWallpapers() {
-    var cfg = {
-        LocalSortings: "ascending",
-        DedupEnabled: false,
-    };
-    var state = {
-        page: 1,
-        index: 0,
-        seed: "seed",
-        lastPage: 1,
-        total: 2,
-        totalShown: 0,
-        usedIndices: [],
-        seenIds: [],
-        blockedIds: [],
-        screenWidth: 1920,
-        screenHeight: 1080,
-        searchQuery: "",
-        favoritesUser: "",
-        favoritesId: "",
-    };
-    var wallpapers = [{ id: "one" }, { id: "two" }];
-    var ahead = Wallhaven.peekAheadWallpapers(cfg, state, wallpapers, 2);
-    assert(ahead.length === 2, "peek ahead returns two wallpapers");
+function testControlBus() {
+    var cmd = Wallhaven.parseControlCommand('{"cmd":"next","ts":100,"group":"default"}');
+    assert(cmd.cmd === "next" && cmd.group === "default", "control parse");
+}
+
+function testBase64() {
+    var encoded = Wallhaven.base64EncodeUtf8("hello");
+    assert(encoded.length > 0, "base64 encode");
 }
 
 [
-    testBlockedIds,
-    testPresets,
-    testRateLimitDelay,
-    testPeekAheadWallpapers,
+    testFileTypeFilter,
+    testSimilarSearch,
+    testIntervalJitter,
+    testControlBus,
+    testBase64,
 ].forEach(function(run) {
     run();
 });

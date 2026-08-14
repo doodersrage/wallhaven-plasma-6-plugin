@@ -55,6 +55,16 @@ ColumnLayout {
         return value;
     }
 
+    readonly property string previewWallpaperDetails: {
+        if (liveWallpaper && liveWallpaper.wallpaperDetailsText) {
+            return liveWallpaper.wallpaperDetailsText;
+        }
+        if (wallpaperConfiguration && wallpaperConfiguration.PreviewWallpaperDetails) {
+            return wallpaperConfiguration.PreviewWallpaperDetails;
+        }
+        return "";
+    }
+
     readonly property real previewWidth: Math.min(420, Math.max(280, width > 0 ? Math.round(width * 0.55) : 360))
     readonly property real previewHeight: Math.round(previewWidth * 9 / 16)
 
@@ -65,8 +75,13 @@ ColumnLayout {
     property alias cfg_CollectionId: collectionIdField.text
     property alias cfg_RandomInterval: intervalSpin.value
     property alias cfg_SlideshowPaused: slideshowPausedCheck.checked
+    property alias cfg_IntervalJitterPercent: jitterSpin.value
+    property alias cfg_DayIntervalMin: dayIntervalSpin.value
+    property alias cfg_NightIntervalMin: nightIntervalSpin.value
     property alias cfg_CrossfadeMs: crossfadeSpin.value
+    property alias cfg_TransitionMode: transitionCombo.currentValue
     property alias cfg_ImageQuality: qualityCombo.currentValue
+    property alias cfg_FileTypeFilter: fileTypeCombo.currentValue
     property alias cfg_Sortings: sortingsCombo.currentValue
     property alias cfg_LocalSortings: localSortingsCombo.currentValue
     property alias cfg_Order: orderCombo.currentValue
@@ -87,6 +102,9 @@ ColumnLayout {
     property alias cfg_KenBurnsEnabled: kenBurnsCheck.checked
     property alias cfg_KenBurnsSpeed: kenBurnsSpeedSpin.value
     property alias cfg_ShowAttribution: attributionCheck.checked
+    property alias cfg_AttributionCorner: attributionCornerCombo.currentValue
+    property alias cfg_AttributionAutoHideSec: attributionHideSpin.value
+    property alias cfg_AttributionFontScale: attributionScaleSpin.value
     property alias cfg_RequestTimeoutSec: requestTimeoutSpin.value
     property alias cfg_RetryDelaySec: retryDelaySpin.value
     property alias cfg_RetryAttempts: retryAttemptsSpin.value
@@ -97,6 +115,12 @@ ColumnLayout {
     property alias cfg_DiskCacheMaxSlots: diskCacheSlotsSpin.value
     property alias cfg_OfflineCacheFallback: offlineCacheCheck.checked
     property alias cfg_OfflineOnlyMode: offlineOnlyCheck.checked
+    property alias cfg_MeteredCacheOnly: meteredCacheCheck.checked
+    property alias cfg_UseKWalletForApiKey: kwalletCheck.checked
+    property alias cfg_ControlBusEnabled: controlBusCheck.checked
+    property alias cfg_SyncAdvanceEnabled: syncAdvanceCheck.checked
+    property alias cfg_SyncAdvanceGroup: syncGroupField.text
+    property alias cfg_VarietyMetadataEnabled: varietyCheck.checked
     property alias cfg_TimeOfDayEnabled: timeOfDayCheck.checked
     property alias cfg_DaySearch: daySearchField.text
     property alias cfg_NightSearch: nightSearchField.text
@@ -280,8 +304,109 @@ ColumnLayout {
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap
             font.pointSize: Kirigami.Theme.smallFont.pointSize
+            opacity: 0.85
+            visible: root.previewWallpaperDetails !== ""
+            text: root.previewWallpaperDetails
+        }
+
+        QtControls2.Label {
+            Layout.fillWidth: true
+            Layout.maximumWidth: root.previewWidth
+            Layout.alignment: Qt.AlignHCenter
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.WordWrap
+            font.pointSize: Kirigami.Theme.smallFont.pointSize
             opacity: 0.7
-            text: i18n("Use desktop → Wallpaper Actions for Reload / Next / Previous / Pause / Copy ID / Open in Browser / Save.")
+            text: i18n("Wallpaper Actions: Reload / Next / Similar / Pause / Copy / Block / Save.")
+        }
+    }
+
+    QtObject {
+        id: apiKeyValidator
+        property bool checking: false
+        property string statusText: ""
+
+        function validate() {
+            statusText = "";
+            if (!apiKeyField.text) {
+                statusText = i18n("Enter an API key first.");
+                return;
+            }
+            checking = true;
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", Wallhaven.buildSettingsUrl(apiKeyField.text));
+            xhr.timeout = 15000;
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== XMLHttpRequest.DONE) {
+                    return;
+                }
+                checking = false;
+                if (xhr.status === 200) {
+                    statusText = i18n("API key is valid.");
+                    if (wallpaperConfiguration) {
+                        wallpaperConfiguration.ApiKeyValid = true;
+                    }
+                } else {
+                    statusText = i18n("API key validation failed (%1).", xhr.status);
+                    if (wallpaperConfiguration) {
+                        wallpaperConfiguration.ApiKeyValid = false;
+                    }
+                }
+            };
+            xhr.onerror = function() {
+                checking = false;
+                statusText = i18n("Network error while validating API key.");
+            };
+            xhr.send();
+        }
+    }
+
+    QtObject {
+        id: searchValidator
+        property bool checking: false
+        property string statusText: ""
+
+        function testSearch() {
+            statusText = "";
+            checking = true;
+            var cfg = root.buildCurrentConfigObject();
+            cfg.FileTypeFilter = fileTypeCombo.currentValue;
+            cfg.ApiKey = apiKeyField.text;
+            cfg.Sortings = sortingsCombo.currentValue;
+            cfg.Order = orderCombo.currentValue;
+            cfg.TopRange = topRangeCombo.currentValue;
+            var state = {
+                page: 1,
+                seed: "test",
+                searchQuery: searchTextField.text,
+                screenWidth: 1920,
+                screenHeight: 1080,
+            };
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", Wallhaven.buildSearchUrl(cfg, state));
+            xhr.timeout = 20000;
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== XMLHttpRequest.DONE) {
+                    return;
+                }
+                checking = false;
+                if (xhr.status !== 200) {
+                    statusText = i18n("Search test failed (%1).", xhr.status);
+                    return;
+                }
+                try {
+                    var json = JSON.parse(xhr.responseText);
+                    var total = json.meta && json.meta.total !== undefined ? json.meta.total : 0;
+                    statusText = i18n("Search test: %1 result(s).", total);
+                } catch (e) {
+                    statusText = i18n("Could not parse search response.");
+                }
+            };
+            xhr.onerror = function() {
+                checking = false;
+                statusText = i18n("Network error during search test.");
+            };
+            xhr.send();
         }
     }
 
@@ -406,11 +531,50 @@ ColumnLayout {
                     visible: browseModeCombo.currentValue === "search"
                 }
 
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Test search:")
+                    text: searchValidator.checking ? i18n("Testing…") : i18n("Test search")
+                    visible: browseModeCombo.currentValue === "search"
+                    enabled: !searchValidator.checking
+                    onClicked: searchValidator.testSearch()
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: browseModeCombo.currentValue === "search" && searchValidator.statusText !== ""
+                    text: searchValidator.statusText
+                }
+
                 QtControls2.TextField {
                     id: apiKeyField
                     Kirigami.FormData.label: i18n("API key:")
                     placeholderText: i18n("Optional; required for NSFW and favorites")
                     echoMode: TextInput.Password
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Validate key:")
+                    text: apiKeyValidator.checking ? i18n("Checking…") : i18n("Test API key")
+                    enabled: apiKeyField.text !== "" && !apiKeyValidator.checking
+                    onClicked: apiKeyValidator.validate()
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: apiKeyValidator.statusText !== ""
+                    text: apiKeyValidator.statusText
+                }
+
+                QtControls2.CheckBox {
+                    id: kwalletCheck
+                    Kirigami.FormData.label: i18n("KWallet:")
+                    text: i18n("Load API key from KWallet on startup")
                 }
 
                 QtControls2.TextField {
@@ -590,6 +754,19 @@ ColumnLayout {
                         { label: "32×9", value: "32x9" },
                         { label: i18n("All portrait"), value: "portrait" },
                         { label: "9×16", value: "9x16" },
+                    ]
+                }
+
+                QtControls2.ComboBox {
+                    id: fileTypeCombo
+                    Kirigami.FormData.label: i18n("File type:")
+                    textRole: "label"
+                    valueRole: "value"
+                    visible: parent.searchFilters
+                    model: [
+                        { label: i18n("Any"), value: "" },
+                        { label: "JPEG", value: "jpg" },
+                        { label: "PNG", value: "png" },
                     ]
                 }
 
@@ -774,6 +951,34 @@ ColumnLayout {
                     wrapMode: Text.WordWrap
                 }
 
+                QtControls2.SpinBox {
+                    id: jitterSpin
+                    Kirigami.FormData.label: i18n("Interval jitter (%):")
+                    from: 0
+                    to: 50
+                }
+
+                QtControls2.SpinBox {
+                    id: dayIntervalSpin
+                    Kirigami.FormData.label: i18n("Day interval (min):")
+                    from: 0
+                    to: 10080
+                }
+
+                QtControls2.SpinBox {
+                    id: nightIntervalSpin
+                    Kirigami.FormData.label: i18n("Night interval (min):")
+                    from: 0
+                    to: 10080
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    text: i18n("Day/night intervals override the base interval when set (6am–8pm = day).")
+                    opacity: 0.7
+                    wrapMode: Text.WordWrap
+                }
+
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Effects")
                     Kirigami.FormData.isSection: true
@@ -799,6 +1004,18 @@ ColumnLayout {
                     stepSize: 100
                 }
 
+                QtControls2.ComboBox {
+                    id: transitionCombo
+                    Kirigami.FormData.label: i18n("Transition:")
+                    textRole: "label"
+                    valueRole: "value"
+                    model: [
+                        { label: i18n("Crossfade"), value: "crossfade" },
+                        { label: i18n("Fade through black"), value: "fadeblack" },
+                        { label: i18n("Instant"), value: "instant" },
+                    ]
+                }
+
                 QtControls2.CheckBox {
                     id: kenBurnsCheck
                     Kirigami.FormData.label: i18n("Ken Burns:")
@@ -817,6 +1034,36 @@ ColumnLayout {
                     id: attributionCheck
                     Kirigami.FormData.label: i18n("Attribution:")
                     text: i18n("Show overlay on desktop")
+                }
+
+                QtControls2.ComboBox {
+                    id: attributionCornerCombo
+                    Kirigami.FormData.label: i18n("Attribution corner:")
+                    textRole: "label"
+                    valueRole: "value"
+                    enabled: attributionCheck.checked
+                    model: [
+                        { label: i18n("Bottom left"), value: "bottom-left" },
+                        { label: i18n("Bottom right"), value: "bottom-right" },
+                        { label: i18n("Top left"), value: "top-left" },
+                        { label: i18n("Top right"), value: "top-right" },
+                    ]
+                }
+
+                QtControls2.SpinBox {
+                    id: attributionHideSpin
+                    Kirigami.FormData.label: i18n("Auto-hide (sec):")
+                    from: 0
+                    to: 120
+                    enabled: attributionCheck.checked
+                }
+
+                QtControls2.SpinBox {
+                    id: attributionScaleSpin
+                    Kirigami.FormData.label: i18n("Font scale (%):")
+                    from: 70
+                    to: 150
+                    enabled: attributionCheck.checked
                 }
             }
         }
@@ -919,6 +1166,19 @@ ColumnLayout {
                     enabled: diskCacheCheck.checked
                 }
 
+                QtControls2.CheckBox {
+                    id: meteredCacheCheck
+                    Kirigami.FormData.label: i18n("Metered network:")
+                    text: i18n("Use cache only on cellular connections")
+                    enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.CheckBox {
+                    id: varietyCheck
+                    Kirigami.FormData.label: i18n("Variety metadata:")
+                    text: i18n("Write current wallpaper JSON for external tools")
+                }
+
                 QtControls2.Label {
                     Kirigami.FormData.label: i18n("Cache status:")
                     wrapMode: Text.WordWrap
@@ -979,6 +1239,37 @@ ColumnLayout {
                 }
 
                 Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("External Control")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.CheckBox {
+                    id: controlBusCheck
+                    Kirigami.FormData.label: i18n("Control bus:")
+                    text: i18n("Accept commands from plasmoid/CLI")
+                }
+
+                QtControls2.CheckBox {
+                    id: syncAdvanceCheck
+                    Kirigami.FormData.label: i18n("Sync advance:")
+                    text: i18n("Advance all monitors in the same group together")
+                }
+
+                QtControls2.TextField {
+                    id: syncGroupField
+                    Kirigami.FormData.label: i18n("Sync group:")
+                    placeholderText: i18n("default")
+                    enabled: syncAdvanceCheck.checked
+                }
+
+                QtControls2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: i18n("Use tools/wallhaven-ctl.sh or the Wallhaven Control plasmoid.")
+                }
+
+                Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Settings Backup")
                     Kirigami.FormData.isSection: true
                 }
@@ -987,6 +1278,13 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Export:")
                     text: i18n("Copy settings to clipboard")
                     onClicked: root.exportSettingsToClipboard()
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Export file:")
+                    text: i18n("Save settings to file…")
+                    enabled: liveWallpaper !== null
+                    onClicked: exportSettingsDialog.open()
                 }
 
                 QtControls2.Button {
@@ -1036,6 +1334,20 @@ ColumnLayout {
         nameFilters: [i18n("JSON files (*.json)")]
         fileMode: FileDialog.OpenFile
         onAccepted: settingsImportLoader.load(selectedFile)
+    }
+
+    FileDialog {
+        id: exportSettingsDialog
+        title: i18n("Export Wallhaven Settings")
+        nameFilters: [i18n("JSON files (*.json)")]
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: "json"
+        onAccepted: {
+            if (liveWallpaper && liveWallpaper.exportSettingsToFile) {
+                liveWallpaper.exportSettingsToFile(selectedFile);
+                importExportStatus.text = i18n("Settings exported to file.");
+            }
+        }
     }
 
     QtObject {
