@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.1 — 2026-08-14
+
+### Fixed
+- **Plasmashell crashes** — replace unavailable QML `Process` with D-Bus helper (`WriteTextFile`, `RunArgv`)
+- **Empty settings panel** — inline setup wizard instead of broken `Kirigami.OverlaySheet` with invalid `preferredWidth`
+- **Local file reads** — route control bus, cache, battery, Variety, and debug log through D-Bus `ReadTextFile` (XHR `file://` disabled in plasmashell)
+- **Cache image URLs** — avoid double `file://` prefix on disk cache paths
+- **Status banner layout** — remove conflicting horizontal center anchor
+
 ## 1.7.0 — 2026-08-14
 
 ### Added

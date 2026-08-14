@@ -45,6 +45,11 @@ ALLOWED_COMMANDS = {
     "plasma-apply-colors",
     "kwriteconfig6",
 }
+BATTERY_CAPACITY_RE = re.compile(r"^/sys/class/power_supply/BAT\d+/capacity$")
+
+
+def config_home() -> str:
+    return os.path.realpath(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")))
 
 
 def validate_cache_path(path: str) -> str:
@@ -55,6 +60,21 @@ def validate_cache_path(path: str) -> str:
     if full == base or full.startswith(base + os.sep):
         return full
     raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: path outside cache")
+
+
+def validate_read_path(path: str) -> str:
+    if not path:
+        raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: empty path")
+    full = os.path.realpath(path)
+    cache_base = os.path.realpath(PLASMA_CACHE)
+    if full == cache_base or full.startswith(cache_base + os.sep):
+        return full
+    if BATTERY_CAPACITY_RE.match(full):
+        return full
+    cfg_base = config_home()
+    if full.startswith(cfg_base + os.sep):
+        return full
+    raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: path not readable")
 
 
 def run_argv(argv: list[str]) -> None:
@@ -139,6 +159,15 @@ class WallhavenControl(dbus.service.Object):
         os.makedirs(os.path.dirname(target), exist_ok=True)
         with open(target, "w", encoding="utf-8") as handle:
             handle.write(content)
+
+    @dbus.service.method(INTERFACE, in_signature="s", out_signature="s")
+    def ReadTextFile(self, path: str) -> str:
+        target = validate_read_path(path)
+        try:
+            with open(target, encoding="utf-8") as handle:
+                return handle.read()
+        except OSError:
+            return ""
 
     @dbus.service.method(INTERFACE, in_signature="s")
     def RunArgv(self, argv_json: str) -> None:

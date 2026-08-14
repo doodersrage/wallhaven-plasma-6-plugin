@@ -299,6 +299,17 @@ WallpaperItem {
         return decodeURIComponent(path);
     }
 
+    function localPathToUrl(path) {
+        path = String(path || "");
+        if (!path) {
+            return "";
+        }
+        if (path.indexOf("file://") === 0) {
+            return path;
+        }
+        return "file://" + path;
+    }
+
     function scheduleConfigWrite() {
         _configWritePending = true;
         configWriteTimer.restart();
@@ -334,7 +345,7 @@ WallpaperItem {
     }
 
     function diskCacheLocalUrl(slot) {
-        return Qt.resolvedUrl("file://" + diskCacheLocalPath(slot)).toString();
+        return localPathToUrl(diskCacheLocalPath(slot));
     }
 
     function resolveImageSource(wallpaper, remoteUrl) {
@@ -746,37 +757,43 @@ WallpaperItem {
         }
     }
 
-    function getDebugInfo() {
-        var logTail = "";
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", "file://" + debugLogFile);
-        xhr.send();
-        if (xhr.responseText) {
-            logTail = xhr.responseText;
-        }
+    function buildDebugBundleText(logTail) {
         return Wallhaven.buildDebugBundle(cfg, {
-            version: "1.6.0",
+            version: "1.7.1",
             status: {
                 id: currentWallpaperId,
                 url: currentUrl,
                 paused: cfg.SlideshowPaused,
             },
             metrics: _metrics,
-            logTail: logTail.split("\n").slice(-40).join("\n"),
+            logTail: String(logTail || "").split("\n").slice(-40).join("\n"),
+        });
+    }
+
+    function getDebugInfo(onReady) {
+        dbusHelper.readFile(debugLogFile, function(logTail) {
+            var info = buildDebugBundleText(logTail);
+            if (onReady) {
+                onReady(info);
+            }
         });
     }
 
     function copyGithubIssue() {
-        try {
-            var bundle = JSON.parse(getDebugInfo());
-            copyToClipboard(bundle.githubIssue || getDebugInfo(), i18n("Copied GitHub issue template."));
-        } catch (e) {
-            copyDebugInfo();
-        }
+        getDebugInfo(function(info) {
+            try {
+                var bundle = JSON.parse(info);
+                copyToClipboard(bundle.githubIssue || info, i18n("Copied GitHub issue template."));
+            } catch (e) {
+                copyToClipboard(info, i18n("Copied debug info."));
+            }
+        });
     }
 
     function copyDebugInfo() {
-        copyToClipboard(getDebugInfo(), i18n("Copied debug info."));
+        getDebugInfo(function(info) {
+            copyToClipboard(info, i18n("Copied debug info."));
+        });
     }
 
     function writeControlCommand(cmd) {
@@ -2063,6 +2080,10 @@ WallpaperItem {
             wallhavenMessage("WriteTextFile", "ss", [path, text], callback);
         }
 
+        function readFile(path, callback) {
+            wallhavenMessage("ReadTextFile", "s", [path], callback);
+        }
+
         function runArgv(argv, callback) {
             wallhavenMessage("RunArgv", "s", [JSON.stringify(argv)], callback);
         }
@@ -2078,22 +2099,16 @@ WallpaperItem {
     QtObject {
         id: kwalletReadLoader
         function read(tmpPath) {
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", "file://" + tmpPath);
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState !== XMLHttpRequest.DONE) {
-                    return;
-                }
+            dbusHelper.readFile(tmpPath, function(text) {
                 if (!root.configuration) {
                     return;
                 }
-                var key = String(xhr.responseText || "").trim();
+                var key = String(text || "").trim();
                 if (key) {
                     root.configuration.ApiKey = key;
                     scheduleConfigWrite();
                 }
-            };
-            xhr.send();
+            });
         }
     }
 
@@ -2127,23 +2142,15 @@ WallpaperItem {
             if (index >= paths.length) {
                 return;
             }
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", "file://" + paths[index]);
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState !== XMLHttpRequest.DONE) {
+            dbusHelper.readFile(paths[index], function(text) {
+                var pct = parseInt(String(text || "").trim(), 10);
+                if (!isNaN(pct)) {
+                    root._batteryPercent = pct;
+                    root.evaluateSlideshowRules();
                     return;
                 }
-                if (xhr.status === 0 || xhr.status === 200) {
-                    var pct = parseInt(String(xhr.responseText || "").trim(), 10);
-                    if (!isNaN(pct)) {
-                        root._batteryPercent = pct;
-                        root.evaluateSlideshowRules();
-                        return;
-                    }
-                }
                 tryPath(index + 1);
-            };
-            xhr.send();
+            });
         }
     }
 
@@ -2188,39 +2195,28 @@ WallpaperItem {
         repeat: true
         property string lastPath: ""
         onTriggered: {
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", "file://" + varietyMetadataFile);
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState !== XMLHttpRequest.DONE || xhr.status > 200) {
-                    return;
-                }
+            dbusHelper.readFile(varietyMetadataFile, function(text) {
                 try {
-                    var meta = JSON.parse(xhr.responseText || "{}");
+                    var meta = JSON.parse(text || "{}");
                     if (meta.localPath && meta.localPath !== lastPath) {
                         lastPath = meta.localPath;
                         updateVarietySymlink(meta.localPath);
                     }
                 } catch (e) {
                 }
-            };
-            xhr.send();
+            });
         }
     }
 
     QtObject {
         id: varietyConfLoader
         function load(path) {
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", "file://" + path);
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState !== XMLHttpRequest.DONE) {
-                    return;
-                }
-                if (xhr.status !== 0 && xhr.status !== 200) {
+            dbusHelper.readFile(path, function(text) {
+                if (!text) {
                     engine.showStatus(i18n("No Variety config found."), "warn");
                     return;
                 }
-                var search = Wallhaven.parseVarietySearch(xhr.responseText);
+                var search = Wallhaven.parseVarietySearch(text);
                 if (!search) {
                     engine.showStatus(i18n("No image_fetch_search in Variety config."), "warn");
                     return;
@@ -2233,24 +2229,18 @@ WallpaperItem {
                     engine.resetSlideshow();
                     engine.showStatus(i18n("Applied Variety search: %1", search), "info");
                 }
-            };
-            xhr.send();
+            });
         }
     }
 
     QtObject {
         id: controlBusLoader
         function load(path) {
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", "file://" + path);
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState !== XMLHttpRequest.DONE) {
+            dbusHelper.readFile(path, function(text) {
+                if (!text) {
                     return;
                 }
-                if (xhr.status !== 0 && xhr.status !== 200) {
-                    return;
-                }
-                var cmd = Wallhaven.parseControlCommand(xhr.responseText);
+                var cmd = Wallhaven.parseControlCommand(text);
                 if (!cmd || cmd.ts <= root._lastControlTs) {
                     return;
                 }
@@ -2293,24 +2283,18 @@ WallpaperItem {
                     break;
                 default: break;
                 }
-            };
-            xhr.send();
+            });
         }
     }
 
     QtObject {
         id: syncAdvanceLoader
         function load(path) {
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", "file://" + path);
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState !== XMLHttpRequest.DONE) {
+            dbusHelper.readFile(path, function(text) {
+                if (!text) {
                     return;
                 }
-                if (xhr.status !== 0 && xhr.status !== 200) {
-                    return;
-                }
-                var sync = Wallhaven.parseSyncAdvance(xhr.responseText);
+                var sync = Wallhaven.parseSyncAdvance(text);
                 if (!sync || sync.advanceAt <= root._lastSyncAdvanceTs) {
                     return;
                 }
@@ -2321,8 +2305,7 @@ WallpaperItem {
                 if (!engine.busy) {
                     engine.skipForward();
                 }
-            };
-            xhr.send();
+            });
         }
     }
 
@@ -2729,7 +2712,6 @@ WallpaperItem {
         id: statusBanner
         z: 100
         anchors.top: parent.top
-        anchors.horizontalCenter: parent.horizontalCenter
         anchors.topMargin: 16
         anchors.left: parent.left
         anchors.right: parent.right

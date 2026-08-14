@@ -12,6 +12,14 @@ System Settings → Appearance → Wallpaper → **Wallhaven**
 
 Enable **Wallhaven** in System Settings → Search → Plasma Search (KRunner).
 
+## v1.7.1 highlights
+
+| Feature | Notes |
+|---------|--------|
+| Plasmashell stability | D-Bus file I/O replaces blocked XHR/Process APIs |
+| Settings panel | Inline setup wizard works in Desktop Folder Settings |
+| Cache URLs | Fixed double `file://` prefix on cached wallpapers |
+
 ## v1.7.0 highlights
 
 | Feature | Notes |

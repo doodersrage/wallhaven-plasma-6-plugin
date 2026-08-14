@@ -52,17 +52,20 @@ PlasmoidItem {
     }
 
     function loadStatus() {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", "file://" + statusFile);
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState !== XMLHttpRequest.DONE) {
-                return;
-            }
-            if (xhr.status !== 0 && xhr.status !== 200) {
+        var msg = new PDBus.dbusMessage({
+            service: "org.robertsm.Wallhaven",
+            path: "/Wallhaven",
+            iface: "org.robertsm.Wallhaven",
+            member: "ReadTextFile",
+            signature: "s",
+            arguments: [statusFile],
+        });
+        PDBus.SessionBus.asyncCall(msg, function(text) {
+            if (!text) {
                 return;
             }
             try {
-                var parsed = JSON.parse(xhr.responseText);
+                var parsed = JSON.parse(text);
                 if (!parsed) {
                     return;
                 }
@@ -77,8 +80,9 @@ PlasmoidItem {
                 countdownMs = statusData.nextChangeMs;
             } catch (e) {
             }
-        };
-        xhr.send();
+        }, function(err) {
+            console.warn("Wallhaven plasmoid status read failed:", err);
+        });
     }
 
     function formatCountdown(ms) {

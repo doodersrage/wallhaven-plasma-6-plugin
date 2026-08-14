@@ -29,6 +29,11 @@ if rg -U 'OverlaySheet\s*\{[^}]*preferredWidth' "${ROOT}/contents/ui/config.qml"
     exit 1
 fi
 
+if rg -q 'xhr\.open\("GET", "file://' "${ROOT}/contents/ui/main.qml" "${ROOT}/plasmoid/contents/ui/main.qml" 2>/dev/null; then
+    echo "FAIL: XMLHttpRequest cannot read local files in plasmashell; use D-Bus ReadTextFile" >&2
+    exit 1
+fi
+
 python3 - <<PY
 import xml.etree.ElementTree as ET
 path = "${ROOT}/contents/config/main.xml"

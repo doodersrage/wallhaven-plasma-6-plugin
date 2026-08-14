@@ -446,7 +446,7 @@ def write_po(path: Path, lang: str, version: str, entries: list[tuple[str, str]]
 
 
 def main() -> int:
-    version = "1.7.0"
+    version = "1.7.1"
     meta = ROOT / "metadata.json"
     if meta.exists():
         import re as _re
