@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 1.7.1\n"
+"Project-Id-Version: org.robertsm.wallhaven 2.0.0\n"
 "Language: en\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -85,6 +85,9 @@ msgstr "Apply selected preset"
 
 msgid "Apply Variety search to Wallhaven"
 msgstr "Apply Variety search to Wallhaven"
+
+msgid "Apply Wallhaven as the wallpaper type to import settings."
+msgstr "Apply Wallhaven as the wallpaper type to import settings."
 
 msgid "Apply Wallhaven as the wallpaper type to manage the blocklist."
 msgstr "Apply Wallhaven as the wallpaper type to manage the blocklist."
@@ -359,6 +362,9 @@ msgstr "Debug info:"
 msgid "Debug log:"
 msgstr "Debug log:"
 
+msgid "Debug log is empty."
+msgstr "Debug log is empty."
+
 msgid "default"
 msgstr "default"
 
@@ -467,6 +473,9 @@ msgstr "Forest"
 msgid "General:"
 msgstr "General:"
 
+msgid "Getting started:"
+msgstr "Getting started:"
+
 msgid "GitHub issue:"
 msgstr "GitHub issue:"
 
@@ -511,6 +520,9 @@ msgstr "Imported %1 curated preset(s)."
 
 msgid "Imported preset %1."
 msgstr "Imported preset %1."
+
+msgid "Importing settings…"
+msgstr "Importing settings…"
 
 msgid "Import preset from URL"
 msgstr "Import preset from URL"
@@ -653,14 +665,14 @@ msgstr "No image_fetch_search in Variety config."
 msgid "No more wallpapers match your current filters."
 msgstr "No more wallpapers match your current filters."
 
+msgid "(none found)"
+msgstr "(none found)"
+
 msgid "No previous wallpaper in history."
 msgstr "No previous wallpaper in history."
 
 msgid "Notifications"
 msgstr "Notifications"
-
-msgid "No Variety config found."
-msgstr "No Variety config found."
 
 msgid "No wallpaper available to save."
 msgstr "No wallpaper available to save."
@@ -782,11 +794,17 @@ msgstr "Preload count:"
 msgid "Preset name:"
 msgstr "Preset name:"
 
+msgid "Presets:"
+msgstr "Presets:"
+
 msgid "Preset share URL copied."
 msgstr "Preset share URL copied."
 
 msgid "Preset URL:"
 msgstr "Preset URL:"
+
+msgid "Preview Variety search"
+msgstr "Preview Variety search"
 
 msgid "Previous wallpaper"
 msgstr "Previous wallpaper"
@@ -893,6 +911,9 @@ msgstr "Saving wallpaper…"
 msgid "Search"
 msgstr "Search"
 
+msgid "Search:"
+msgstr "Search:"
+
 msgid "Search Presets"
 msgstr "Search Presets"
 
@@ -950,6 +971,9 @@ msgstr "Showing wallpaper #%1 from history."
 msgid "Show overlay on desktop"
 msgstr "Show overlay on desktop"
 
+msgid "Show recent log lines"
+msgstr "Show recent log lines"
+
 msgid "Show setup wizard again"
 msgstr "Show setup wizard again"
 
@@ -988,6 +1012,9 @@ msgstr "Slideshow paused by power/activity rules."
 
 msgid "Slideshow resumed."
 msgstr "Slideshow resumed."
+
+msgid "Slideshow resumed (power/activity rules cleared)."
+msgstr "Slideshow resumed (power/activity rules cleared)."
 
 msgid "Slideshow rules"
 msgstr "Slideshow rules"
@@ -1118,6 +1145,9 @@ msgstr "Variety folder:"
 msgid "Variety metadata:"
 msgstr "Variety metadata:"
 
+msgid "Variety preview:"
+msgstr "Variety preview:"
+
 msgid "Variety symlink:"
 msgstr "Variety symlink:"
 
@@ -1171,6 +1201,9 @@ msgstr "Welcome to Wallhaven for Plasma"
 
 msgid "White"
 msgstr "White"
+
+msgid "Would apply search: %1"
+msgstr "Would apply search: %1"
 
 msgid "Write current wallpaper JSON for external tools"
 msgstr "Write current wallpaper JSON for external tools"

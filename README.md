@@ -12,6 +12,23 @@ System Settings → Appearance → Wallpaper → **Wallhaven**
 
 Enable **Wallhaven** in System Settings → Search → Plasma Search (KRunner).
 
+## v2.0.0 — stable milestone
+
+Wallhaven for KDE Plasma 6 is feature-complete for this port cycle. Highlights across the 1.x → 2.0 line:
+
+| Area | Highlights |
+|------|------------|
+| **Wallpaper** | Search, collections, favorites, WOTD, disk cache, effects, blocklist, presets |
+| **Control** | D-Bus service, MPRIS, KRunner, panel plasmoid, control bus, sync advance |
+| **Integration** | Variety bridge, lock screen sync, panel accent, KWallet, preset URLs |
+| **i18n** | Full German UI (~395 strings) |
+| **Packaging** | Arch/Fedora, Flatpak, AUR workflows, systemd user service |
+
+```bash
+./dev-helper.sh deploy
+./dev-helper.sh release    # tag v2.0.0 + GitHub release
+```
+
 ## v1.8.0 highlights
 
 | Feature | Notes |

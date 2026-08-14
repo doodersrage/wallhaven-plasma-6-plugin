@@ -1,6 +1,6 @@
 # Maintainer: Wallhaven Plasma Port
-pkgname=wallhaven-plasma-git
-pkgver=2.0.0.r0
+pkgname=wallhaven-plasma
+pkgver=2.0.0
 pkgrel=1
 pkgdesc="Wallhaven.cc wallpaper plugin for KDE Plasma 6"
 arch=('any')
@@ -12,15 +12,16 @@ optdepends=(
     'spectacle: screenshot capture helper'
     'variety: wallpaper bridge'
 )
-makedepends=('git' 'gettext')
-source=("git+${url}.git")
+makedepends=('gettext')
+source=("wallhaven-plasma-${pkgver}.tar.xz::${url}/releases/download/v${pkgver}/wallhaven-plasma-${pkgver}.tar.xz")
 sha256sums=('SKIP')
 
 package() {
-    cd "${srcdir}/wallhaven-plasma-6-plugin"
+    cd "${srcdir}/wallhaven-plasma-${pkgver}"
     local wp="${pkgdir}/usr/share/plasma/wallpapers/org.robertsm.wallhaven"
     install -dm755 "${wp}"
     cp -r contents metadata.json "${wp}/"
+    [[ -f preview.jpg ]] && cp preview.jpg "${wp}/"
     install -dm755 "${pkgdir}/usr/share/plasma/plasmoids/org.robertsm.wallhaven.control"
     cp -r plasmoid/contents plasmoid/metadata.json "${pkgdir}/usr/share/plasma/plasmoids/org.robertsm.wallhaven.control/"
     install -Dm644 krunner/org.robertsm.wallhaven.desktop \

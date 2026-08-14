@@ -669,10 +669,42 @@ WallpaperItem {
         }
     }
 
-    function applyVarietySearch() {
-        var path = StandardPaths.writableLocation(StandardPaths.HomeLocation)
+    function varietyConfigPath() {
+        return StandardPaths.writableLocation(StandardPaths.HomeLocation)
             + "/.config/variety/variety.conf";
-        varietyConfLoader.load(path);
+    }
+
+    function previewVarietySearch(callback) {
+        dbusHelper.readFile(varietyConfigPath(), function(text) {
+            if (!text) {
+                if (callback) {
+                    callback("");
+                }
+                return;
+            }
+            var search = Wallhaven.parseVarietySearch(text);
+            if (callback) {
+                callback(search || "");
+            }
+        });
+    }
+
+    function applyVarietySearch() {
+        previewVarietySearch(function(search) {
+            if (!search) {
+                engine.showStatus(i18n("No image_fetch_search in Variety config."), "warn");
+                return;
+            }
+            if (!root.configuration) {
+                return;
+            }
+            root.configuration.BrowseMode = "search";
+            root.configuration.SearchText = search;
+            root.configuration.WallpaperOfDayEnabled = false;
+            scheduleConfigWrite();
+            engine.resetSlideshow();
+            engine.showStatus(i18n("Applied Variety search: %1", search), "info");
+        });
     }
 
     function evaluateSlideshowRules() {
@@ -2244,31 +2276,6 @@ WallpaperItem {
                         updateVarietySymlink(meta.localPath);
                     }
                 } catch (e) {
-                }
-            });
-        }
-    }
-
-    QtObject {
-        id: varietyConfLoader
-        function load(path) {
-            dbusHelper.readFile(path, function(text) {
-                if (!text) {
-                    engine.showStatus(i18n("No Variety config found."), "warn");
-                    return;
-                }
-                var search = Wallhaven.parseVarietySearch(text);
-                if (!search) {
-                    engine.showStatus(i18n("No image_fetch_search in Variety config."), "warn");
-                    return;
-                }
-                if (root.configuration) {
-                    root.configuration.BrowseMode = "search";
-                    root.configuration.SearchText = search;
-                    root.configuration.WallpaperOfDayEnabled = false;
-                    scheduleConfigWrite();
-                    engine.resetSlideshow();
-                    engine.showStatus(i18n("Applied Variety search: %1", search), "info");
                 }
             });
         }

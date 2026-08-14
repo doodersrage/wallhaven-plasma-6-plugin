@@ -139,6 +139,7 @@ ColumnLayout {
     property alias cfg_SmartColorFromWallpaper: smartColorCheck.checked
     property string settingsFilter: ""
     property bool showSetupWizard: wallpaperConfiguration && !wallpaperConfiguration.SetupWizardCompleted
+    property string varietyPreviewSearch: ""
 
     function fieldVisible(keywords) {
         if (!settingsFilter || !keywords || !keywords.length)
@@ -1955,6 +1956,19 @@ ColumnLayout {
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Variety bridge:")
+                    text: i18n("Preview Variety search")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.previewVarietySearch) {
+                            liveWallpaper.previewVarietySearch(function(search) {
+                                root.varietyPreviewSearch = search || i18n("(none found)");
+                            });
+                        }
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
                     text: i18n("Apply Variety search to Wallhaven")
                     enabled: liveWallpaper !== null
                     onClicked: {
@@ -1962,6 +1976,17 @@ ColumnLayout {
                             liveWallpaper.applyVarietySearch();
 
                     }
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Variety preview:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: root.varietyPreviewSearch !== ""
+                    text: root.varietyPreviewSearch.indexOf("(") === 0
+                        ? root.varietyPreviewSearch
+                        : i18n("Would apply search: %1", root.varietyPreviewSearch)
                 }
 
                 QtControls2.Label {

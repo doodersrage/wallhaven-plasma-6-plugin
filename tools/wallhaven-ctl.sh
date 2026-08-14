@@ -12,7 +12,7 @@ usage() {
     cat <<EOF
 Send commands to the Wallhaven wallpaper plugin.
 
-Usage: $(basename "$0") <next|prev|reload|pause|resume|search query...>
+Usage: $(basename "$0") <next|prev|reload|pause|resume|search query...|importpreset url>
 
 Environment:
   WALLHAVEN_SYNC_GROUP   Control/sync group name (default: default)
@@ -51,6 +51,18 @@ if [[ "${CMD}" == "search" ]]; then
     fi
     write_control_file search "${QUERY}"
     echo "Sent search to ${CONTROL_FILE}"
+    exit 0
+fi
+
+if [[ "${CMD}" == "importpreset" ]]; then
+    shift
+    PRESET_URL="$*"
+    if [[ -z "${PRESET_URL}" ]]; then
+        echo "Usage: $(basename "$0") importpreset <wallhaven://preset/...>" >&2
+        exit 1
+    fi
+    write_control_file importpreset "${PRESET_URL}"
+    echo "Sent preset import to ${CONTROL_FILE}"
     exit 0
 fi
 

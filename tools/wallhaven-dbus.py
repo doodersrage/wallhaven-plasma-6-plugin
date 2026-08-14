@@ -422,6 +422,10 @@ def main() -> int:
         write_command("search", group, " ".join(sys.argv[2:]))
         print("Sent search via control bus")
         return 0
+    if len(sys.argv) > 2 and sys.argv[1] == "importpreset":
+        write_command("importpreset", group, sys.argv[2])
+        print("Sent preset import via control bus")
+        return 0
 
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SessionBus()

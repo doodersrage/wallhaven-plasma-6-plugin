@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.0.0 — 2026-08-14
+
+Stable milestone release of the Wallhaven KDE Plasma 6 port.
+
+### Added
+- **Variety search preview** — inspect `image_fetch_search` before applying in settings
+- **AppStream screenshots** — KDE Store / Discover metadata with preview image
+- **Complete Flatpak manifest** — krunner, notifyrc, locales, preset handler, D-Bus permissions
+- **Stable AUR PKGBUILD** — `packaging/PKGBUILD.release` for tarball releases
+- **`wallhaven-ctl.sh importpreset`** — CLI preset URL import via control bus
+- **i18n coverage check** — `scripts/check-i18n.sh` validates shipped translations
+- **KRunner French** — translated desktop entry strings
+
+### Changed
+- **2.0 stability** — production-ready packaging, CI, and release automation
+- **Bug tracker URL** — points to the canonical GitHub repository
+
 ## 1.8.0 — 2026-08-14
 
 ### Added

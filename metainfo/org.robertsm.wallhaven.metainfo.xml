@@ -15,9 +15,20 @@
   <project_license>GPL-2.0-or-later</project_license>
   <developer_name>Wallhaven Plasma Port</developer_name>
   <url type="homepage">https://wallhaven.cc</url>
-  <url type="bugtracker">https://github.com/robertsm/wallhaven-plasma-6-plugin/issues</url>
+  <url type="bugtracker">https://github.com/doodersrage/wallhaven-plasma-6-plugin/issues</url>
   <launchable type="desktop-id">org.kde.plasmashell.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/doodersrage/wallhaven-plasma-6-plugin/main/preview.jpg</image>
+      <caption>Wallhaven wallpaper on KDE Plasma 6</caption>
+    </screenshot>
+  </screenshots>
   <releases>
+    <release version="2.0.0" date="2026-08-14">
+      <description>
+        <p>Stable 2.0 milestone: complete Plasma 6 port with MPRIS, KRunner, D-Bus control, German i18n, Flatpak manifest, AppStream screenshots, and production packaging.</p>
+      </description>
+    </release>
     <release version="1.8.0" date="2026-08-14">
       <description>
         <p>Settings import via D-Bus, slideshow rules auto-resume, debug log hardening, attribution layout fix, and complete downstream packaging with locales and systemd.</p>

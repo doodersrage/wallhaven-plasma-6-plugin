@@ -33,11 +33,13 @@ service, and restarts plasmashell.
 
 ## Before bumping version
 
-1. Update `metadata.json`, `plasmoid/metadata.json`, `CHANGELOG.md`, `metainfo/`
-2. `./dev-helper.sh check && ./dev-helper.sh package`
-3. Capture screenshots: `./scripts/capture-screenshots.sh --list` then run interactively
-4. Sync translations: `./dev-helper.sh sync-i18n`
+1. Update `metadata.json`, `plasmoid/metadata.json`, `contents/code/wallhaven.js`, `CHANGELOG.md`, `metainfo/`
+2. `./dev-helper.sh sync-i18n && ./scripts/check-i18n.sh`
+3. `./dev-helper.sh check && ./dev-helper.sh package`
+4. Capture screenshots: `./scripts/capture-screenshots.sh --list` then run interactively
 5. `./dev-helper.sh release`
+
+**2.0.x is the stable milestone line** — further feature work should target 2.1+ when resumed.
 
 ## KDE Store
 

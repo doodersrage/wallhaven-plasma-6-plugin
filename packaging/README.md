@@ -38,6 +38,10 @@ Adjust `%_sharedstatedir` paths if your target uses `/usr/share/metainfo` instea
 
 Optional automation: `.github/workflows/aur-publish.yml` (requires `AUR_SSH_PRIVATE_KEY` secret).
 
+### Stable release (tarball)
+
+Use `packaging/PKGBUILD.release` for versioned GitHub releases (`wallhaven-plasma-2.0.0.tar.xz`).
+
 ## Contents installed
 
 | Path | Purpose |

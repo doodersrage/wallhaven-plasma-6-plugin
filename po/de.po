@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 1.7.1\n"
+"Project-Id-Version: org.robertsm.wallhaven 2.0.0\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -85,6 +85,9 @@ msgstr "Ausgewählte Voreinstellung anwenden"
 
 msgid "Apply Variety search to Wallhaven"
 msgstr "Variety-Suche auf Wallhaven anwenden"
+
+msgid "Apply Wallhaven as the wallpaper type to import settings."
+msgstr "Apply Wallhaven as the wallpaper type to import settings."
 
 msgid "Apply Wallhaven as the wallpaper type to manage the blocklist."
 msgstr "Wallhaven als Hintergrundtyp wählen, um die Sperrliste zu verwalten."
@@ -359,6 +362,9 @@ msgstr "Debug-Info:"
 msgid "Debug log:"
 msgstr "Debug-Protokoll:"
 
+msgid "Debug log is empty."
+msgstr "Debug log is empty."
+
 msgid "default"
 msgstr "Standard"
 
@@ -467,6 +473,9 @@ msgstr "Waldgrün"
 msgid "General:"
 msgstr "Allgemein:"
 
+msgid "Getting started:"
+msgstr "Getting started:"
+
 msgid "GitHub issue:"
 msgstr "GitHub-Issue:"
 
@@ -511,6 +520,9 @@ msgstr "%1 kuratierte Voreinstellung(en) importiert."
 
 msgid "Imported preset %1."
 msgstr "Voreinstellung %1 importiert."
+
+msgid "Importing settings…"
+msgstr "Importing settings…"
 
 msgid "Import preset from URL"
 msgstr "Voreinstellung von URL importieren"
@@ -653,14 +665,14 @@ msgstr "Kein image_fetch_search in Variety-Konfiguration."
 msgid "No more wallpapers match your current filters."
 msgstr "Keine weiteren Hintergrundbilder entsprechen den aktuellen Filtern."
 
+msgid "(none found)"
+msgstr "(none found)"
+
 msgid "No previous wallpaper in history."
 msgstr "Kein vorheriges Hintergrundbild im Verlauf."
 
 msgid "Notifications"
 msgstr "Benachrichtigungen"
-
-msgid "No Variety config found."
-msgstr "Keine Variety-Konfiguration gefunden."
 
 msgid "No wallpaper available to save."
 msgstr "Kein Hintergrundbild zum Speichern verfügbar."
@@ -782,11 +794,17 @@ msgstr "Vorladeanzahl:"
 msgid "Preset name:"
 msgstr "Voreinstellungsname:"
 
+msgid "Presets:"
+msgstr "Presets:"
+
 msgid "Preset share URL copied."
 msgstr "Voreinstellungs-URL kopiert."
 
 msgid "Preset URL:"
 msgstr "Voreinstellungs-URL:"
+
+msgid "Preview Variety search"
+msgstr "Preview Variety search"
 
 msgid "Previous wallpaper"
 msgstr "Vorheriges Hintergrundbild"
@@ -893,6 +911,9 @@ msgstr "Speichere Hintergrundbild…"
 msgid "Search"
 msgstr "Suche"
 
+msgid "Search:"
+msgstr "Search:"
+
 msgid "Search Presets"
 msgstr "Voreinstellungen suchen"
 
@@ -950,6 +971,9 @@ msgstr "Zeige Hintergrundbild #%1 aus dem Verlauf."
 msgid "Show overlay on desktop"
 msgstr "Overlay auf Desktop anzeigen"
 
+msgid "Show recent log lines"
+msgstr "Show recent log lines"
+
 msgid "Show setup wizard again"
 msgstr "Einrichtungsassistent erneut anzeigen"
 
@@ -988,6 +1012,9 @@ msgstr "Diashow durch Energie-/Aktivitätsregeln pausiert."
 
 msgid "Slideshow resumed."
 msgstr "Diashow fortgesetzt."
+
+msgid "Slideshow resumed (power/activity rules cleared)."
+msgstr "Slideshow resumed (power/activity rules cleared)."
 
 msgid "Slideshow rules"
 msgstr "Diashow-Regeln"
@@ -1118,6 +1145,9 @@ msgstr "Variety-Ordner:"
 msgid "Variety metadata:"
 msgstr "Variety-Metadaten:"
 
+msgid "Variety preview:"
+msgstr "Variety preview:"
+
 msgid "Variety symlink:"
 msgstr "Variety-Symlink:"
 
@@ -1171,6 +1201,9 @@ msgstr "Willkommen bei Wallhaven für Plasma"
 
 msgid "White"
 msgstr "Weiß"
+
+msgid "Would apply search: %1"
+msgstr "Would apply search: %1"
 
 msgid "Write current wallpaper JSON for external tools"
 msgstr "Aktuelles Hintergrundbild-JSON für externe Tools schreiben"

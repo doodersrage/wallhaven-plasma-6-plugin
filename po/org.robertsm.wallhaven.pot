@@ -87,6 +87,9 @@ msgstr ""
 msgid "Apply Variety search to Wallhaven"
 msgstr ""
 
+msgid "Apply Wallhaven as the wallpaper type to import settings."
+msgstr ""
+
 msgid "Apply Wallhaven as the wallpaper type to manage the blocklist."
 msgstr ""
 
@@ -360,6 +363,9 @@ msgstr ""
 msgid "Debug log:"
 msgstr ""
 
+msgid "Debug log is empty."
+msgstr ""
+
 msgid "default"
 msgstr ""
 
@@ -468,6 +474,9 @@ msgstr ""
 msgid "General:"
 msgstr ""
 
+msgid "Getting started:"
+msgstr ""
+
 msgid "GitHub issue:"
 msgstr ""
 
@@ -511,6 +520,9 @@ msgid "Imported %1 curated preset(s)."
 msgstr ""
 
 msgid "Imported preset %1."
+msgstr ""
+
+msgid "Importing settings…"
 msgstr ""
 
 msgid "Import preset from URL"
@@ -654,13 +666,13 @@ msgstr ""
 msgid "No more wallpapers match your current filters."
 msgstr ""
 
+msgid "(none found)"
+msgstr ""
+
 msgid "No previous wallpaper in history."
 msgstr ""
 
 msgid "Notifications"
-msgstr ""
-
-msgid "No Variety config found."
 msgstr ""
 
 msgid "No wallpaper available to save."
@@ -783,10 +795,16 @@ msgstr ""
 msgid "Preset name:"
 msgstr ""
 
+msgid "Presets:"
+msgstr ""
+
 msgid "Preset share URL copied."
 msgstr ""
 
 msgid "Preset URL:"
+msgstr ""
+
+msgid "Preview Variety search"
 msgstr ""
 
 msgid "Previous wallpaper"
@@ -894,6 +912,9 @@ msgstr ""
 msgid "Search"
 msgstr ""
 
+msgid "Search:"
+msgstr ""
+
 msgid "Search Presets"
 msgstr ""
 
@@ -951,6 +972,9 @@ msgstr ""
 msgid "Show overlay on desktop"
 msgstr ""
 
+msgid "Show recent log lines"
+msgstr ""
+
 msgid "Show setup wizard again"
 msgstr ""
 
@@ -988,6 +1012,9 @@ msgid "Slideshow paused by power/activity rules."
 msgstr ""
 
 msgid "Slideshow resumed."
+msgstr ""
+
+msgid "Slideshow resumed (power/activity rules cleared)."
 msgstr ""
 
 msgid "Slideshow rules"
@@ -1119,6 +1146,9 @@ msgstr ""
 msgid "Variety metadata:"
 msgstr ""
 
+msgid "Variety preview:"
+msgstr ""
+
 msgid "Variety symlink:"
 msgstr ""
 
@@ -1171,6 +1201,9 @@ msgid "Welcome to Wallhaven for Plasma"
 msgstr ""
 
 msgid "White"
+msgstr ""
+
+msgid "Would apply search: %1"
 msgstr ""
 
 msgid "Write current wallpaper JSON for external tools"

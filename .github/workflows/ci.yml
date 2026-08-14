@@ -18,8 +18,9 @@ jobs:
 
       - name: Sync translations
         run: |
-          chmod +x scripts/sync-i18n.sh scripts/extract-messages.sh
+          chmod +x scripts/sync-i18n.sh scripts/extract-messages.sh scripts/check-i18n.sh
           ./scripts/sync-i18n.sh
+          ./scripts/check-i18n.sh
 
       - name: Run wallhaven.js tests
         run: node tests/test-wallhaven.js

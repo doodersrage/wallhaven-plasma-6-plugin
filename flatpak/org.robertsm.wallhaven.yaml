@@ -7,7 +7,12 @@ finish-args:
   - --share=network
   - --socket=wayland-x11
   - --talk-name=org.kde.KWallet5
+  - --talk-name=org.kde.KWallet6
   - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.robertsm.Wallhaven
+  - --talk-name=org.mpris.MediaPlayer2.wallhaven
+  - --filesystem=xdg-cache/plasmashell:rw
+  - --filesystem=home/.config/variety:ro
 modules:
   - name: wallhaven-plasma
     buildsystem: simple
@@ -15,12 +20,26 @@ modules:
       - mkdir -p ${FLATPAK_DEST}/share/plasma/wallpapers/org.robertsm.wallhaven
       - cp -r contents ${FLATPAK_DEST}/share/plasma/wallpapers/org.robertsm.wallhaven/
       - cp metadata.json ${FLATPAK_DEST}/share/plasma/wallpapers/org.robertsm.wallhaven/
-      - cp preview.jpg ${FLATPAK_DEST}/share/plasma/wallpapers/org.robertsm.wallhaven/ || true
+      - cp preview.jpg ${FLATPAK_DEST}/share/plasma/wallpapers/org.robertsm.wallhaven/ 2>/dev/null || true
       - mkdir -p ${FLATPAK_DEST}/share/plasma/plasmoids/org.robertsm.wallhaven.control
       - cp -r plasmoid/contents ${FLATPAK_DEST}/share/plasma/plasmoids/org.robertsm.wallhaven.control/
       - cp plasmoid/metadata.json ${FLATPAK_DEST}/share/plasma/plasmoids/org.robertsm.wallhaven.control/
+      - install -Dm644 krunner/org.robertsm.wallhaven.desktop ${FLATPAK_DEST}/share/krunner/dplugins/org.robertsm.wallhaven.desktop
+      - install -Dm644 metainfo/org.robertsm.wallhaven.metainfo.xml ${FLATPAK_DEST}/share/metainfo/org.robertsm.wallhaven.metainfo.xml
+      - install -Dm644 contents/notifications/org.robertsm.wallhaven.notifyrc ${FLATPAK_DEST}/share/knotifications6/org.robertsm.wallhaven.notifyrc
+      - install -Dm644 share/wallhaven-preset.desktop.in ${FLATPAK_DEST}/share/applications/wallhaven-preset.desktop
+      - sed -i "s|/home/USER/.local/share/wallhaven-plasma/tools|/app/bin|g" ${FLATPAK_DEST}/share/applications/wallhaven-preset.desktop
+      - |
+        if compgen -G "contents/locale/*/LC_MESSAGES/*.mo" >/dev/null; then
+          for mo in contents/locale/*/LC_MESSAGES/*.mo; do
+            locale=$(echo "${mo}" | sed -n 's|.*/locale/\([^/]*\)/.*|\1|p')
+            install -Dm644 "${mo}" "${FLATPAK_DEST}/share/locale/${locale}/LC_MESSAGES/org.robertsm.wallhaven.mo"
+          done
+        fi
       - install -Dm755 tools/wallhaven-ctl.sh ${FLATPAK_DEST}/bin/wallhaven-ctl
       - install -Dm755 tools/wallhaven-dbus.py ${FLATPAK_DEST}/bin/wallhaven-dbus
+      - install -Dm755 tools/import-preset-url.sh ${FLATPAK_DEST}/bin/wallhaven-import-preset
+      - install -Dm755 tools/variety-bridge.sh ${FLATPAK_DEST}/bin/wallhaven-variety-bridge
     sources:
       - type: dir
         path: ..
