@@ -33,6 +33,10 @@ plasmoid_version="$(grep -Po '"Version"\s*:\s*"\K[^"]+' plasmoid/metadata.json)"
 }
 
 grep -q "\"Version\": \"${version}\"" metadata.json
+grep -q "return \"${version}\"" contents/code/wallhaven.js || {
+    echo "wallhaven.js pluginVersion() must match metadata.json (${version})" >&2
+    exit 1
+}
 grep -q "version=\"${version}\"" metainfo/org.robertsm.wallhaven.metainfo.xml || {
     echo "metainfo.xml missing release entry for ${version}" >&2
     exit 1

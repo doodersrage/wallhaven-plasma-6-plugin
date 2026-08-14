@@ -12,6 +12,16 @@ System Settings → Appearance → Wallpaper → **Wallhaven**
 
 Enable **Wallhaven** in System Settings → Search → Plasma Search (KRunner).
 
+## v1.8.0 highlights
+
+| Feature | Notes |
+|---------|--------|
+| Settings import | JSON import via D-Bus (works in Desktop Folder Settings) |
+| Slideshow rules | Auto-resume when battery/activity conditions normalize |
+| Debug log | D-Bus append with rotation + preview in settings |
+| Packaging | Locales, systemd user service, preset handler docs |
+| Attribution | Fixed corner overlay layout |
+
 ## v1.7.1 highlights
 
 | Feature | Notes |

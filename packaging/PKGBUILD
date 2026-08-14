@@ -1,6 +1,6 @@
 # Maintainer: Wallhaven Plasma Port
 pkgname=wallhaven-plasma-git
-pkgver=1.7.1.r0
+pkgver=1.8.0.r0
 pkgrel=1
 pkgdesc="Wallhaven.cc wallpaper plugin for KDE Plasma 6"
 arch=('any')
@@ -32,8 +32,14 @@ package() {
     install -dm755 "${pkgdir}/usr/share/wallhaven-plasma/tools"
     cp -r tools/* "${pkgdir}/usr/share/wallhaven-plasma/tools/"
     chmod +x "${pkgdir}/usr/share/wallhaven-plasma/tools/"*.sh "${pkgdir}/usr/share/wallhaven-plasma/tools/"*.py 2>/dev/null || true
-    install -Dm644 tools/wallhaven-dbus.service.in \
-        "${pkgdir}/usr/share/wallhaven-plasma/tools/wallhaven-dbus.service.in"
+    if compgen -G "contents/locale/*/LC_MESSAGES/*.mo" >/dev/null; then
+        for mo in contents/locale/*/LC_MESSAGES/*.mo; do
+            locale="$(echo "${mo}" | sed -n 's|.*/locale/\([^/]*\)/.*|\1|p')"
+            install -Dm644 "${mo}" "${pkgdir}/usr/share/locale/${locale}/LC_MESSAGES/org.robertsm.wallhaven.mo"
+        done
+    fi
+    install -Dm644 packaging/wallhaven-dbus.service \
+        "${pkgdir}/usr/lib/systemd/user/wallhaven-dbus.service"
     install -Dm644 share/wallhaven-preset.desktop.in \
         "${pkgdir}/usr/share/applications/wallhaven-preset.desktop"
     sed -i "s|/home/USER/.local/share/wallhaven-plasma/tools|/usr/share/wallhaven-plasma/tools|g" \

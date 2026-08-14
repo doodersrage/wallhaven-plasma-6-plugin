@@ -2,12 +2,14 @@
 Type=Service
 Name=Wallhaven
 Name[en]=Wallhaven
+Name[de]=Wallhaven
 Comment=Control Wallhaven wallpapers from KRunner
 Comment[en]=Control Wallhaven wallpapers from KRunner
+Comment[de]=Wallhaven-Hintergründe über KRunner steuern
 Icon=preferences-desktop-wallpaper
 X-KDE-ServiceTypes=Plasma/Runner
 X-KDE-PluginInfo-Name=org.robertsm.wallhaven
-X-KDE-PluginInfo-Version=1.7.1
+X-KDE-PluginInfo-Version=1.8.0
 X-KDE-PluginInfo-License=GPL-2.0-or-later
 X-Plasma-API=DBus
 X-Plasma-DBusRunner-Service=org.robertsm.Wallhaven

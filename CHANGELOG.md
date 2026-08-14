@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.8.0 — 2026-08-14
+
+### Added
+- **D-Bus `AppendTextFile`** — rotated debug log writes without shell Python one-liners
+- **Settings import via D-Bus** — JSON import from any file under `$HOME` (not blocked XHR)
+- **Debug log preview** — show recent log lines from Advanced settings
+- **Slideshow rules auto-resume** — resumes when battery/activity conditions clear
+- **Complete packaging** — `.mo` locales + systemd user unit for D-Bus service
+- **KRunner German** — translated desktop entry strings
+- **GitHub issue template** — structured bug reports
+
+### Fixed
+- **Attribution overlay** — corner placement no longer uses conflicting anchors or full-width bars
+- **Plugin version** — debug bundle reads version from `wallhaven.js` / metadata sync
+
 ## 1.7.1 — 2026-08-14
 
 ### Fixed

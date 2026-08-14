@@ -118,6 +118,15 @@ function testVarietyParse() {
     assert(Wallhaven.parseVarietySearch(ini) === "nature landscape", "variety parse");
 }
 
+function testPluginVersion() {
+    assert(/^\d+\.\d+\.\d+$/.test(Wallhaven.pluginVersion()), "plugin version semver");
+}
+
+function testAppendDebugLogLine() {
+    var text = Wallhaven.appendDebugLogLine("a\nb\n", "c", 2);
+    assert(text === "b\nc\n", "debug log rotation");
+}
+
 [    testFileTypeFilter,
     testSimilarSearch,
     testIntervalJitter,
@@ -135,6 +144,8 @@ function testVarietyParse() {
     testMetrics,
     testImportPresetUrl,
     testVarietyParse,
+    testPluginVersion,
+    testAppendDebugLogLine,
 ].forEach(function(run) {
     run();
 });

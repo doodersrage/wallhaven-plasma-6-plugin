@@ -1,0 +1,34 @@
+name: Bug report
+description: Report a Wallhaven Plasma plugin issue
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use **Advanced → Copy debug info** or **Copy GitHub issue template** in Wallhaven settings when possible.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Steps to reproduce and expected behavior
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      placeholder: "1.8.0"
+    validations:
+      required: true
+  - type: input
+    id: plasma
+    attributes:
+      label: Plasma / KDE version
+      placeholder: "Plasma 6.x, Qt 6.x"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: `journalctl --user -b | rg -i wallhaven` output or debug bundle
+      render: shell

@@ -34,6 +34,11 @@ if rg -q 'xhr\.open\("GET", "file://' "${ROOT}/contents/ui/main.qml" "${ROOT}/pl
     exit 1
 fi
 
+if rg -q 'xhr\.open\("GET", fileUrl\)|xhr\.open\("GET", "file://' "${ROOT}/contents/ui/config.qml" 2>/dev/null; then
+    echo "FAIL: config.qml must not read local files via XMLHttpRequest; use liveWallpaper D-Bus helpers" >&2
+    exit 1
+fi
+
 python3 - <<PY
 import xml.etree.ElementTree as ET
 path = "${ROOT}/contents/config/main.xml"

@@ -1,5 +1,5 @@
 Name:           wallhaven-plasma
-Version:        1.7.1
+Version:        1.8.0
 Release:        1%{?dist}
 Summary:        Wallhaven wallpaper plugin for KDE Plasma 6
 License:        GPL-2.0-or-later
@@ -30,6 +30,15 @@ mkdir -p %{buildroot}%{_datadir}/wallhaven-plasma/tools
 cp -r tools/* %{buildroot}%{_datadir}/wallhaven-plasma/tools/
 chmod +x %{buildroot}%{_datadir}/wallhaven-plasma/tools/*.sh \
     %{buildroot}%{_datadir}/wallhaven-plasma/tools/*.py 2>/dev/null || true
+if compgen -G "contents/locale/*/LC_MESSAGES/*.mo" >/dev/null; then
+    for mo in contents/locale/*/LC_MESSAGES/*.mo; do
+        locale="$(echo "${mo}" | sed -n 's|.*/locale/\([^/]*\)/.*|\1|p')"
+        install -Dpm644 "${mo}" \
+            %{buildroot}%{_datadir}/locale/${locale}/LC_MESSAGES/org.robertsm.wallhaven.mo
+    done
+fi
+install -Dpm644 packaging/wallhaven-dbus.service \
+    %{buildroot}%{_prefix}/lib/systemd/user/wallhaven-dbus.service
 install -Dpm644 share/wallhaven-preset.desktop.in \
     %{buildroot}%{_datadir}/applications/wallhaven-preset.desktop
 sed -i 's|/home/USER/.local/share/wallhaven-plasma/tools|%{_datadir}/wallhaven-plasma/tools|g' \
@@ -42,9 +51,14 @@ sed -i 's|/home/USER/.local/share/wallhaven-plasma/tools|%{_datadir}/wallhaven-p
 %{_datadir}/metainfo/org.robertsm.wallhaven.metainfo.xml
 %{_datadir}/knotifications6/org.robertsm.wallhaven.notifyrc
 %{_datadir}/wallhaven-plasma/tools/
+%{_prefix}/lib/systemd/user/wallhaven-dbus.service
+%{_datadir}/locale/*/LC_MESSAGES/org.robertsm.wallhaven.mo
 %{_datadir}/applications/wallhaven-preset.desktop
 
 %changelog
+* Fri Aug 14 2026 Wallhaven Plasma Port <wallhaven@local> - 1.8.0-1
+- Attribution layout, settings import via D-Bus, debug log append, slideshow auto-resume, packaging locales/systemd
+
 * Fri Aug 14 2026 Wallhaven Plasma Port <wallhaven@local> - 1.7.1-1
 - Plasmashell stability: D-Bus ReadTextFile, inline settings wizard, cache URL fix
 

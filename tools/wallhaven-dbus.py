@@ -46,6 +46,7 @@ ALLOWED_COMMANDS = {
     "kwriteconfig6",
 }
 BATTERY_CAPACITY_RE = re.compile(r"^/sys/class/power_supply/BAT\d+/capacity$")
+HOME_READ_BLOCKED = (".ssh", ".gnupg", ".local/share/keyrings/")
 
 
 def config_home() -> str:
@@ -74,7 +75,25 @@ def validate_read_path(path: str) -> str:
     cfg_base = config_home()
     if full.startswith(cfg_base + os.sep):
         return full
+    home = os.path.realpath(os.path.expanduser("~"))
+    if full == home or full.startswith(home + os.sep):
+        rel = os.path.relpath(full, home)
+        if rel != ".." and not rel.startswith(".." + os.sep):
+            for blocked in HOME_READ_BLOCKED:
+                if rel == blocked.rstrip("/") or rel.startswith(blocked):
+                    raise dbus.exceptions.DBusException(
+                        "org.freedesktop.DBus.Error.AccessDenied: path not readable",
+                    )
+            return full
     raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: path not readable")
+
+
+def append_debug_log_line(existing: str, line: str, max_lines: int = 200) -> str:
+    lines = [entry for entry in str(existing or "").split("\n") if entry]
+    lines.append(str(line or ""))
+    if len(lines) > max_lines:
+        lines = lines[-max_lines:]
+    return "\n".join(lines) + "\n"
 
 
 def run_argv(argv: list[str]) -> None:
@@ -168,6 +187,19 @@ class WallhavenControl(dbus.service.Object):
                 return handle.read()
         except OSError:
             return ""
+
+    @dbus.service.method(INTERFACE, in_signature="ss")
+    def AppendTextFile(self, path: str, line: str) -> None:
+        target = validate_cache_path(path)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        existing = ""
+        try:
+            with open(target, encoding="utf-8") as handle:
+                existing = handle.read()
+        except OSError:
+            pass
+        with open(target, "w", encoding="utf-8") as handle:
+            handle.write(append_debug_log_line(existing, line))
 
     @dbus.service.method(INTERFACE, in_signature="s")
     def RunArgv(self, argv_json: str) -> None:

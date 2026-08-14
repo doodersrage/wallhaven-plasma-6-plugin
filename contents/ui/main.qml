@@ -111,6 +111,7 @@ WallpaperItem {
     property var _metrics: Wallhaven.createMetricsState()
     property int _batteryPercent: 100
     property bool _rulesPausedSlideshow: false
+    property bool _pausedByRules: false
 
     readonly property real parallaxOffsetX: {
         if (!cfg.ParallaxEnabled) {
@@ -691,12 +692,20 @@ WallpaperItem {
             return;
         }
         if (shouldPause && !cfg.SlideshowPaused) {
+            _pausedByRules = true;
             root.configuration.SlideshowPaused = true;
             scheduleConfigWrite();
             intervalTimer.stop();
             engine.showStatus(i18n("Slideshow paused by power/activity rules."), "info");
-        } else if (!shouldPause && cfg.SlideshowPaused && _rulesPausedSlideshow === false) {
-            // Only auto-resume if pause was from rules - keep simple: user resumes manually
+        } else if (!shouldPause && _pausedByRules && cfg.SlideshowPaused) {
+            _pausedByRules = false;
+            root.configuration.SlideshowPaused = false;
+            scheduleConfigWrite();
+            if (cfg.RandomInterval > 0) {
+                restartIntervalTimer();
+            }
+            engine.showStatus(i18n("Slideshow resumed (power/activity rules cleared)."), "info");
+            publishStatus();
         }
     }
 
@@ -759,7 +768,7 @@ WallpaperItem {
 
     function buildDebugBundleText(logTail) {
         return Wallhaven.buildDebugBundle(cfg, {
-            version: "1.7.1",
+            version: Wallhaven.pluginVersion(),
             status: {
                 id: currentWallpaperId,
                 url: currentUrl,
@@ -793,6 +802,37 @@ WallpaperItem {
     function copyDebugInfo() {
         getDebugInfo(function(info) {
             copyToClipboard(info, i18n("Copied debug info."));
+        });
+    }
+
+    function showDebugLogTail() {
+        dbusHelper.readFile(debugLogFile, function(text) {
+            var lines = String(text || "").split("\n").filter(function(entry) {
+                return entry.length > 0;
+            });
+            var tail = lines.slice(-20).join("\n");
+            engine.showStatus(tail || i18n("Debug log is empty."), tail ? "info" : "warn");
+        });
+    }
+
+    function importSettingsFromFile(localPath) {
+        dbusHelper.readFile(localPath, function(text) {
+            if (!text || !root.configuration) {
+                engine.showStatus(i18n("Could not read settings file."), "warn");
+                return;
+            }
+            try {
+                var settings = Wallhaven.importSettingsSnapshot(text);
+                var keys = Object.keys(settings);
+                for (var i = 0; i < keys.length; i++) {
+                    root.configuration[keys[i]] = settings[keys[i]];
+                }
+                scheduleConfigWrite();
+                engine.resetSlideshow();
+                engine.showStatus(i18n("Settings imported."), "info");
+            } catch (e) {
+                engine.showStatus(i18n("Could not import settings file."), "warn");
+            }
         });
     }
 
@@ -868,6 +908,7 @@ WallpaperItem {
             return;
         }
         var paused = !cfg.SlideshowPaused;
+        _pausedByRules = false;
         root.configuration.SlideshowPaused = paused;
         scheduleConfigWrite();
         if (paused) {
@@ -2084,6 +2125,10 @@ WallpaperItem {
             wallhavenMessage("ReadTextFile", "s", [path], callback);
         }
 
+        function appendFile(path, line, callback) {
+            wallhavenMessage("AppendTextFile", "ss", [path, line], callback);
+        }
+
         function runArgv(argv, callback) {
             wallhavenMessage("RunArgv", "s", [JSON.stringify(argv)], callback);
         }
@@ -2123,11 +2168,7 @@ WallpaperItem {
     QtObject {
         id: debugLogWriter
         function appendLine(line) {
-            dbusHelper.runArgv([
-                "python3", "-c",
-                "import sys; p=sys.argv[1]; l=sys.argv[2]; open(p,'a',encoding='utf-8').write(l+'\\n')",
-                debugLogFile, line,
-            ]);
+            dbusHelper.appendFile(debugLogFile, line);
         }
     }
 
@@ -2739,23 +2780,24 @@ WallpaperItem {
     Rectangle {
         id: attributionBanner
         z: 100
-        anchors.margins: 16
-        width: parent.width - 32
-        height: attributionVisible ? attributionLabel.implicitHeight + 16 : 0
-        visible: attributionVisible
         radius: 8
         color: "#000000"
         opacity: 0.65
+        visible: attributionVisible
 
         readonly property bool attributionVisible: cfg.ShowAttribution && root.attributionText !== ""
         readonly property string corner: cfg.AttributionCorner || "bottom-left"
+        readonly property bool cornerCentered: corner === "top-center" || corner === "bottom-center"
 
-        anchors.left: corner.indexOf("left") >= 0 ? parent.left : undefined
+        width: Math.min(Math.max(attributionLabel.implicitWidth + 32, 120), parent.width - 32)
+        height: attributionVisible ? attributionLabel.implicitHeight + 16 : 0
+
+        anchors.left: !cornerCentered && corner.indexOf("left") >= 0 ? parent.left : undefined
         anchors.right: corner.indexOf("right") >= 0 ? parent.right : undefined
         anchors.top: corner.indexOf("top") >= 0 ? parent.top : undefined
         anchors.bottom: corner.indexOf("bottom") >= 0 ? parent.bottom : undefined
-        anchors.horizontalCenter: corner === "bottom-left" || corner === "bottom-right"
-            ? undefined : (corner.indexOf("top") >= 0 ? parent.horizontalCenter : undefined)
+        anchors.horizontalCenter: cornerCentered ? parent.horizontalCenter : undefined
+        anchors.margins: 16
 
         onAttributionVisibleChanged: {
             if (attributionVisible && cfg.AttributionAutoHideSec > 0) {
@@ -2767,7 +2809,7 @@ WallpaperItem {
         QQC2.Label {
             id: attributionLabel
             anchors.centerIn: parent
-            width: parent.width - 32
+            width: Math.min(attributionBanner.parent.width - 64, 420)
             wrapMode: Text.WordWrap
             color: "#ffffff"
             font.pointSize: Math.max(7, Math.round(9 * (cfg.AttributionFontScale || 100) / 100))

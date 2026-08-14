@@ -1032,6 +1032,10 @@ function buildPresetShareUrl(preset) {
     return "wallhaven://preset/" + payload;
 }
 
+function pluginVersion() {
+    return "1.8.0";
+}
+
 function appendDebugLogLine(existing, line, maxLines) {
     maxLines = maxLines || 200;
     var lines = String(existing || "").split("\n").filter(function(entry) { return entry.length > 0; });

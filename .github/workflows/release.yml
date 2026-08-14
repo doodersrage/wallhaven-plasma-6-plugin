@@ -16,8 +16,9 @@ jobs:
 
       - name: Validate and test
         run: |
-          chmod +x scripts/validate.sh dev-helper.sh scripts/release.sh
+          chmod +x scripts/validate.sh dev-helper.sh scripts/release.sh tests/validate-qml.sh
           ./scripts/validate.sh
+          ./tests/validate-qml.sh
           ./dev-helper.sh test
 
       - name: Compile translations

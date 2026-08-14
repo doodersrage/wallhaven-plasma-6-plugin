@@ -2059,6 +2059,17 @@ ColumnLayout {
                 }
 
                 QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Debug log:")
+                    text: i18n("Show recent log lines")
+                    enabled: liveWallpaper !== null && debugLogCheck.checked
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.showDebugLogTail)
+                            liveWallpaper.showDebugLogTail();
+
+                    }
+                }
+
+                QtControls2.Button {
                     Kirigami.FormData.label: i18n("Debug info:")
                     text: i18n("Copy debug info")
                     enabled: liveWallpaper !== null
@@ -2352,19 +2363,21 @@ ColumnLayout {
     QtObject {
         id: settingsImportLoader
 
-        function load(fileUrl) {
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", fileUrl);
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState !== XMLHttpRequest.DONE)
-                    return ;
+        function localPathFromUrl(fileUrl) {
+            var path = String(fileUrl || "");
+            if (path.indexOf("file://") === 0) {
+                path = path.substring(7);
+            }
+            return decodeURIComponent(path);
+        }
 
-                if (xhr.status === 0 || xhr.status === 200)
-                    root.importSettingsFromText(xhr.responseText);
-                else
-                    importExportStatus.text = i18n("Could not read settings file.");
-            };
-            xhr.send();
+        function load(fileUrl) {
+            if (liveWallpaper && liveWallpaper.importSettingsFromFile) {
+                liveWallpaper.importSettingsFromFile(localPathFromUrl(fileUrl));
+                importExportStatus.text = i18n("Importing settings…");
+                return;
+            }
+            importExportStatus.text = i18n("Apply Wallhaven as the wallpaper type to import settings.");
         }
 
     }

@@ -7,6 +7,10 @@ on:
         description: AUR package name
         required: true
         default: wallhaven-plasma-git
+      version:
+        description: Release version (matches metadata.json)
+        required: true
+        default: "1.8.0"
 
 jobs:
   publish:
@@ -19,14 +23,18 @@ jobs:
         run: |
           test -f packaging/PKGBUILD
           grep -q 'wallhaven-plasma' packaging/PKGBUILD
+          grep -q 'pkgver=${{ inputs.version }}' packaging/PKGBUILD || grep -q 'pkgver=${{ inputs.version }}.r' packaging/PKGBUILD || {
+            echo "PKGBUILD pkgver does not match workflow input ${{ inputs.version }}" >&2
+            exit 1
+          }
 
       - name: Publish to AUR (requires secret)
         env:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
         run: |
           if [[ -z "${AUR_SSH_PRIVATE_KEY}" ]]; then
-            echo "Set repository secret AUR_SSH_PRIVATE_KEY to enable automated AUR publish."
-            exit 0
+            echo "::warning::Set repository secret AUR_SSH_PRIVATE_KEY to enable automated AUR publish."
+            exit 1
           fi
           eval "$(ssh-agent -s)"
           echo "${AUR_SSH_PRIVATE_KEY}" | ssh-add -
