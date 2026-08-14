@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.2.0 — 2026-08-14
+
+Discoverability and control release: shortcuts, Spanish i18n, plasmoid polish, Variety watch, and distribution CI.
+
+### Added
+- **Spanish UI translation** — full ~409 string catalog (`po/catalog/es.json`)
+- **KGlobalAccel shortcuts** — `tools/wallhaven-shortcuts` + `dev-helper.sh install-shortcuts` + autostart desktop
+- **Variety watch mode** — optional live import when `variety.conf` search changes (D-Bus service + settings toggle)
+- **Plasmoid v3** — click thumbnail to open page, similar/block/copy menu, offline icon + help action
+- **Settings D-Bus banner** — top-level warning when `wallhaven-dbus.service` is not running
+- **Flatpak manifest validation** — `scripts/validate-flatpak.sh` + CI smoke job
+- **CONTRIBUTING.md** — translator workflow and locale registration steps
+- **Control bus `similar` command** — plasmoid and external tools can trigger similar-wallpaper search
+
+### Changed
+- **`fill-de-po.py`** — thin wrapper delegating to unified `fill-po.py`
+- **Settings filter bar** — always visible at top of configuration panel
+- **Release CI** — sync-i18n on tag builds; packaging smoke includes Spanish `.mo`
+
 ## 2.1.0 — 2026-08-14
 
 Polish release: i18n expansion, store assets, control UX, and packaging automation.

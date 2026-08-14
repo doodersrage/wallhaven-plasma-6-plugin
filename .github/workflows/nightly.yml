@@ -31,6 +31,14 @@ jobs:
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/presets/curated.json'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'examples/plasma-shortcuts.md'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'packaging/PKGBUILD'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/locale/es/LC_MESSAGES/org.robertsm.wallhaven.mo'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'CONTRIBUTING.md'
+
+      - name: Packaging and Flatpak smoke
+        run: |
+          chmod +x scripts/validate-packaging.sh scripts/validate-flatpak.sh
+          ./scripts/validate-packaging.sh
+          ./scripts/validate-flatpak.sh
 
   neon:
     runs-on: ubuntu-latest

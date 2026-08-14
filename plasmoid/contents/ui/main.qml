@@ -97,6 +97,16 @@ PlasmoidItem {
         return statusData.thumbUrl;
     }
 
+    function openCurrentPage() {
+        if (statusData.pageUrl) {
+            Qt.openUrlExternally(statusData.pageUrl);
+        } else if (statusData.id) {
+            Qt.openUrlExternally("https://wallhaven.cc/w/" + statusData.id);
+        } else {
+            root.sendCommand("open");
+        }
+    }
+
     function formatCountdown(ms) {
         if (ms <= 0 || statusData.paused || !statusData.slideshowActive) {
             return statusData.paused ? i18n("Paused") : i18n("Manual");
@@ -132,10 +142,14 @@ PlasmoidItem {
 
             MouseArea {
                 anchors.fill: parent
-                acceptedButtons: Qt.RightButton
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
                 onClicked: function(mouse) {
                     if (mouse.button === Qt.RightButton) {
                         plasmoidMenu.open();
+                    } else if (mouse.button === Qt.LeftButton) {
+                        root.openCurrentPage();
                     }
                 }
             }
@@ -151,7 +165,7 @@ PlasmoidItem {
             PlasmaCore.IconItem {
                 anchors.centerIn: parent
                 visible: root.plasmoidThumbSource() === ""
-                source: "preferences-desktop-wallpaper"
+                source: root.dbusOffline ? "network-disconnect" : "preferences-desktop-wallpaper"
                 width: Kirigami.Units.iconSizes.medium
                 height: width
             }
@@ -197,24 +211,28 @@ PlasmoidItem {
             display: QtControls2.AbstractButton.IconOnly
             icon.name: "go-previous"
             ToolTip.text: i18n("Previous wallpaper")
+            enabled: !root.dbusOffline
             onClicked: root.sendCommand("prev")
         }
         QtControls2.ToolButton {
             display: QtControls2.AbstractButton.IconOnly
             icon.name: "go-next"
             ToolTip.text: i18n("Next wallpaper")
+            enabled: !root.dbusOffline
             onClicked: root.sendCommand("next")
         }
         QtControls2.ToolButton {
             display: QtControls2.AbstractButton.IconOnly
             icon.name: statusData.paused ? "media-playback-start" : "media-playback-pause"
             ToolTip.text: statusData.paused ? i18n("Resume slideshow") : i18n("Pause slideshow")
+            enabled: !root.dbusOffline
             onClicked: root.sendCommand(statusData.paused ? "resume" : "pause")
         }
         QtControls2.ToolButton {
             display: QtControls2.AbstractButton.IconOnly
             icon.name: "view-refresh"
             ToolTip.text: i18n("Reload wallpaper")
+            enabled: !root.dbusOffline
             onClicked: root.sendCommand("reload")
         }
         QtControls2.ToolButton {
@@ -228,27 +246,33 @@ PlasmoidItem {
     QtControls2.Menu {
         id: plasmoidMenu
         QtControls2.MenuItem {
-            text: i18n("Open in browser")
+            text: i18n("Open wallpaper page")
             enabled: statusData.pageUrl !== "" || statusData.id !== ""
-            onTriggered: {
-                if (statusData.pageUrl) {
-                    Qt.openUrlExternally(statusData.pageUrl);
-                } else if (statusData.id) {
-                    Qt.openUrlExternally("https://wallhaven.cc/w/" + statusData.id);
-                } else {
-                    root.sendCommand("open");
-                }
-            }
+            onTriggered: root.openCurrentPage()
         }
         QtControls2.MenuItem {
+            text: i18n("Similar wallpapers")
+            enabled: statusData.id !== "" && !root.dbusOffline
+            onTriggered: root.sendCommand("similar")
+        }
+        QtControls2.MenuSeparator {}
+        QtControls2.MenuItem {
             text: i18n("Copy tags")
-            enabled: statusData.id !== ""
+            enabled: statusData.id !== "" && !root.dbusOffline
             onTriggered: root.sendCommand("copytags")
         }
         QtControls2.MenuItem {
             text: i18n("Block wallpaper")
-            enabled: statusData.id !== ""
+            enabled: statusData.id !== "" && !root.dbusOffline
             onTriggered: root.sendCommand("block")
+        }
+        QtControls2.MenuSeparator {
+            visible: root.dbusOffline
+        }
+        QtControls2.MenuItem {
+            visible: root.dbusOffline
+            text: i18n("Start D-Bus service")
+            onTriggered: Qt.openUrlExternally("https://github.com/doodersrage/wallhaven-plasma-6-plugin#quick-start")
         }
     }
 }

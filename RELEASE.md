@@ -19,6 +19,7 @@ Dry run:
 
 ```bash
 ./dev-helper.sh deploy
+./dev-helper.sh install-shortcuts   # optional Meta+Alt+arrows
 ```
 
 This validates, runs tests, installs the plugin + plasmoid, enables the user D-Bus
@@ -28,43 +29,41 @@ service, and restarts plasmashell.
 
 | Workflow | Trigger | Action |
 |----------|---------|--------|
-| `ci.yml` | push/PR to main | validate, test, package |
-| `release.yml` | push tag `v*` | validate, test, package, attach to GitHub Release |
+| `ci.yml` | push/PR to main | validate, i18n, test, package, packaging smoke, flatpak manifest |
+| `release.yml` | push tag `v*` | validate, sync-i18n, package, GitHub Release asset |
+| `aur-publish.yml` | tag or manual | AUR PKGBUILD push (needs `AUR_SSH_PRIVATE_KEY`) |
+| `nightly.yml` | daily cron | full check + package |
 
 ## Before bumping version
 
 1. Update `metadata.json`, `plasmoid/metadata.json`, `contents/code/wallhaven.js`, `CHANGELOG.md`, `metainfo/`
 2. `./dev-helper.sh sync-i18n && ./scripts/check-i18n.sh`
-3. `./dev-helper.sh check && ./dev-helper.sh package`
+3. `./dev-helper.sh check && ./dev-helper.sh package && ./scripts/validate-packaging.sh`
 4. Capture screenshots: `./scripts/capture-screenshots.sh --list` then run interactively
 5. `./dev-helper.sh release`
-
-**2.0.x is the stable milestone line** — further feature work should target 2.1+ when resumed.
 
 ## KDE Store
 
 Manual upload of `wallhaven-plasma-*.tar.xz` plus AppStream metadata and screenshots.
-No public KDE Store API automation is configured in this repo.
+Replace placeholder PNGs in `screenshots/` with real captures when possible.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Shortcuts
 
 ```bash
-./tools/register-shortcuts.sh     # documents Custom Shortcuts setup
-./dev-helper.sh dbus-install      # persistent D-Bus control (recommended)
-```
-
-Optional KGlobalAccel binary (requires KDE dev packages):
-
-```bash
-cmake -S tools/wallhaven-shortcuts -B build-shortcuts
-cmake --build build-shortcuts
+./tools/register-shortcuts.sh        # documents Custom Shortcuts setup
+./dev-helper.sh install-shortcuts    # KGlobalAccel binary + autostart (needs cmake + KF6 dev)
+./dev-helper.sh dbus-install         # persistent D-Bus control (recommended)
+./dev-helper.sh register-preset      # wallhaven:// URL handler
 ```
 
 ## Translations
 
 ```bash
-./dev-helper.sh extract-i18n      # refresh po/org.robertsm.wallhaven.pot
-./dev-helper.sh translations      # compile .po → contents/locale/
+./dev-helper.sh sync-i18n            # extract, fill catalogs, compile, check
+./dev-helper.sh extract-i18n         # refresh po/org.robertsm.wallhaven.pot only
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for adding a new locale.
 
 Packaging auto-compiles translations when `po/*.po` exists.

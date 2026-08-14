@@ -899,6 +899,7 @@ function buildStatusSnapshot(data) {
         slideshowActive: !!data.slideshowActive,
         nextChangeMs: Math.max(0, parseInt(data.nextChangeMs, 10) || 0),
         attribution: data.attribution || "",
+        varietyWatchEnabled: !!data.varietyWatchEnabled,
         syncGroup: data.syncGroup || "default",
         metrics: data.metrics || null,
         updatedAt: new Date().toISOString(),
@@ -1034,7 +1035,7 @@ function buildPresetShareUrl(preset) {
 }
 
 function pluginVersion() {
-    return "2.1.0";
+    return "2.2.0";
 }
 
 function appendDebugLogLine(existing, line, maxLines) {

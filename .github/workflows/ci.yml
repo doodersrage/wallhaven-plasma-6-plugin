@@ -51,10 +51,16 @@ jobs:
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'packaging/PKGBUILD'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/locale/de/LC_MESSAGES/org.robertsm.wallhaven.mo'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/locale/fr/LC_MESSAGES/org.robertsm.wallhaven.mo'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/locale/es/LC_MESSAGES/org.robertsm.wallhaven.mo'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'po/de.po'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'po/fr.po'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'po/es.po'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'screenshots/desktop-wallpaper.png'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'share/wallhaven-shortcuts.desktop.in'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'metainfo/org.robertsm.wallhaven.metainfo.xml'
 
       - name: Packaging smoke
         run: chmod +x scripts/validate-packaging.sh && ./scripts/validate-packaging.sh
+
+      - name: Flatpak manifest smoke
+        run: chmod +x scripts/validate-flatpak.sh && ./scripts/validate-flatpak.sh

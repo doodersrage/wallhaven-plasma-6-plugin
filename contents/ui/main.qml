@@ -21,6 +21,7 @@ WallpaperItem {
     readonly property string varietyMetadataFile: diskCacheDir + "/wallhaven-variety.json"
     readonly property string settingsExportFile: diskCacheDir + "/wallhaven-settings-export.json"
     readonly property string statusBusFile: diskCacheDir + "/wallhaven-status.json"
+    readonly property string dbusConfigFile: diskCacheDir + "/wallhaven-dbus-config.json"
     readonly property string panelTintFile: diskCacheDir + "/wallhaven-panel-tint.json"
     readonly property string debugLogFile: diskCacheDir + "/wallhaven-debug.log"
     readonly property int diskCacheEntryCount: Wallhaven.listCachedIds(_diskCacheIndex).length
@@ -548,7 +549,19 @@ WallpaperItem {
                 nextChangeMs: nextMs,
                 attribution: attributionText,
                 syncGroup: cfg.SyncAdvanceGroup || "default",
+                varietyWatchEnabled: cfg.VarietyWatchEnabled,
                 metrics: _metrics,
+            }),
+        );
+        publishDbusConfig();
+    }
+
+    function publishDbusConfig() {
+        settingsFileWriter.writeFile(
+            dbusConfigFile,
+            JSON.stringify({
+                varietyWatchEnabled: !!cfg.VarietyWatchEnabled,
+                syncGroup: cfg.SyncAdvanceGroup || "default",
             }),
         );
     }
@@ -2344,6 +2357,9 @@ WallpaperItem {
                     break;
                 case "copytags":
                     root.copyCurrentTags();
+                    break;
+                case "similar":
+                    root.loadSimilarWallpapers();
                     break;
                 case "importpreset":
                     if (cmd.query) {

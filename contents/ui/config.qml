@@ -126,6 +126,7 @@ ColumnLayout {
     property alias cfg_ParallaxStrength: parallaxStrengthSpin.value
     property alias cfg_VarietyFolderPath: varietyFolderField.text
     property alias cfg_VarietySymlinkEnabled: varietySymlinkCheck.checked
+    property alias cfg_VarietyWatchEnabled: varietyWatchCheck.checked
     property alias cfg_SetupWizardCompleted: setupWizardCompletedFlag.value
     property alias cfg_WallpaperOfDayEnabled: wallpaperOfDayCheck.checked
     property alias cfg_FavoritesRefreshMin: favoritesRefreshSpin.value
@@ -420,6 +421,13 @@ ColumnLayout {
         wrapMode: Text.WordWrap
         opacity: 0.7
         visible: text !== ""
+    }
+
+    Kirigami.InlineMessage {
+        Layout.fillWidth: true
+        visible: liveWallpaper !== null && !root.dbusServiceOnline
+        type: Kirigami.InlineMessage.Warning
+        text: i18n("Wallhaven D-Bus service is not running. Run: systemctl --user enable --now wallhaven-dbus.service")
     }
 
     ColumnLayout {
@@ -782,7 +790,6 @@ ColumnLayout {
     Item {
         Layout.fillWidth: true
         Layout.preferredHeight: settingsSearchField.implicitHeight
-        visible: fieldVisible(["search", "filter", "settings"])
 
         QtControls2.TextField {
             id: settingsSearchField
@@ -1956,15 +1963,6 @@ ColumnLayout {
                     enabled: varietyFolderField.text !== ""
                 }
 
-                QtControls2.Label {
-                    Kirigami.FormData.label: i18n("D-Bus service:")
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    visible: liveWallpaper !== null && !root.dbusServiceOnline
-                    color: Kirigami.Theme.negativeTextColor
-                    text: i18n("Wallhaven D-Bus service is not running. Run: systemctl --user enable --now wallhaven-dbus.service")
-                }
-
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Variety bridge:")
                     text: i18n("Preview Variety search")
@@ -1998,6 +1996,14 @@ ColumnLayout {
                     text: root.varietyPreviewSearch.indexOf("(") === 0
                         ? root.varietyPreviewSearch
                         : i18n("Would apply search: %1", root.varietyPreviewSearch)
+                }
+
+                QtControls2.CheckBox {
+                    id: varietyWatchCheck
+
+                    Kirigami.FormData.label: i18n("Variety watch:")
+                    text: i18n("Watch Variety config for changes")
+                    enabled: liveWallpaper !== null && root.dbusServiceOnline
                 }
 
                 QtControls2.Label {
@@ -2209,6 +2215,18 @@ ColumnLayout {
                     wrapMode: Text.WordWrap
                     opacity: 0.7
                     text: i18n("Use tools/wallhaven-ctl.sh, D-Bus (tools/wallhaven-dbus.py), or the Wallhaven Control plasmoid.")
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Global shortcuts")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Keyboard shortcuts:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Install Meta+Alt+arrow global shortcuts with: ./dev-helper.sh install-shortcuts")
                 }
 
                 Kirigami.Separator {

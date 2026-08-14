@@ -1,0 +1,1251 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: org.robertsm.wallhaven 2.2.0\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "0 = manual only. Pause also available from desktop Wallpaper Actions."
+msgstr "0 = solo manual. La pausa también está disponible desde Acciones del fondo de escritorio."
+
+msgid "%1 blocked wallpaper(s)"
+msgstr "%1 fondo(s) de escritorio bloqueado(s)"
+
+msgid "%1 cached wallpaper(s)"
+msgstr "%1 fondo(s) de escritorio en caché"
+
+msgid "6am–8pm"
+msgstr "6:00–20:00"
+
+msgid "8pm–6am"
+msgstr "20:00–6:00"
+
+msgid "Accept commands from plasmoid/CLI"
+msgstr "Aceptar comandos del plasmoide/CLI"
+
+msgid "Account blacklist:"
+msgstr "Lista negra de cuentas:"
+
+msgid "Adaptive preload:"
+msgstr "Precarga adaptativa:"
+
+msgid "Advance all monitors in the same group together"
+msgstr "Avanzar todos los monitores del mismo grupo a la vez"
+
+msgid "Advanced"
+msgstr "Avanzado"
+
+msgid "All portrait"
+msgstr "Todo vertical"
+
+msgid "All results are blocked. Clear the blocklist or try another search."
+msgstr "Todos los resultados están bloqueados. Vacíe la lista de bloqueo o pruebe otra búsqueda."
+
+msgid "All wide"
+msgstr "Todo horizontal"
+
+msgid "Anime:"
+msgstr "Anime:"
+
+msgid "Any"
+msgstr "Cualquiera"
+
+msgid "API key:"
+msgstr "Clave API:"
+
+msgid "API key is valid."
+msgstr "La clave API es válida."
+
+msgid "API key (optional)"
+msgstr "Clave API (opcional)"
+
+msgid "API key required for favorites mode."
+msgstr "Se requiere clave API para el modo Favoritos."
+
+msgid "API key validation failed (%1)."
+msgstr "Error al validar la clave API (%1)."
+
+msgid "API order:"
+msgstr "Orden de la API:"
+
+msgid "API sorting:"
+msgstr "Ordenación de la API:"
+
+msgid "Applied Variety search: %1"
+msgstr "Búsqueda de Variety aplicada: %1"
+
+msgid "Apply accent color via plasma-apply-colors when available"
+msgstr "Aplicar color de acento mediante plasma-apply-colors cuando esté disponible"
+
+msgid "Apply preset:"
+msgstr "Aplicar preajuste:"
+
+msgid "Apply selected preset"
+msgstr "Aplicar preajuste seleccionado"
+
+msgid "Apply Variety search to Wallhaven"
+msgstr "Aplicar búsqueda de Variety a Wallhaven"
+
+msgid "Apply Wallhaven as the wallpaper type to import settings."
+msgstr "Seleccione Wallhaven como tipo de fondo de escritorio para importar la configuración."
+
+msgid "Apply Wallhaven as the wallpaper type to manage the blocklist."
+msgstr "Seleccione Wallhaven como tipo de fondo de escritorio para gestionar la lista de bloqueo."
+
+msgid "Apply Wallhaven as the wallpaper type to see cache stats."
+msgstr "Seleccione Wallhaven como tipo de fondo de escritorio para ver las estadísticas de caché."
+
+msgid "Apply Wallhaven tag blacklist (Search + API key)"
+msgstr "Aplicar lista negra de etiquetas de Wallhaven (Búsqueda + clave API)"
+
+msgid "Ascending"
+msgstr "Ascendente"
+
+msgid "Attribution:"
+msgstr "Atribución:"
+
+msgid "Attribution corner:"
+msgstr "Esquina de atribución:"
+
+msgid "Auto-hide (sec):"
+msgstr "Ocultar automáticamente (s):"
+
+msgid "Auto panel accent:"
+msgstr "Acento automático del panel:"
+
+msgid "Avoid recent duplicates (saved across restarts)"
+msgstr "Evitar duplicados recientes (guardados entre reinicios)"
+
+msgid "Battery pause:"
+msgstr "Pausa con batería:"
+
+msgid "Battery threshold (%):"
+msgstr "Umbral de batería (%):"
+
+msgid "Black"
+msgstr "Negro"
+
+msgid "Blocked IDs:"
+msgstr "Identificadores bloqueados:"
+
+msgid "Blocked wallpaper %1."
+msgstr "Fondo de escritorio %1 bloqueado."
+
+msgid "Blocklist"
+msgstr "Lista de bloqueo"
+
+msgid "Blocklist cleared."
+msgstr "Lista de bloqueo vaciada."
+
+msgid "Block the current wallpaper from desktop Wallpaper Actions. Blocked IDs are skipped during search."
+msgstr "Bloquear el fondo de escritorio actual desde Acciones del fondo de escritorio. Los identificadores bloqueados se omiten durante la búsqueda."
+
+msgid "Block This Wallpaper"
+msgstr "Bloquear este fondo de escritorio"
+
+msgid "Block wallpaper"
+msgstr "Bloquear fondo de escritorio"
+
+msgid "Blue"
+msgstr "Azul"
+
+msgid "Blue Purple"
+msgstr "Azul púrpura"
+
+msgid "Bottom left"
+msgstr "Abajo a la izquierda"
+
+msgid "Bottom right"
+msgstr "Abajo a la derecha"
+
+msgid "Bright Red"
+msgstr "Rojo brillante"
+
+msgid "Bright Yellow"
+msgstr "Amarillo brillante"
+
+msgid "Brown"
+msgstr "Marrón"
+
+msgid "Browse mode:"
+msgstr "Modo de exploración:"
+
+msgid "Cached:"
+msgstr "En caché:"
+
+msgid "Cache Manager"
+msgstr "Administrador de caché"
+
+msgid "Cache recent wallpapers locally (faster revisits)"
+msgstr "Guardar fondos de escritorio recientes en caché local (acceso más rápido)"
+
+msgid "Cache slots:"
+msgstr "Espacios de caché:"
+
+msgid "Cache status:"
+msgstr "Estado de la caché:"
+
+msgid "Categories"
+msgstr "Categorías"
+
+msgid "Category, purity, ratio, color, blacklist, and time-of-day filters apply to Search mode only. Collection and Favorites use the collection API as-is."
+msgstr "Los filtros de categoría, pureza, relación, color, lista negra y hora del día solo se aplican en el modo Búsqueda. Colección y Favoritos usan la API de colección tal cual."
+
+msgid "Checking…"
+msgstr "Comprobando…"
+
+msgid "Clear blocklist"
+msgstr "Vaciar lista de bloqueo"
+
+msgid "Clear blocklist:"
+msgstr "Vaciar lista de bloqueo:"
+
+msgid "Clear cache:"
+msgstr "Vaciar caché:"
+
+msgid "Clear disk cache"
+msgstr "Vaciar caché en disco"
+
+msgid "Clear history:"
+msgstr "Borrar historial:"
+
+msgid "Clear wallpaper history"
+msgstr "Borrar historial de fondos de escritorio"
+
+msgid "Collection"
+msgstr "Colección"
+
+msgid "Collection ID:"
+msgstr "Identificador de colección:"
+
+msgid "Collection list:"
+msgstr "Lista de colecciones:"
+
+msgid "Collections:"
+msgstr "Colecciones:"
+
+msgid "Collection user:"
+msgstr "Usuario de colección:"
+
+msgid "Collection username and ID are required."
+msgstr "Se requieren el nombre de usuario y el identificador de la colección."
+
+msgid "Color:"
+msgstr "Color:"
+
+msgid "Comma-separated tags boosted in search"
+msgstr "Etiquetas separadas por comas con prioridad en la búsqueda"
+
+msgid "Comma-separated tags to exclude, e.g. nsfw, text"
+msgstr "Etiquetas a excluir, separadas por comas, p. ej. nsfw, text"
+
+msgid "Control bus:"
+msgstr "Bus de control:"
+
+msgid "Copied debug info."
+msgstr "Información de depuración copiada."
+
+msgid "Copied GitHub issue template."
+msgstr "Plantilla de informe de GitHub copiada."
+
+msgid "Copied page URL."
+msgstr "URL de la página copiada."
+
+msgid "Copied tags."
+msgstr "Etiquetas copiadas."
+
+msgid "Copied wallpaper ID %1."
+msgstr "Identificador del fondo de escritorio %1 copiado."
+
+msgid "Copy debug info"
+msgstr "Copiar información de depuración"
+
+msgid "Copy GitHub issue template"
+msgstr "Copiar plantilla de informe de GitHub"
+
+msgid "Copy Page URL"
+msgstr "Copiar URL de la página"
+
+msgid "Copy preset share URL"
+msgstr "Copiar URL para compartir preajuste"
+
+msgid "Copy settings to clipboard"
+msgstr "Copiar configuración al portapapeles"
+
+msgid "Copy tags"
+msgstr "Copiar etiquetas"
+
+msgid "Copy Tags"
+msgstr "Copiar etiquetas"
+
+msgid "Copy Wallpaper ID"
+msgstr "Copiar identificador del fondo de escritorio"
+
+msgid "Could not download wallpaper images. Check your connection."
+msgstr "No se pudieron descargar las imágenes. Compruebe su conexión."
+
+msgid "Could not download wallpaper to save."
+msgstr "No se pudo descargar el fondo de escritorio para guardarlo."
+
+msgid "Could not import settings file."
+msgstr "No se pudo importar el archivo de configuración."
+
+msgid "Could not load community presets."
+msgstr "No se pudieron cargar los preajustes de la comunidad."
+
+msgid "Could not load curated presets."
+msgstr "No se pudieron cargar los preajustes seleccionados."
+
+msgid "Could not load the next wallpaper."
+msgstr "No se pudo cargar el siguiente fondo de escritorio."
+
+msgid "Could not load wallpaper."
+msgstr "No se pudo cargar el fondo de escritorio."
+
+msgid "Could not parse collections response."
+msgstr "No se pudo analizar la respuesta de colecciones."
+
+msgid "Could not parse search response."
+msgstr "No se pudo analizar la respuesta de búsqueda."
+
+msgid "Could not read settings file."
+msgstr "No se pudo leer el archivo de configuración."
+
+msgid "Could not save wallpaper."
+msgstr "No se pudo guardar el fondo de escritorio."
+
+msgid "Crossfade"
+msgstr "Fundido cruzado"
+
+msgid "Crossfade (ms):"
+msgstr "Fundido cruzado (ms):"
+
+msgid "Current Wallpaper"
+msgstr "Fondo de escritorio actual"
+
+msgid "Cyan Blue"
+msgstr "Azul cian"
+
+msgid "Cycle through multiple collections on each advance"
+msgstr "Recorrer varias colecciones en cada avance"
+
+msgid "Dark Brown"
+msgstr "Marrón oscuro"
+
+msgid "Dark Green"
+msgstr "Verde oscuro"
+
+msgid "Dark Orange"
+msgstr "Naranja oscuro"
+
+msgid "Dark Purple"
+msgstr "Púrpura oscuro"
+
+msgid "Dark Red"
+msgstr "Rojo oscuro"
+
+msgid "Date added"
+msgstr "Fecha de adición"
+
+msgid "Day interval (min):"
+msgstr "Intervalo diurno (min):"
+
+msgid "Day/night intervals override the base interval when set (6am–8pm = day)."
+msgstr "Los intervalos diurno/nocturno sustituyen al intervalo base cuando están definidos (6:00–20:00 = día)."
+
+msgid "Day search:"
+msgstr "Búsqueda diurna:"
+
+msgid "D-Bus offline"
+msgstr "D-Bus sin conexión"
+
+msgid "Debug info:"
+msgstr "Información de depuración:"
+
+msgid "Debug log:"
+msgstr "Registro de depuración:"
+
+msgid "Debug log is empty."
+msgstr "El registro de depuración está vacío."
+
+msgid "default"
+msgstr "predeterminado"
+
+msgid "Delete preset:"
+msgstr "Eliminar preajuste:"
+
+msgid "Delete selected preset"
+msgstr "Eliminar preajuste seleccionado"
+
+msgid "Descending"
+msgstr "Descendente"
+
+msgid "Desktop banner:"
+msgstr "Banner del escritorio:"
+
+msgid "Diagnostics"
+msgstr "Diagnóstico"
+
+msgid "Disk cache:"
+msgstr "Caché en disco:"
+
+msgid "Disk cache cleared."
+msgstr "Caché en disco vaciada."
+
+msgid "Duplicates:"
+msgstr "Duplicados:"
+
+msgid "Effects"
+msgstr "Efectos"
+
+msgid "e.g. 1920x1080,2560x1440"
+msgstr "p. ej. 1920x1080,2560x1440"
+
+msgid "e.g. Anime night"
+msgstr "p. ej. Anime noche"
+
+msgid "Empty = screen height"
+msgstr "Vacío = altura de pantalla"
+
+msgid "Empty = screen width"
+msgstr "Vacío = ancho de pantalla"
+
+msgid "Enabled"
+msgstr "Activado"
+
+msgid "Enter an API key first."
+msgstr "Introduzca primero una clave API."
+
+msgid "Evict"
+msgstr "Expulsar"
+
+msgid "Exact resolutions:"
+msgstr "Resoluciones exactas:"
+
+msgid "Export:"
+msgstr "Exportar:"
+
+msgid "Export file:"
+msgstr "Archivo de exportación:"
+
+msgid "Export Wallhaven Settings"
+msgstr "Exportar configuración de Wallhaven"
+
+msgid "External Control"
+msgstr "Control externo"
+
+msgid "Fade through black"
+msgstr "Fundido a negro"
+
+msgid "Failed to load collections (%1)."
+msgstr "Error al cargar colecciones (%1)."
+
+msgid "Failed to load favorites (%1)."
+msgstr "Error al cargar favoritos (%1)."
+
+msgid "Favorite on Wallhaven…"
+msgstr "Marcar como favorito en Wallhaven…"
+
+msgid "Favorites"
+msgstr "Favoritos"
+
+msgid "Favorites refresh (min):"
+msgstr "Actualización de favoritos (min):"
+
+msgid "Favorite tags:"
+msgstr "Etiquetas favoritas:"
+
+msgid "File type:"
+msgstr "Tipo de archivo:"
+
+msgid "Filters"
+msgstr "Filtros"
+
+msgid "Filter settings…"
+msgstr "Filtrar configuración…"
+
+msgid "Finish"
+msgstr "Finalizar"
+
+msgid "Font scale (%):"
+msgstr "Escala de fuente (%):"
+
+msgid "Forest"
+msgstr "Bosque"
+
+msgid "General:"
+msgstr "General:"
+
+msgid "Getting started:"
+msgstr "Primeros pasos:"
+
+msgid "GitHub issue:"
+msgstr "Informe en GitHub:"
+
+msgid "Global shortcuts"
+msgstr "Atajos globales"
+
+msgid "Gold"
+msgstr "Dorado"
+
+msgid "Gray"
+msgstr "Gris"
+
+msgid "Green"
+msgstr "Verde"
+
+msgid "Image failed to load. Trying another…"
+msgstr "Error al cargar la imagen. Probando otra…"
+
+msgid "Image quality:"
+msgstr "Calidad de imagen:"
+
+msgid "Images decode to screen size. Inactive crossfade layers are released, and settings preview writes are deferred."
+msgstr "Las imágenes se decodifican al tamaño de pantalla. Las capas de fundido inactivas se liberan y las escrituras de vista previa de la configuración se aplazan."
+
+msgid "Import:"
+msgstr "Importar:"
+
+msgid "Import community:"
+msgstr "Importar de la comunidad:"
+
+msgid "Import community presets"
+msgstr "Importar preajustes de la comunidad"
+
+msgid "Import curated:"
+msgstr "Importar seleccionados:"
+
+msgid "Import curated presets"
+msgstr "Importar preajustes seleccionados"
+
+msgid "Imported %1 community preset(s)."
+msgstr "%1 preajuste(s) de la comunidad importado(s)."
+
+msgid "Imported %1 curated preset(s)."
+msgstr "%1 preajuste(s) seleccionado(s) importado(s)."
+
+msgid "Imported preset %1."
+msgstr "Preajuste %1 importado."
+
+msgid "Importing settings…"
+msgstr "Importando configuración…"
+
+msgid "Import preset from URL"
+msgstr "Importar preajuste desde URL"
+
+msgid "Import settings from file…"
+msgstr "Importar configuración desde archivo…"
+
+msgid "Import URL:"
+msgstr "URL de importación:"
+
+msgid "Import Wallhaven Settings"
+msgstr "Importar configuración de Wallhaven"
+
+msgid "Inactive pause:"
+msgstr "Pausa por inactividad:"
+
+msgid "Install Meta+Alt+arrow global shortcuts with: ./dev-helper.sh install-shortcuts"
+msgstr "Instalar Meta+Alt+flechas con: ./dev-helper.sh install-shortcuts"
+
+msgid "Instant"
+msgstr "Instantáneo"
+
+msgid "Interval jitter (%):"
+msgstr "Variación del intervalo (%):"
+
+msgid "Interval (min):"
+msgstr "Intervalo (min):"
+
+msgid "Invalid preset URL."
+msgstr "URL de preajuste no válida."
+
+msgid "JPEG image (*.jpg *.jpeg)"
+msgstr "Imagen JPEG (*.jpg *.jpeg)"
+
+msgid "JSON files (*.json)"
+msgstr "Archivos JSON (*.json)"
+
+msgid "Ken Burns:"
+msgstr "Ken Burns:"
+
+msgid "Ken Burns speed:"
+msgstr "Velocidad Ken Burns:"
+
+msgid "Keyboard shortcuts:"
+msgstr "Atajos de teclado:"
+
+msgid "KWallet:"
+msgstr "KWallet:"
+
+msgid "Large (full wallpaper)"
+msgstr "Grande (fondo de escritorio completo)"
+
+msgid "Light Gray"
+msgstr "Gris claro"
+
+msgid "Load API key from KWallet on startup"
+msgstr "Cargar clave API desde KWallet al iniciar"
+
+msgid "Load collections"
+msgstr "Cargar colecciones"
+
+msgid "Loading…"
+msgstr "Cargando…"
+
+msgid "Loading next cached wallpaper…"
+msgstr "Cargando siguiente fondo de escritorio en caché…"
+
+msgid "Loading next wallpaper…"
+msgstr "Cargando siguiente fondo de escritorio…"
+
+msgid "Loading wallpapers similar to %1…"
+msgstr "Cargando fondos de escritorio similares a %1…"
+
+msgid "Local sorting:"
+msgstr "Ordenación local:"
+
+msgid "Lock screen:"
+msgstr "Pantalla de bloqueo:"
+
+msgid "Manual"
+msgstr "Manual"
+
+msgid "Max retry attempts:"
+msgstr "Intentos máximos de reintento:"
+
+msgid "Metered network:"
+msgstr "Red de uso medido:"
+
+msgid "Min height:"
+msgstr "Altura mín.:"
+
+msgid "Min width:"
+msgstr "Ancho mín.:"
+
+msgid "Mon–Fri"
+msgstr "Lun–Vie"
+
+msgid "More actions"
+msgstr "Más acciones"
+
+msgid "Must match wallpaper Advanced → Sync group"
+msgstr "Debe coincidir con Fondo de escritorio → Avanzado → Grupo de sincronización"
+
+msgid "Network error during search test."
+msgstr "Error de red durante la prueba de búsqueda."
+
+msgid "Network error while loading collections."
+msgstr "Error de red al cargar colecciones."
+
+msgid "Network error while validating API key."
+msgstr "Error de red al validar la clave API."
+
+msgid "Network restored. Resuming…"
+msgstr "Red restaurada. Reanudando…"
+
+msgid "Network & Retries"
+msgstr "Red y reintentos"
+
+msgid "Never use the network; cycle cached wallpapers only"
+msgstr "No usar la red; recorrer solo fondos de escritorio en caché"
+
+msgid "Next wallpaper"
+msgstr "Siguiente fondo de escritorio"
+
+msgid "Next Wallpaper"
+msgstr "Siguiente fondo de escritorio"
+
+msgid "Night interval (min):"
+msgstr "Intervalo nocturno (min):"
+
+msgid "Night search:"
+msgstr "Búsqueda nocturna:"
+
+msgid "No cached wallpapers available."
+msgstr "No hay fondos de escritorio en caché disponibles."
+
+msgid "No collections found for this API key."
+msgstr "No se encontraron colecciones para esta clave API."
+
+msgid "No favorites collection found."
+msgstr "No se encontró colección de favoritos."
+
+msgid "No image_fetch_search in Variety config."
+msgstr "No hay image_fetch_search en la configuración de Variety."
+
+msgid "No more wallpapers match your current filters."
+msgstr "No hay más fondos de escritorio que coincidan con sus filtros actuales."
+
+msgid "(none found)"
+msgstr "(ninguno encontrado)"
+
+msgid "No previous wallpaper in history."
+msgstr "No hay fondo de escritorio anterior en el historial."
+
+msgid "Notifications"
+msgstr "Notificaciones"
+
+msgid "No wallpaper available to save."
+msgstr "No hay fondo de escritorio disponible para guardar."
+
+msgid "No wallpaper loaded yet. Apply Wallhaven as the wallpaper type and wait for the first image."
+msgstr "Aún no se ha cargado ningún fondo de escritorio. Seleccione Wallhaven como tipo de fondo de escritorio y espere a la primera imagen."
+
+msgid "No wallpapers match your current filters."
+msgstr "Ningún fondo de escritorio coincide con sus filtros actuales."
+
+msgid "NSFW:"
+msgstr "NSFW:"
+
+msgid "Offline fallback:"
+msgstr "Respaldo sin conexión:"
+
+msgid "Offline mode — showing cached wallpaper."
+msgstr "Modo sin conexión — mostrando fondo de escritorio en caché."
+
+msgid "Offline only:"
+msgstr "Solo sin conexión:"
+
+msgid "Olive"
+msgstr "Oliva"
+
+msgid "On errors:"
+msgstr "En caso de error:"
+
+msgid "On refresh:"
+msgstr "Al actualizar:"
+
+msgid "Opened on Wallhaven — use the heart button to favorite (no public write API)."
+msgstr "Abierto en Wallhaven — use el botón de corazón para marcar como favorito (no hay API pública de escritura)."
+
+msgid "Open in Browser"
+msgstr "Abrir en el navegador"
+
+msgid "Open wallpaper page"
+msgstr "Abrir página del fondo de escritorio"
+
+msgid "Optional: add your Wallhaven API key for NSFW and favorites."
+msgstr "Opcional: añada su clave API de Wallhaven para NSFW y favoritos."
+
+msgid "Optional path for Variety integration"
+msgstr "Ruta opcional para la integración con Variety"
+
+msgid "Optional; required for NSFW and favorites"
+msgstr "Opcional; necesaria para NSFW y favoritos"
+
+msgid "Orange"
+msgstr "Naranja"
+
+msgid "Original (full wallpaper)"
+msgstr "Original (fondo de escritorio completo)"
+
+msgid "Other"
+msgstr "Otro"
+
+msgid "Panel tint hint:"
+msgstr "Sugerencia de tinte del panel:"
+
+msgid "Parallax:"
+msgstr "Parallax:"
+
+msgid "Parallax strength:"
+msgstr "Intensidad de parallax:"
+
+msgid "Pause:"
+msgstr "Pausa:"
+
+msgid "Pause automatic slideshow"
+msgstr "Pausar presentación automática"
+
+msgid "Paused"
+msgstr "En pausa"
+
+msgid "Pause slideshow"
+msgstr "Pausar presentación"
+
+msgid "Pause Slideshow"
+msgstr "Pausar presentación"
+
+msgid "Pause slideshow on low battery"
+msgstr "Pausar presentación con batería baja"
+
+msgid "Pause when Plasma session is inactive"
+msgstr "Pausar cuando la sesión de Plasma está inactiva"
+
+msgid "People:"
+msgstr "Personas:"
+
+msgid "Performance"
+msgstr "Rendimiento"
+
+msgid "Per-monitor profiles: set a different sync group and search on each screen, or the same group to advance together."
+msgstr "Perfiles por monitor: defina un grupo de sincronización y búsqueda distintos en cada pantalla, o el mismo grupo para avanzar juntos."
+
+msgid "Pick collection:"
+msgstr "Elegir colección:"
+
+msgid "Pin"
+msgstr "Anclar"
+
+msgid "Pink"
+msgstr "Rosa"
+
+msgid "Pink Red"
+msgstr "Rosa rojizo"
+
+msgid "Playback"
+msgstr "Reproducción"
+
+msgid "PNG image (*.png)"
+msgstr "Imagen PNG (*.png)"
+
+msgid "Preload count:"
+msgstr "Cantidad de precargas:"
+
+msgid "Preset name:"
+msgstr "Nombre del preajuste:"
+
+msgid "Presets:"
+msgstr "Preajustes:"
+
+msgid "Preset share URL copied."
+msgstr "URL para compartir preajuste copiada."
+
+msgid "Preset URL:"
+msgstr "URL del preajuste:"
+
+msgid "Preview Variety search"
+msgstr "Vista previa de búsqueda de Variety"
+
+msgid "Previous wallpaper"
+msgstr "Fondo de escritorio anterior"
+
+msgid "Previous Wallpaper"
+msgstr "Fondo de escritorio anterior"
+
+msgid "Purity"
+msgstr "Pureza"
+
+msgid "Purple"
+msgstr "Púrpura"
+
+msgid "Random"
+msgstr "Aleatorio"
+
+msgid "Rate limited by Wallhaven. Retry %1/%2 in %3s…"
+msgstr "Limitado por Wallhaven. Reintento %1/%2 en %3 s…"
+
+msgid "Ratio:"
+msgstr "Relación:"
+
+msgid "Recent:"
+msgstr "Reciente:"
+
+msgid "Red"
+msgstr "Rojo"
+
+msgid "Reduce preloads when offline or metered"
+msgstr "Reducir precargas sin conexión o en red de uso medido"
+
+msgid "Refresh cached wallpapers"
+msgstr "Actualizar fondos de escritorio en caché"
+
+msgid "Refresh cache list:"
+msgstr "Actualizar lista de caché:"
+
+msgid "Refresh history:"
+msgstr "Actualizar historial:"
+
+msgid "Refresh history gallery"
+msgstr "Actualizar galería del historial"
+
+msgid "Relevance"
+msgstr "Relevancia"
+
+msgid "Reloading wallpapers…"
+msgstr "Recargando fondos de escritorio…"
+
+msgid "Reload wallpaper"
+msgstr "Recargar fondo de escritorio"
+
+msgid "Reload Wallpaper"
+msgstr "Recargar fondo de escritorio"
+
+msgid "Request failed (%1). Retry %2/%3 in %4s…"
+msgstr "Solicitud fallida (%1). Reintento %2/%3 en %4 s…"
+
+msgid "Request timed out. Retry %1/%2 in %3s…"
+msgstr "Tiempo de espera agotado. Reintento %1/%2 en %3 s…"
+
+msgid "Request timeout (sec):"
+msgstr "Tiempo de espera de solicitud (s):"
+
+msgid "Resolution & Ratio"
+msgstr "Resolución y relación"
+
+msgid "Resume slideshow"
+msgstr "Reanudar presentación"
+
+msgid "Resume Slideshow"
+msgstr "Reanudar presentación"
+
+msgid "Retry delay (sec):"
+msgstr "Retraso entre reintentos (s):"
+
+msgid "Rotate collections:"
+msgstr "Rotar colecciones:"
+
+msgid "Sat–Sun"
+msgstr "Sáb–Dom"
+
+msgid "Save current search"
+msgstr "Guardar búsqueda actual"
+
+msgid "Saved presets:"
+msgstr "Preajustes guardados:"
+
+msgid "Save preset:"
+msgstr "Guardar preajuste:"
+
+msgid "Save settings to file…"
+msgstr "Guardar configuración en archivo…"
+
+msgid "Save Wallpaper"
+msgstr "Guardar fondo de escritorio"
+
+msgid "Save Wallpaper…"
+msgstr "Guardar fondo de escritorio…"
+
+msgid "Saving wallpaper…"
+msgstr "Guardando fondo de escritorio…"
+
+msgid "Search"
+msgstr "Búsqueda"
+
+msgid "Search:"
+msgstr "Búsqueda:"
+
+msgid "Search Presets"
+msgstr "Buscar preajustes"
+
+msgid "Search string:"
+msgstr "Cadena de búsqueda:"
+
+msgid "Search tags, e.g. nature landscape"
+msgstr "Etiquetas de búsqueda, p. ej. nature landscape"
+
+msgid "Search test: %1 result(s)."
+msgstr "Prueba de búsqueda: %1 resultado(s)."
+
+msgid "Search test failed (%1)."
+msgstr "Prueba de búsqueda fallida (%1)."
+
+msgid "Sent preset import request."
+msgstr "Solicitud de importación de preajuste enviada."
+
+msgid "Set color filter from current wallpaper palette"
+msgstr "Establecer filtro de color desde la paleta del fondo de escritorio actual"
+
+msgid "Settings Backup"
+msgstr "Copia de seguridad de la configuración"
+
+msgid "Settings copied to clipboard as JSON."
+msgstr "Configuración copiada al portapapeles como JSON."
+
+msgid "Settings exported."
+msgstr "Configuración exportada."
+
+msgid "Settings exported to file."
+msgstr "Configuración exportada a archivo."
+
+msgid "Settings imported."
+msgstr "Configuración importada."
+
+msgid "Setup wizard:"
+msgstr "Asistente de configuración:"
+
+msgid "SFW:"
+msgstr "SFW:"
+
+msgid "Share preset:"
+msgstr "Compartir preajuste:"
+
+msgid "Show cached wallpapers when the network fails"
+msgstr "Mostrar fondos de escritorio en caché cuando falle la red"
+
+msgid "Showing cached wallpaper (offline)."
+msgstr "Mostrando fondo de escritorio en caché (sin conexión)."
+
+msgid "Showing wallpaper #%1 from history."
+msgstr "Mostrando fondo de escritorio n.º %1 del historial."
+
+msgid "Show overlay on desktop"
+msgstr "Mostrar superposición en el escritorio"
+
+msgid "Show recent log lines"
+msgstr "Mostrar líneas recientes del registro"
+
+msgid "Show setup wizard again"
+msgstr "Mostrar de nuevo el asistente de configuración"
+
+msgid "Show status messages on the wallpaper"
+msgstr "Mostrar mensajes de estado en el fondo de escritorio"
+
+msgid "Similar wallpapers"
+msgstr "Fondos de escritorio similares"
+
+msgid "Similar Wallpapers"
+msgstr "Fondos de escritorio similares"
+
+msgid "Sketchy:"
+msgstr "Dudoso:"
+
+msgid "Skip"
+msgstr "Omitir"
+
+msgid "Slate"
+msgstr "Pizarra"
+
+msgid "Slide"
+msgstr "Deslizamiento"
+
+msgid "Slideshow"
+msgstr "Presentación"
+
+msgid "Slideshow interval (min):"
+msgstr "Intervalo de presentación (min):"
+
+msgid "Slideshow paused"
+msgstr "Presentación en pausa"
+
+msgid "Slideshow paused."
+msgstr "Presentación en pausa."
+
+msgid "Slideshow paused by power/activity rules."
+msgstr "Presentación en pausa por reglas de energía/actividad."
+
+msgid "Slideshow resumed."
+msgstr "Presentación reanudada."
+
+msgid "Slideshow resumed (power/activity rules cleared)."
+msgstr "Presentación reanudada (reglas de energía/actividad eliminadas)."
+
+msgid "Slideshow rules"
+msgstr "Reglas de presentación"
+
+msgid "Slow pan/zoom"
+msgstr "Paneo/zoom lento"
+
+msgid "Small (thumbnail, low bandwidth)"
+msgstr "Pequeña (miniatura, bajo ancho de banda)"
+
+msgid "Smart color search:"
+msgstr "Búsqueda inteligente por color:"
+
+msgid "Source"
+msgstr "Origen"
+
+msgid "Start D-Bus service"
+msgstr "Iniciar servicio D-Bus"
+
+msgid "Subtle per-screen wallpaper offset"
+msgstr "Desplazamiento sutil del fondo de escritorio por pantalla"
+
+msgid "Symlink cached wallpaper as wallhaven-current.jpg"
+msgstr "Enlace simbólico del fondo en caché como wallhaven-current.jpg"
+
+msgid "Sync advance:"
+msgstr "Avance sincronizado:"
+
+msgid "Sync group:"
+msgstr "Grupo de sincronización:"
+
+msgid "Sync lock screen wallpaper when cached"
+msgstr "Sincronizar fondo de pantalla de bloqueo cuando esté en caché"
+
+msgid "System color scheme"
+msgstr "Esquema de colores del sistema"
+
+msgid "System notification for errors and warnings"
+msgstr "Notificación del sistema para errores y advertencias"
+
+msgid "System notification when wallpaper changes"
+msgstr "Notificación del sistema al cambiar el fondo de escritorio"
+
+msgid "Tag blocklist:"
+msgstr "Lista negra de etiquetas:"
+
+msgid "Tags, keywords, e.g. nature anime"
+msgstr "Etiquetas, palabras clave, p. ej. nature anime"
+
+msgid "Tan"
+msgstr "Beige"
+
+msgid "Teal"
+msgstr "Verde azulado"
+
+msgid "Test API key"
+msgstr "Probar clave API"
+
+msgid "Testing…"
+msgstr "Probando…"
+
+msgid "Test search"
+msgstr "Probar búsqueda"
+
+msgid "Test search:"
+msgstr "Probar búsqueda:"
+
+msgid "Timed out while loading collections."
+msgstr "Tiempo de espera agotado al cargar colecciones."
+
+msgid "Time of day:"
+msgstr "Hora del día:"
+
+msgid "Time of Day"
+msgstr "Hora del día"
+
+msgid "Time-of-day searches apply in Search mode only (6am–8pm day, otherwise night)."
+msgstr "Las búsquedas por hora del día solo se aplican en modo Búsqueda (6:00–20:00 = día, en caso contrario noche)."
+
+msgid "Timeout is per request. Retries use the delay with exponential backoff, up to the max attempts."
+msgstr "El tiempo de espera es por solicitud. Los reintentos usan el retraso con retroceso exponencial, hasta el máximo de intentos."
+
+msgid "Top left"
+msgstr "Arriba a la izquierda"
+
+msgid "Toplist"
+msgstr "Top"
+
+msgid "Toplist range:"
+msgstr "Rango del top:"
+
+msgid "Top right"
+msgstr "Arriba a la derecha"
+
+msgid "Transition:"
+msgstr "Transición:"
+
+msgid "Unpin"
+msgstr "Desanclar"
+
+msgid "Use cache only on cellular connections"
+msgstr "Usar caché solo en conexiones móviles"
+
+msgid "Username for collection/favorites override"
+msgstr "Nombre de usuario para sustituir colección/favoritos"
+
+msgid "username/id per line (optional # label)"
+msgstr "usuario/id por línea (etiqueta # opcional)"
+
+msgid "Use separate day/night searches"
+msgstr "Usar búsquedas diurnas/nocturnas separadas"
+
+msgid "Use separate weekday/weekend searches"
+msgstr "Usar búsquedas entre semana/fin de semana separadas"
+
+msgid "Use today's Wallhaven toplist (overrides sorting)"
+msgstr "Usar el top de Wallhaven de hoy (anula la ordenación)"
+
+msgid "Use tools/wallhaven-ctl.sh, D-Bus (tools/wallhaven-dbus.py), or the Wallhaven Control plasmoid."
+msgstr "Use tools/wallhaven-ctl.sh, D-Bus (tools/wallhaven-dbus.py) o el plasmoide Wallhaven Control."
+
+msgid "Validate key:"
+msgstr "Validar clave:"
+
+msgid "Variety bridge:"
+msgstr "Puente de Variety:"
+
+msgid "Variety folder:"
+msgstr "Carpeta de Variety:"
+
+msgid "Variety metadata:"
+msgstr "Metadatos de Variety:"
+
+msgid "Variety preview:"
+msgstr "Vista previa de Variety:"
+
+msgid "Variety symlink:"
+msgstr "Enlace simbólico de Variety:"
+
+msgid "Variety watch:"
+msgstr "Vigilancia de Variety:"
+
+msgid "Views"
+msgstr "Vistas"
+
+msgid "Wallhaven"
+msgstr "Wallhaven"
+
+msgid "Wallhaven D-Bus service is not running. Run: systemctl --user enable --now wallhaven-dbus.service"
+msgstr "El servicio D-Bus de Wallhaven no está en ejecución. Ejecute: systemctl --user enable --now wallhaven-dbus.service"
+
+msgid "wallhaven://preset/…"
+msgstr "wallhaven://preset/…"
+
+msgid "Wallhaven request failed after %1 attempts."
+msgstr "La solicitud a Wallhaven falló tras %1 intentos."
+
+msgid "Wallpaper #%1"
+msgstr "Fondo de escritorio n.º %1"
+
+msgid "Wallpaper Actions: Reload / Next / Similar / Pause / Copy / Block / Save."
+msgstr "Acciones del fondo de escritorio: Recargar / Siguiente / Similar / Pausa / Copiar / Bloquear / Guardar."
+
+msgid "Wallpaper History"
+msgstr "Historial de fondos de escritorio"
+
+msgid "Wallpaper history cleared."
+msgstr "Historial de fondos de escritorio borrado."
+
+msgid "Wallpaper of the day:"
+msgstr "Fondo de escritorio del día:"
+
+msgid "Wallpaper saved."
+msgstr "Fondo de escritorio guardado."
+
+msgid "Watch Variety config for changes"
+msgstr "Vigilar cambios en la configuración de Variety"
+
+msgid "Weekday Schedule"
+msgstr "Programación entre semana"
+
+msgid "Weekday search:"
+msgstr "Búsqueda entre semana:"
+
+msgid "Weekday/weekend searches apply in Search mode when time-of-day is disabled."
+msgstr "Las búsquedas entre semana/fin de semana se aplican en modo Búsqueda cuando la hora del día está desactivada."
+
+msgid "Weekend search:"
+msgstr "Búsqueda de fin de semana:"
+
+msgid "Week schedule:"
+msgstr "Programación semanal:"
+
+msgid "Welcome to Wallhaven for Plasma"
+msgstr "Bienvenido a Wallhaven para Plasma"
+
+msgid "White"
+msgstr "Blanco"
+
+msgid "Would apply search: %1"
+msgstr "Se aplicaría la búsqueda: %1"
+
+msgid "Write current wallpaper JSON for external tools"
+msgstr "Escribir JSON del fondo de escritorio actual para herramientas externas"
+
+msgid "Write debug events to cache log file"
+msgstr "Escribir eventos de depuración en el archivo de registro de caché"
+
+msgid "Write dominant color JSON for external theming tools"
+msgstr "Escribir JSON del color dominante para herramientas de temas externas"
+
+msgid "Yellow"
+msgstr "Amarillo"
+
+msgid "Yellow Green"
+msgstr "Verde amarillento"
+
+msgid "Zoom"
+msgstr "Zoom"

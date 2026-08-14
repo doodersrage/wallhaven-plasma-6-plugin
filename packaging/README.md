@@ -40,7 +40,13 @@ Optional automation: `.github/workflows/aur-publish.yml` (requires `AUR_SSH_PRIV
 
 ### Stable release (tarball)
 
-Use `packaging/PKGBUILD.release` for versioned GitHub releases (`wallhaven-plasma-2.1.0.tar.xz`).
+Use `packaging/PKGBUILD.release` for versioned GitHub releases (`wallhaven-plasma-2.2.0.tar.xz`).
+
+Optional global shortcuts (requires KDE dev packages to build):
+
+```bash
+./dev-helper.sh install-shortcuts
+```
 
 ## Contents installed
 
@@ -51,7 +57,7 @@ Use `packaging/PKGBUILD.release` for versioned GitHub releases (`wallhaven-plasm
 | `krunner/dplugins/` | KRunner commands |
 | `metainfo/` | AppStream metadata |
 | `knotifications6/` | Desktop notifications |
-| `locale/*/LC_MESSAGES/*.mo` | Translations (German, French, English) |
+| `locale/*/LC_MESSAGES/*.mo` | Translations (German, French, Spanish, English) |
 | `lib/systemd/user/wallhaven-dbus.service` | D-Bus control + MPRIS service |
 | `wallhaven-plasma/tools/` | CLI, Variety bridge, preset import |
 | `applications/wallhaven-preset.desktop` | `wallhaven://preset/` URL handler |

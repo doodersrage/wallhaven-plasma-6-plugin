@@ -360,9 +360,6 @@ msgstr ""
 msgid "D-Bus offline"
 msgstr ""
 
-msgid "D-Bus service:"
-msgstr ""
-
 msgid "Debug info:"
 msgstr ""
 
@@ -486,6 +483,9 @@ msgstr ""
 msgid "GitHub issue:"
 msgstr ""
 
+msgid "Global shortcuts"
+msgstr ""
+
 msgid "Gold"
 msgstr ""
 
@@ -546,6 +546,9 @@ msgstr ""
 msgid "Inactive pause:"
 msgstr ""
 
+msgid "Install Meta+Alt+arrow global shortcuts with: ./dev-helper.sh install-shortcuts"
+msgstr ""
+
 msgid "Instant"
 msgstr ""
 
@@ -568,6 +571,9 @@ msgid "Ken Burns:"
 msgstr ""
 
 msgid "Ken Burns speed:"
+msgstr ""
+
+msgid "Keyboard shortcuts:"
 msgstr ""
 
 msgid "KWallet:"
@@ -714,10 +720,10 @@ msgstr ""
 msgid "Opened on Wallhaven — use the heart button to favorite (no public write API)."
 msgstr ""
 
-msgid "Open in browser"
+msgid "Open in Browser"
 msgstr ""
 
-msgid "Open in Browser"
+msgid "Open wallpaper page"
 msgstr ""
 
 msgid "Optional: add your Wallhaven API key for NSFW and favorites."
@@ -987,6 +993,9 @@ msgstr ""
 msgid "Show status messages on the wallpaper"
 msgstr ""
 
+msgid "Similar wallpapers"
+msgstr ""
+
 msgid "Similar Wallpapers"
 msgstr ""
 
@@ -1036,6 +1045,9 @@ msgid "Smart color search:"
 msgstr ""
 
 msgid "Source"
+msgstr ""
+
+msgid "Start D-Bus service"
 msgstr ""
 
 msgid "Subtle per-screen wallpaper offset"
@@ -1158,6 +1170,9 @@ msgstr ""
 msgid "Variety symlink:"
 msgstr ""
 
+msgid "Variety watch:"
+msgstr ""
+
 msgid "Views"
 msgstr ""
 
@@ -1189,6 +1204,9 @@ msgid "Wallpaper of the day:"
 msgstr ""
 
 msgid "Wallpaper saved."
+msgstr ""
+
+msgid "Watch Variety config for changes"
 msgstr ""
 
 msgid "Weekday Schedule"

@@ -40,6 +40,11 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="2.2.0" date="2026-08-14">
+      <description>
+        <p>Spanish i18n, KGlobalAccel shortcuts, plasmoid v3 controls, Variety watch mode, settings D-Bus banner, Flatpak CI smoke, and CONTRIBUTING translator guide.</p>
+      </description>
+    </release>
     <release version="2.1.0" date="2026-08-14">
       <description>
         <p>French i18n, unified translation pipeline, KDE Store screenshot gallery, plasmoid local cache thumbnails, D-Bus offline hints, packaging smoke CI, and automatic AUR publish on release tags.</p>

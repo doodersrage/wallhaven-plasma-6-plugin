@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 2.1.0\n"
+"Project-Id-Version: org.robertsm.wallhaven 2.2.0\n"
 "Language: fr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -359,9 +359,6 @@ msgstr "Recherche jour :"
 msgid "D-Bus offline"
 msgstr "D-Bus hors ligne"
 
-msgid "D-Bus service:"
-msgstr "Service D-Bus :"
-
 msgid "Debug info:"
 msgstr "Infos de débogage :"
 
@@ -480,10 +477,13 @@ msgid "General:"
 msgstr "Général :"
 
 msgid "Getting started:"
-msgstr "Pour commencer :"
+msgstr "Premiers pas :"
 
 msgid "GitHub issue:"
 msgstr "Signalement GitHub :"
+
+msgid "Global shortcuts"
+msgstr "Raccourcis globaux"
 
 msgid "Gold"
 msgstr "Or"
@@ -545,6 +545,9 @@ msgstr "Importer les paramètres Wallhaven"
 msgid "Inactive pause:"
 msgstr "Pause en inactivité :"
 
+msgid "Install Meta+Alt+arrow global shortcuts with: ./dev-helper.sh install-shortcuts"
+msgstr "Installer Meta+Alt+flèches avec : ./dev-helper.sh install-shortcuts"
+
 msgid "Instant"
 msgstr "Instantané"
 
@@ -568,6 +571,9 @@ msgstr "Ken Burns :"
 
 msgid "Ken Burns speed:"
 msgstr "Vitesse Ken Burns :"
+
+msgid "Keyboard shortcuts:"
+msgstr "Raccourcis clavier :"
 
 msgid "KWallet:"
 msgstr "KWallet :"
@@ -713,11 +719,11 @@ msgstr "À l'actualisation :"
 msgid "Opened on Wallhaven — use the heart button to favorite (no public write API)."
 msgstr "Ouvert sur Wallhaven — utilisez le bouton cœur pour ajouter aux favoris (pas d'API d'écriture publique)."
 
-msgid "Open in browser"
-msgstr "Ouvrir dans le navigateur"
-
 msgid "Open in Browser"
 msgstr "Ouvrir dans le navigateur"
+
+msgid "Open wallpaper page"
+msgstr "Ouvrir la page du fond d'écran"
 
 msgid "Optional: add your Wallhaven API key for NSFW and favorites."
 msgstr "Facultatif : ajoutez votre clé API Wallhaven pour NSFW et les favoris."
@@ -986,6 +992,9 @@ msgstr "Réafficher l'assistant de configuration"
 msgid "Show status messages on the wallpaper"
 msgstr "Afficher les messages d'état sur le fond d'écran"
 
+msgid "Similar wallpapers"
+msgstr "Fonds d'écran similaires"
+
 msgid "Similar Wallpapers"
 msgstr "Fonds d'écran similaires"
 
@@ -1036,6 +1045,9 @@ msgstr "Recherche intelligente par couleur :"
 
 msgid "Source"
 msgstr "Source"
+
+msgid "Start D-Bus service"
+msgstr "Démarrer le service D-Bus"
 
 msgid "Subtle per-screen wallpaper offset"
 msgstr "Léger décalage du fond d'écran par écran"
@@ -1157,6 +1169,9 @@ msgstr "Aperçu Variety :"
 msgid "Variety symlink:"
 msgstr "Lien symbolique Variety :"
 
+msgid "Variety watch:"
+msgstr "Surveillance Variety :"
+
 msgid "Views"
 msgstr "Vues"
 
@@ -1189,6 +1204,9 @@ msgstr "Fond d'écran du jour :"
 
 msgid "Wallpaper saved."
 msgstr "Fond d'écran enregistré."
+
+msgid "Watch Variety config for changes"
+msgstr "Surveiller les changements de la configuration Variety"
 
 msgid "Weekday Schedule"
 msgstr "Planning en semaine"

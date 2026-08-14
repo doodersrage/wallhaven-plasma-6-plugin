@@ -36,6 +36,8 @@ CACHE = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
 PLASMA_CACHE = os.path.join(CACHE, "plasmashell")
 CONTROL_FILE = os.path.join(PLASMA_CACHE, "wallhaven-control.json")
 STATUS_FILE = os.path.join(PLASMA_CACHE, "wallhaven-status.json")
+DBUS_CONFIG_FILE = os.path.join(PLASMA_CACHE, "wallhaven-dbus-config.json")
+VARIETY_CONFIG = os.path.join(config_home(), "variety", "variety.conf")
 ALLOWED_COMMANDS = {
     "python3",
     "bash",
@@ -105,6 +107,91 @@ def run_argv(argv: list[str]) -> None:
             f"org.freedesktop.DBus.Error.AccessDenied: command not allowed: {program}",
         )
     subprocess.run(argv, check=False)
+
+
+def parse_variety_search(ini_text: str) -> str:
+    if not ini_text:
+        return ""
+    in_prefs = False
+    for line in str(ini_text).split("\n"):
+        stripped = line.strip()
+        if stripped == "[preferences]":
+            in_prefs = True
+            continue
+        if stripped.startswith("[") and stripped.endswith("]"):
+            in_prefs = False
+            continue
+        if in_prefs and stripped.startswith("image_fetch_search"):
+            parts = stripped.split("=", 1)
+            if len(parts) > 1:
+                return parts[1].strip()
+    return ""
+
+
+def read_dbus_config() -> dict:
+    try:
+        with open(DBUS_CONFIG_FILE, encoding="utf-8") as handle:
+            data = json.load(handle)
+            return data if isinstance(data, dict) else {}
+    except OSError:
+        return {}
+
+
+def variety_watch_enabled() -> bool:
+    return bool(read_dbus_config().get("varietyWatchEnabled"))
+
+
+def variety_watch_group() -> str:
+    group = read_dbus_config().get("syncGroup")
+    return str(group) if group else "default"
+
+
+def apply_variety_search() -> None:
+    if not variety_watch_enabled():
+        return
+    try:
+        with open(VARIETY_CONFIG, encoding="utf-8") as handle:
+            search = parse_variety_search(handle.read())
+    except OSError:
+        return
+    if search:
+        write_command("search", variety_watch_group(), search)
+
+
+def watch_variety_config(group: str) -> None:
+    last_search = {"value": ""}
+
+    def on_change(*_args) -> bool:
+        if not variety_watch_enabled():
+            return True
+        try:
+            with open(VARIETY_CONFIG, encoding="utf-8") as handle:
+                search = parse_variety_search(handle.read())
+        except OSError:
+            return True
+        if search and search != last_search["value"]:
+            last_search["value"] = search
+            write_command("search", variety_watch_group() or group, search)
+        return True
+
+    def attach_config(path: str) -> None:
+        if not os.path.isfile(path):
+            return
+        GLib.io_add_watch(path, GLib.IOCondition.IN_MODIFY, on_change)
+
+    def attach_dbus_config(path: str) -> None:
+        if not os.path.isfile(path):
+            return
+
+        def on_config_change(*_args) -> bool:
+            on_change()
+            return True
+
+        GLib.io_add_watch(path, GLib.IOCondition.IN_MODIFY, on_config_change)
+
+    attach_config(VARIETY_CONFIG)
+    attach_dbus_config(DBUS_CONFIG_FILE)
+    on_change()
 
 
 def write_command(cmd: str, group: str = "default", query: str = "") -> None:
@@ -436,6 +523,7 @@ def main() -> int:
     WallhavenPlayer(bus, group)
     mpris = MprisMediaPlayer2(bus, group)
     watch_status_file(mpris)
+    watch_variety_config(group)
     GLib.timeout_add_seconds(2, lambda: mpris.refresh_status() or True)
     print(f"D-Bus services {SERVICE}, {MPRIS_SERVICE}")
     GLib.MainLoop().run()

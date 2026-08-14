@@ -12,6 +12,22 @@ System Settings → Appearance → Wallpaper → **Wallhaven**
 
 Enable **Wallhaven** in System Settings → Search → Plasma Search (KRunner).
 
+## v2.2.0 — discover & control
+
+| Area | Highlights |
+|------|------------|
+| **i18n** | Spanish UI (~409 strings) + [CONTRIBUTING.md](CONTRIBUTING.md) translator guide |
+| **Shortcuts** | KGlobalAccel binary (`./dev-helper.sh install-shortcuts`) — Meta+Alt+arrows |
+| **Plasmoid** | Click thumb → open page, similar/block/copy menu, offline states |
+| **Variety** | Watch `variety.conf` for live search import |
+| **CI** | Flatpak manifest smoke + Spanish locale in tarball checks |
+
+```bash
+./dev-helper.sh deploy
+./dev-helper.sh install-shortcuts
+./dev-helper.sh release           # tag v2.2.0 + GitHub release
+```
+
 ## v2.1.0 — polish release
 
 | Area | Highlights |
@@ -36,7 +52,7 @@ Wallhaven for KDE Plasma 6 is feature-complete for this port cycle. Highlights a
 | **Wallpaper** | Search, collections, favorites, WOTD, disk cache, effects, blocklist, presets |
 | **Control** | D-Bus service, MPRIS, KRunner, panel plasmoid, control bus, sync advance |
 | **Integration** | Variety bridge, lock screen sync, panel accent, KWallet, preset URLs |
-| **i18n** | Full German + French UI (~406 strings each) |
+| **i18n** | Full German + French + Spanish UI (~409 strings each) |
 | **Packaging** | Arch/Fedora, Flatpak, AUR workflows, systemd user service |
 
 ```bash

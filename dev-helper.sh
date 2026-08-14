@@ -34,6 +34,8 @@ Commands:
   dbus-install    Install and enable user D-Bus service
   dbus-uninstall  Disable and remove user D-Bus service
   register-preset Register wallhaven:// preset URL handler (xdg-mime)
+  install-shortcuts Build and autostart KGlobalAccel shortcuts (Meta+Alt+arrows)
+  uninstall-shortcuts Remove shortcuts autostart entry
   help            Show this help
 EOF
 }
@@ -132,7 +134,7 @@ package_plugin() {
     local version
     version="$(grep -Po '"Version"\s*:\s*"\K[^"]+' "${SCRIPT_DIR}/metadata.json")"
     local archive="${SCRIPT_DIR}/wallhaven-plasma-${version}.tar.xz"
-    local files=(contents metadata.json plasmoid tools krunner examples metainfo share packaging po screenshots)
+    local files=(contents metadata.json plasmoid tools krunner examples metainfo share packaging po screenshots CONTRIBUTING.md)
     if [[ -f "${SCRIPT_DIR}/preview.jpg" ]]; then
         files+=(preview.jpg)
     fi
@@ -170,6 +172,32 @@ register_preset_handler() {
     fi
 }
 
+install_shortcuts() {
+    install_plugin
+    if ! command -v cmake >/dev/null 2>&1; then
+        echo "cmake is required to build wallhaven-shortcuts" >&2
+        exit 1
+    fi
+    local build_dir="${SCRIPT_DIR}/build-shortcuts"
+    cmake -S "${SCRIPT_DIR}/tools/wallhaven-shortcuts" -B "${build_dir}" -DCMAKE_BUILD_TYPE=Release
+    cmake --build "${build_dir}"
+    mkdir -p "${DATA_DIR}/bin"
+    install -m755 "${build_dir}/wallhaven-shortcuts" "${DATA_DIR}/bin/wallhaven-shortcuts"
+    mkdir -p "${HOME}/.config/autostart"
+    sed "s|@INSTALL_DIR@|${DATA_DIR}|g" \
+        "${SCRIPT_DIR}/share/wallhaven-shortcuts.desktop.in" \
+        > "${HOME}/.config/autostart/wallhaven-shortcuts.desktop"
+    echo "Installed wallhaven-shortcuts to ${DATA_DIR}/bin/wallhaven-shortcuts"
+    echo "Autostart entry: ~/.config/autostart/wallhaven-shortcuts.desktop"
+    echo "Shortcuts: Meta+Alt+Right/Lef/P/R"
+}
+
+uninstall_shortcuts() {
+    rm -f "${HOME}/.config/autostart/wallhaven-shortcuts.desktop"
+    rm -f "${DATA_DIR}/bin/wallhaven-shortcuts"
+    echo "Removed Wallhaven global shortcuts autostart"
+}
+
 deploy_all() {
     run_check
     install_dbus_service
@@ -199,6 +227,8 @@ main() {
         dbus-install) install_dbus_service ;;
         dbus-uninstall) uninstall_dbus_service ;;
         register-preset) register_preset_handler ;;
+        install-shortcuts) install_shortcuts ;;
+        uninstall-shortcuts) uninstall_shortcuts ;;
         help|--help|-h) usage ;;
         *) echo "Unknown command: $1"; usage; exit 1 ;;
     esac

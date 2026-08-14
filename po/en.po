@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 2.1.0\n"
+"Project-Id-Version: org.robertsm.wallhaven 2.2.0\n"
 "Language: en\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -359,9 +359,6 @@ msgstr "Day search:"
 msgid "D-Bus offline"
 msgstr "D-Bus offline"
 
-msgid "D-Bus service:"
-msgstr "D-Bus service:"
-
 msgid "Debug info:"
 msgstr "Debug info:"
 
@@ -485,6 +482,9 @@ msgstr "Getting started:"
 msgid "GitHub issue:"
 msgstr "GitHub issue:"
 
+msgid "Global shortcuts"
+msgstr "Global shortcuts"
+
 msgid "Gold"
 msgstr "Gold"
 
@@ -545,6 +545,9 @@ msgstr "Import Wallhaven Settings"
 msgid "Inactive pause:"
 msgstr "Inactive pause:"
 
+msgid "Install Meta+Alt+arrow global shortcuts with: ./dev-helper.sh install-shortcuts"
+msgstr "Install Meta+Alt+arrow global shortcuts with: ./dev-helper.sh install-shortcuts"
+
 msgid "Instant"
 msgstr "Instant"
 
@@ -568,6 +571,9 @@ msgstr "Ken Burns:"
 
 msgid "Ken Burns speed:"
 msgstr "Ken Burns speed:"
+
+msgid "Keyboard shortcuts:"
+msgstr "Keyboard shortcuts:"
 
 msgid "KWallet:"
 msgstr "KWallet:"
@@ -713,11 +719,11 @@ msgstr "On refresh:"
 msgid "Opened on Wallhaven — use the heart button to favorite (no public write API)."
 msgstr "Opened on Wallhaven — use the heart button to favorite (no public write API)."
 
-msgid "Open in browser"
-msgstr "Open in browser"
-
 msgid "Open in Browser"
 msgstr "Open in Browser"
+
+msgid "Open wallpaper page"
+msgstr "Open wallpaper page"
 
 msgid "Optional: add your Wallhaven API key for NSFW and favorites."
 msgstr "Optional: add your Wallhaven API key for NSFW and favorites."
@@ -986,6 +992,9 @@ msgstr "Show setup wizard again"
 msgid "Show status messages on the wallpaper"
 msgstr "Show status messages on the wallpaper"
 
+msgid "Similar wallpapers"
+msgstr "Similar wallpapers"
+
 msgid "Similar Wallpapers"
 msgstr "Similar Wallpapers"
 
@@ -1036,6 +1045,9 @@ msgstr "Smart color search:"
 
 msgid "Source"
 msgstr "Source"
+
+msgid "Start D-Bus service"
+msgstr "Start D-Bus service"
 
 msgid "Subtle per-screen wallpaper offset"
 msgstr "Subtle per-screen wallpaper offset"
@@ -1157,6 +1169,9 @@ msgstr "Variety preview:"
 msgid "Variety symlink:"
 msgstr "Variety symlink:"
 
+msgid "Variety watch:"
+msgstr "Variety watch:"
+
 msgid "Views"
 msgstr "Views"
 
@@ -1189,6 +1204,9 @@ msgstr "Wallpaper of the day:"
 
 msgid "Wallpaper saved."
 msgstr "Wallpaper saved."
+
+msgid "Watch Variety config for changes"
+msgstr "Watch Variety config for changes"
 
 msgid "Weekday Schedule"
 msgstr "Weekday Schedule"

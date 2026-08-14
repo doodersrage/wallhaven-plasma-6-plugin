@@ -16,6 +16,7 @@ METADATA = ROOT / "metadata.json"
 LOCALES: tuple[tuple[str, str, Path], ...] = (
     ("de", "de", CATALOG_DIR / "de.json"),
     ("fr", "fr", CATALOG_DIR / "fr.json"),
+    ("es", "es", CATALOG_DIR / "es.json"),
 )
 
 
@@ -123,7 +124,7 @@ def main() -> int:
         write_po(ROOT / "po" / f"{lang_code}.po", lang_code, version, entries)
         report_missing(lang_code, missing)
 
-    print(f"Updated po/en.po, po/de.po, po/fr.po ({len(msgids)} strings, version {version})")
+    print(f"Updated po/en.po and locale catalogs ({len(msgids)} strings, version {version})")
     return 0
 
 

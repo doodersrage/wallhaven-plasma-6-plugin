@@ -1,22 +1,32 @@
 #include <QAction>
 #include <QCoreApplication>
+#include <QDir>
 #include <QProcess>
 #include <QStandardPaths>
 
 #include <KGlobalAccel>
 #include <KLocalizedString>
 
+static QString ctlPath()
+{
+    const QByteArray env = qgetenv("WALLHAVEN_CTL");
+    if (!env.isEmpty()) {
+        return QString::fromLocal8Bit(env);
+    }
+    const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    return QDir(home).filePath(QStringLiteral(".local/share/wallhaven-plasma/tools/wallhaven-ctl.sh"));
+}
+
 static void runCtl(const QString &cmd)
 {
-    const QString ctl = qEnvironmentVariable("WALLHAVEN_CTL",
-        QCoreApplication::applicationDirPath() + QStringLiteral("/../wallhaven-ctl.sh"));
+    const QString ctl = ctlPath();
     QProcess::startDetached(QStringLiteral("bash"), {ctl, cmd});
 }
 
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
-    KLocalizedString::setApplicationDomain("wallhaven-shortcuts");
+    KLocalizedString::setApplicationDomain("org.robertsm.wallhaven");
 
     auto next = new QAction(i18n("Wallhaven Next Wallpaper"), &app);
     QObject::connect(next, &QAction::triggered, [] { runCtl(QStringLiteral("next")); });

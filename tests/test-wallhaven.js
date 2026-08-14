@@ -123,8 +123,10 @@ function testStatusSnapshotLocalThumb() {
         id: "abc12",
         thumbUrl: "https://th.wallhaven.cc/small/abc/abc12.jpg",
         localThumbUrl: "file:///home/user/.cache/wallhaven/abc12.jpg",
+        varietyWatchEnabled: true,
     }));
     assert(snap.localThumbUrl.indexOf("file://") === 0, "local thumb in status bus");
+    assert(snap.varietyWatchEnabled === true, "variety watch flag in status bus");
 }
 
 function testPluginVersion() {
