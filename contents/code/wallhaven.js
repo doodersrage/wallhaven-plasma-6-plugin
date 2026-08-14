@@ -172,6 +172,110 @@ function diskCacheFileName(slot) {
     return "wallhaven-cache-" + padded + ".jpg";
 }
 
+function listCachedIds(index) {
+    if (!index || !index.ids) {
+        return [];
+    }
+    var ids = [];
+    for (var i = 0; i < index.ids.length; i++) {
+        var id = String(index.ids[i] || "").trim();
+        if (id && ids.indexOf(id) === -1) {
+            ids.push(id);
+        }
+    }
+    return ids;
+}
+
+function pickRandomCachedId(index) {
+    var ids = listCachedIds(index);
+    if (!ids.length) {
+        return "";
+    }
+    return ids[(Math.random() * ids.length) | 0];
+}
+
+function makeCachedWallpaper(id) {
+    id = String(id || "");
+    return {
+        id: id,
+        url: "https://wallhaven.cc/w/" + id,
+        category: "cached",
+        purity: "cached",
+        resolution: "",
+        dimension_x: 0,
+        dimension_y: 0,
+    };
+}
+
+function cloneSlideshowState(state) {
+    return {
+        page: state.page,
+        index: state.index,
+        seed: state.seed,
+        lastPage: state.lastPage,
+        total: state.total,
+        totalShown: state.totalShown,
+        usedIndices: state.usedIndices.slice(),
+        seenIds: state.seenIds.slice(),
+        screenWidth: state.screenWidth,
+        screenHeight: state.screenHeight,
+        searchQuery: state.searchQuery,
+        favoritesUser: state.favoritesUser,
+        favoritesId: state.favoritesId,
+    };
+}
+
+function peekAheadWallpapers(cfg, state, wallpapers, count) {
+    count = Math.max(1, count || 1);
+    var preview = cloneSlideshowState(state);
+    var results = [];
+    for (var i = 0; i < count; i++) {
+        var result = findNextWallpaper(cfg, preview, wallpapers);
+        if (!result.wallpaper) {
+            break;
+        }
+        results.push(result.wallpaper);
+        preview.totalShown++;
+        updatePageState(cfg, preview, wallpapers.length);
+    }
+    return results;
+}
+
+function normalizeCollectionEntry(entry) {
+    if (!entry) {
+        return null;
+    }
+    var username = entry.username
+        || (entry.user && entry.user.username)
+        || entry.user
+        || "";
+    var id = entry.id !== undefined && entry.id !== null ? String(entry.id) : "";
+    if (!username || !id) {
+        return null;
+    }
+    var label = entry.label || entry.name || ("Collection " + id);
+    return {
+        username: String(username),
+        id: id,
+        label: String(label),
+        display: username + " · " + label + " (#" + id + ")",
+    };
+}
+
+function parseCollectionsResponse(json) {
+    var results = [];
+    if (!json || !json.data || !json.data.length) {
+        return results;
+    }
+    for (var i = 0; i < json.data.length; i++) {
+        var normalized = normalizeCollectionEntry(json.data[i]);
+        if (normalized) {
+            results.push(normalized);
+        }
+    }
+    return results;
+}
+
 function getEffectiveSearchText(cfg) {
     if (cfg.TimeOfDayEnabled) {
         var hour = new Date().getHours();

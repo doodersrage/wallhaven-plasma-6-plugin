@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component type="addon">
+  <id>org.robertsm.wallhaven</id>
+  <extends>org.kde.plasmashell</extends>
+  <name>Wallhaven</name>
+  <summary>Wallhaven.cc wallpapers for KDE Plasma 6</summary>
+  <description>
+    <p>
+      Fetch random and search-based wallpapers from Wallhaven.cc with slideshow controls,
+      collections, favorites, filters, crossfade, Ken Burns, disk cache, and desktop actions.
+    </p>
+    <p>Requires network access to wallhaven.cc. An optional API key unlocks NSFW content and favorites.</p>
+  </description>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-2.0-or-later</project_license>
+  <developer_name>Wallhaven Plasma Port</developer_name>
+  <url type="homepage">https://wallhaven.cc</url>
+  <url type="bugtracker">https://github.com/robertsm/wallhaven-plasma-6-plugin/issues</url>
+  <launchable type="desktop-id">org.kde.plasmashell.desktop</launchable>
+  <releases>
+    <release version="1.1.0" date="2026-08-14">
+      <description>
+        <p>Collection picker, slideshow pause, offline cache fallback, dual preload, wake/reconnect handling, and shipping polish.</p>
+      </description>
+    </release>
+    <release version="1.0.0" date="2026-08-11">
+      <description>
+        <p>Initial Plasma 6 release with search, collections, favorites, effects, and performance optimizations.</p>
+      </description>
+    </release>
+  </releases>
+  <categories>
+    <category>Qt</category>
+    <category>Utility</category>
+  </categories>
+  <keywords>
+    <keyword>wallpaper</keyword>
+    <keyword>wallhaven</keyword>
+    <keyword>plasma</keyword>
+    <keyword>slideshow</keyword>
+  </keywords>
+  <content_rating type="oars-1.1"/>
+</component>

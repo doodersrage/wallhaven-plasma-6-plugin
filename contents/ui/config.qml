@@ -63,6 +63,7 @@ ColumnLayout {
     property alias cfg_CollectionUser: collectionUserField.text
     property alias cfg_CollectionId: collectionIdField.text
     property alias cfg_RandomInterval: intervalSpin.value
+    property alias cfg_SlideshowPaused: slideshowPausedCheck.checked
     property alias cfg_CrossfadeMs: crossfadeSpin.value
     property alias cfg_ImageQuality: qualityCombo.currentValue
     property alias cfg_Sortings: sortingsCombo.currentValue
@@ -92,6 +93,8 @@ ColumnLayout {
     property alias cfg_NotifyOnError: notifyErrorCheck.checked
     property alias cfg_ShowStatusBanner: statusBannerCheck.checked
     property alias cfg_DiskCacheEnabled: diskCacheCheck.checked
+    property alias cfg_DiskCacheMaxSlots: diskCacheSlotsSpin.value
+    property alias cfg_OfflineCacheFallback: offlineCacheCheck.checked
     property alias cfg_TimeOfDayEnabled: timeOfDayCheck.checked
     property alias cfg_DaySearch: daySearchField.text
     property alias cfg_NightSearch: nightSearchField.text
@@ -183,7 +186,76 @@ ColumnLayout {
             wrapMode: Text.WordWrap
             font.pointSize: Kirigami.Theme.smallFont.pointSize
             opacity: 0.7
-            text: i18n("Use desktop → Wallpaper Actions for Reload / Next / Previous / Open in Browser / Save.")
+            text: i18n("Use desktop → Wallpaper Actions for Reload / Next / Previous / Pause / Copy ID / Open in Browser / Save.")
+        }
+    }
+
+    QtObject {
+        id: collectionsLoader
+        property var entries: []
+        property bool loading: false
+        property string errorText: ""
+
+        function refresh() {
+            errorText = "";
+            if (!apiKeyField.text) {
+                errorText = i18n("Enter an API key first.");
+                return;
+            }
+            loading = true;
+            entries = [];
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", Wallhaven.buildCollectionsUrl(apiKeyField.text));
+            xhr.setRequestHeader("Accept", "application/json");
+            xhr.timeout = 30000;
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== XMLHttpRequest.DONE) {
+                    return;
+                }
+                loading = false;
+                if (xhr.status === 200) {
+                    try {
+                        entries = Wallhaven.parseCollectionsResponse(JSON.parse(xhr.responseText));
+                        if (!entries.length) {
+                            errorText = i18n("No collections found for this API key.");
+                        } else {
+                            syncPickerSelection();
+                        }
+                    } catch (e) {
+                        errorText = i18n("Could not parse collections response.");
+                    }
+                } else {
+                    errorText = i18n("Failed to load collections (%1).", xhr.status);
+                }
+            };
+            xhr.onerror = function() {
+                loading = false;
+                errorText = i18n("Network error while loading collections.");
+            };
+            xhr.ontimeout = function() {
+                loading = false;
+                errorText = i18n("Timed out while loading collections.");
+            };
+            xhr.send();
+        }
+
+        function applySelection(index) {
+            if (index < 0 || index >= entries.length) {
+                return;
+            }
+            var entry = entries[index];
+            collectionUserField.text = entry.username;
+            collectionIdField.text = entry.id;
+        }
+
+        function syncPickerSelection() {
+            for (var i = 0; i < entries.length; i++) {
+                if (entries[i].id === collectionIdField.text
+                        && entries[i].username === collectionUserField.text) {
+                    collectionPickerCombo.currentIndex = i;
+                    return;
+                }
+            }
         }
     }
 
@@ -257,6 +329,35 @@ ColumnLayout {
                     id: collectionIdField
                     Kirigami.FormData.label: i18n("Collection ID:")
                     visible: browseModeCombo.currentValue === "collection"
+                }
+
+                QtControls2.Button {
+                    id: loadCollectionsButton
+                    Kirigami.FormData.label: i18n("Collections:")
+                    text: collectionsLoader.loading ? i18n("Loading…") : i18n("Load collections")
+                    visible: browseModeCombo.currentValue === "collection"
+                    enabled: apiKeyField.text !== "" && !collectionsLoader.loading
+                    onClicked: collectionsLoader.refresh()
+                }
+
+                QtControls2.ComboBox {
+                    id: collectionPickerCombo
+                    Kirigami.FormData.label: i18n("Pick collection:")
+                    textRole: "display"
+                    visible: browseModeCombo.currentValue === "collection"
+                        && collectionsLoader.entries.length > 0
+                    model: collectionsLoader.entries
+                    onActivated: collectionsLoader.applySelection(currentIndex)
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: browseModeCombo.currentValue === "collection"
+                        && collectionsLoader.errorText !== ""
+                    text: collectionsLoader.errorText
                 }
 
                 QtControls2.ComboBox {
@@ -479,9 +580,16 @@ ColumnLayout {
                     to: 10080
                 }
 
+                QtControls2.CheckBox {
+                    id: slideshowPausedCheck
+                    Kirigami.FormData.label: i18n("Pause:")
+                    text: i18n("Pause automatic slideshow")
+                    enabled: intervalSpin.value > 0
+                }
+
                 QtControls2.Label {
                     Kirigami.FormData.label: " "
-                    text: i18n("0 = manual only (desktop Wallpaper Actions)")
+                    text: i18n("0 = manual only. Pause also available from desktop Wallpaper Actions.")
                     opacity: 0.7
                     wrapMode: Text.WordWrap
                 }
@@ -609,11 +717,46 @@ ColumnLayout {
                     text: i18n("Cache recent wallpapers locally (faster revisits)")
                 }
 
+                QtControls2.SpinBox {
+                    id: diskCacheSlotsSpin
+                    Kirigami.FormData.label: i18n("Cache slots:")
+                    from: 5
+                    to: 200
+                    enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.CheckBox {
+                    id: offlineCacheCheck
+                    Kirigami.FormData.label: i18n("Offline fallback:")
+                    text: i18n("Show cached wallpapers when the network fails")
+                    enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Cache status:")
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: liveWallpaper
+                        ? i18n("%1 cached wallpaper(s)", liveWallpaper.diskCacheEntryCount)
+                        : i18n("Apply Wallhaven as the wallpaper type to see cache stats.")
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Clear cache:")
+                    text: i18n("Clear disk cache")
+                    enabled: liveWallpaper !== null && diskCacheCheck.checked
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.clearDiskCache) {
+                            liveWallpaper.clearDiskCache();
+                        }
+                    }
+                }
+
                 QtControls2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     opacity: 0.7
-                    text: i18n("Images are decoded to screen size. The inactive crossfade layer is released, and settings preview writes are deferred.")
+                    text: i18n("Images decode to screen size. Inactive crossfade layers are released, and settings preview writes are deferred.")
                 }
 
                 Kirigami.Separator {

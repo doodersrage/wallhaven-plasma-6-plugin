@@ -1,0 +1,4 @@
+[Event/notification]
+Name=Wallhaven Notification
+Comment=Wallhaven wallpaper status and refresh alerts
+Icon=preferences-desktop-wallpaper

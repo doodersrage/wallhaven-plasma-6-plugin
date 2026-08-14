@@ -11,6 +11,7 @@
         <entry name="CollectionUser" type="String"><default></default></entry>
         <entry name="CollectionId" type="String"><default></default></entry>
         <entry name="RandomInterval" type="Int"><default>0</default></entry>
+        <entry name="SlideshowPaused" type="Bool"><default>false</default></entry>
         <entry name="CrossfadeMs" type="Int"><default>0</default></entry>
         <entry name="ImageQuality" type="String"><default>large</default></entry>
         <entry name="Sortings" type="String"><default>random</default></entry>
@@ -41,6 +42,8 @@
         <entry name="NotifyOnError" type="Bool"><default>true</default></entry>
         <entry name="ShowStatusBanner" type="Bool"><default>true</default></entry>
         <entry name="DiskCacheEnabled" type="Bool"><default>true</default></entry>
+        <entry name="DiskCacheMaxSlots" type="Int"><default>40</default></entry>
+        <entry name="OfflineCacheFallback" type="Bool"><default>true</default></entry>
         <entry name="DiskCacheIndexJson" type="String"><default>{"ids":[],"next":0}</default></entry>
         <entry name="TimeOfDayEnabled" type="Bool"><default>false</default></entry>
         <entry name="DaySearch" type="String"><default></default></entry>

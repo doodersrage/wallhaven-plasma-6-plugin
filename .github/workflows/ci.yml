@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate plugin structure
+        run: |
+          test -f metadata.json
+          test -f contents/ui/main.qml
+          test -f contents/ui/config.qml
+          test -f contents/code/wallhaven.js
+          test -f contents/config/main.xml
+
+      - name: Run wallhaven.js tests
+        run: node tests/test-wallhaven.js
+
+      - name: Build package
+        run: ./dev-helper.sh package
+
+      - name: Verify archive contents
+        run: |
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/ui/main.qml'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'metadata.json'

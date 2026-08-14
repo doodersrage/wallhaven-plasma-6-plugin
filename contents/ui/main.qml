@@ -15,6 +15,11 @@ WallpaperItem {
     readonly property string previewCacheFile: StandardPaths.writableLocation(StandardPaths.CacheLocation)
         + "/wallhaven-preview.png"
     readonly property string diskCacheDir: StandardPaths.writableLocation(StandardPaths.CacheLocation)
+    readonly property int diskCacheEntryCount: Wallhaven.listCachedIds(_diskCacheIndex).length
+
+    function diskCacheMaxSlots() {
+        return Math.max(5, Math.min(200, cfg.DiskCacheMaxSlots || 40));
+    }
 
     // Decode near display size (slightly larger when Ken Burns pans/zooms) to cut RAM/VRAM.
     readonly property size wallpaperSourceSize: {
@@ -71,6 +76,8 @@ WallpaperItem {
     property var _diskCacheIndex: ({ ids: [], next: 0 })
     property var _diskCacheSaveRequest: null
     property int _fetchRetryCount: 0
+    property bool _connectivityOnline: true
+    property bool _needsReconnectFetch: false
 
     function currentTimeOfDayPeriod() {
         var hour = new Date().getHours();
@@ -98,7 +105,7 @@ WallpaperItem {
     onWidthChanged: checkScreenResize()
     onHeightChanged: checkScreenResize()
 
-    contextualActions: [reloadAction, nextAction, previousAction, openInBrowserAction, saveWallpaperAction]
+    contextualActions: [reloadAction, nextAction, previousAction, pauseResumeAction, copyIdAction, openInBrowserAction, saveWallpaperAction]
 
     PlasmaCore.Action {
         id: reloadAction
@@ -119,6 +126,22 @@ WallpaperItem {
         text: i18n("Previous Wallpaper")
         icon.name: "go-previous"
         onTriggered: engine.previousWallpaper()
+    }
+
+    PlasmaCore.Action {
+        id: pauseResumeAction
+        text: cfg.SlideshowPaused ? i18n("Resume Slideshow") : i18n("Pause Slideshow")
+        icon.name: cfg.SlideshowPaused ? "media-playback-start" : "media-playback-pause"
+        enabled: cfg.RandomInterval > 0
+        onTriggered: root.toggleSlideshowPause()
+    }
+
+    PlasmaCore.Action {
+        id: copyIdAction
+        text: i18n("Copy Wallpaper ID")
+        icon.name: "edit-copy"
+        enabled: root.currentWallpaperId !== "" && root.currentWallpaperId !== "wallpaper"
+        onTriggered: root.copyWallpaperId()
     }
 
     PlasmaCore.Action {
@@ -262,7 +285,7 @@ WallpaperItem {
         if (req.image.status !== Image.Ready) {
             return;
         }
-        var slot = Wallhaven.allocateDiskCacheSlot(_diskCacheIndex, req.id, Wallhaven.diskCacheSlotCount());
+        var slot = Wallhaven.allocateDiskCacheSlot(_diskCacheIndex, req.id, diskCacheMaxSlots());
         if (slot < 0) {
             return;
         }
@@ -276,6 +299,70 @@ WallpaperItem {
                 persistDiskCacheIndex();
             }
         }, size);
+    }
+
+    function clearDiskCache() {
+        _diskCacheIndex = { ids: [], next: 0 };
+        persistDiskCacheIndex();
+        preloadImage.source = "";
+        preloadImage2.source = "";
+        engine.nextPreloadedUrl = "";
+        engine.showStatus(i18n("Disk cache cleared."), "info");
+    }
+
+    function copyWallpaperId() {
+        var id = currentWallpaperId;
+        if (!id || id === "wallpaper") {
+            return;
+        }
+        clipboardHelper.text = id;
+        clipboardHelper.selectAll();
+        clipboardHelper.copy();
+        engine.showStatus(i18n("Copied wallpaper ID %1.", id), "info");
+    }
+
+    function toggleSlideshowPause() {
+        if (!root.configuration) {
+            return;
+        }
+        var paused = !cfg.SlideshowPaused;
+        root.configuration.SlideshowPaused = paused;
+        scheduleConfigWrite();
+        if (paused) {
+            intervalTimer.stop();
+            engine.showStatus(i18n("Slideshow paused."), "info");
+        } else {
+            if (cfg.RandomInterval > 0) {
+                intervalTimer.restart();
+            }
+            engine.showStatus(i18n("Slideshow resumed."), "info");
+        }
+    }
+
+    function checkConnectivity() {
+        var xhr = new XMLHttpRequest();
+        xhr.open("HEAD", "https://wallhaven.cc/favicon.ico");
+        xhr.timeout = 8000;
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState !== XMLHttpRequest.DONE) {
+                return;
+            }
+            var online = xhr.status >= 200 && xhr.status < 400;
+            if (online && !_connectivityOnline && _needsReconnectFetch) {
+                engine.retryAfterReconnect();
+            }
+            if (!online && _connectivityOnline) {
+                _needsReconnectFetch = true;
+            }
+            _connectivityOnline = online;
+        };
+        xhr.onerror = function() {
+            if (_connectivityOnline) {
+                _needsReconnectFetch = true;
+            }
+            _connectivityOnline = false;
+        };
+        xhr.send();
     }
 
     function openSaveWallpaperDialog() {
@@ -419,6 +506,10 @@ WallpaperItem {
                     return;
                 }
                 if (!wallpaper || !url) {
+                    if (tryOfflineFallback()) {
+                        endBusy();
+                        return;
+                    }
                     showStatus(i18n("Could not load wallpaper."), "warn");
                     endBusy();
                     return;
@@ -583,6 +674,10 @@ WallpaperItem {
                 }
                 settled = true;
                 finishXhr();
+                if (status === 0) {
+                    root._needsReconnectFetch = true;
+                    root._connectivityOnline = false;
+                }
                 onError(status, text);
             }
 
@@ -735,6 +830,10 @@ WallpaperItem {
                     var maxAttempts = Math.max(1, cfg.RetryAttempts || 5);
                     var baseSec = Math.max(1, cfg.RetryDelaySec || 15);
                     if (root._fetchRetryCount > maxAttempts) {
+                        if (engine.tryOfflineFallback()) {
+                            onDone(null);
+                            return;
+                        }
                         showStatus(i18n("Wallhaven request failed after %1 attempts.", maxAttempts), "error");
                         endBusy();
                         onDone(null);
@@ -831,24 +930,69 @@ WallpaperItem {
             historyIndex = history.length - 1;
         }
 
-        function preloadUrl(url) {
-            if (!url || url === nextPreloadedUrl) {
+        function tryOfflineFallback() {
+            if (!cfg.OfflineCacheFallback || !cfg.DiskCacheEnabled) {
+                return false;
+            }
+            var id = Wallhaven.pickRandomCachedId(root._diskCacheIndex);
+            if (!id) {
+                return false;
+            }
+            var wp = Wallhaven.makeCachedWallpaper(id);
+            var remote = Wallhaven.thumbUrlForId(id);
+            showStatus(i18n("Showing cached wallpaper (offline)."), "warn");
+            displayWallpaper(wp, remote, true);
+            notifyRefresh(wp);
+            preloadNext();
+            endBusy();
+            return true;
+        }
+
+        function retryAfterReconnect() {
+            if (busy) {
                 return;
             }
-            nextPreloadedUrl = url;
-            preloadImage.source = url;
+            root._needsReconnectFetch = false;
+            showStatus(i18n("Network restored. Resuming…"), "info");
+            if (!currentUrl) {
+                fetchFreshWallpaper(false);
+            } else if (cfg.RandomInterval > 0 && !cfg.SlideshowPaused) {
+                skipForward();
+            }
+        }
+
+        function preloadUrl(url) {
+            if (!url) {
+                return;
+            }
+            if (url !== nextPreloadedUrl) {
+                nextPreloadedUrl = url;
+                preloadImage.source = url;
+            }
         }
 
         function preloadNext() {
             if (!apiData || !apiData.data || !apiData.data.length) {
+                preloadImage2.source = "";
                 return;
             }
             var state = stateObject();
-            var wallpaper = Wallhaven.peekNextWallpaper(configObject(), state, apiData.data);
-            if (wallpaper) {
-                var remote = Wallhaven.wallpaperUrl(wallpaper, cfg.ImageQuality);
-                preloadUrl(root.resolveImageSource(wallpaper, remote));
+            var ahead = Wallhaven.peekAheadWallpapers(configObject(), state, apiData.data, 2);
+            var urls = [];
+            for (var i = 0; i < ahead.length; i++) {
+                var remote = Wallhaven.wallpaperUrl(ahead[i], cfg.ImageQuality);
+                var source = root.resolveImageSource(ahead[i], remote);
+                if (source && urls.indexOf(source) === -1) {
+                    urls.push(source);
+                }
             }
+            if (urls.length > 0) {
+                preloadUrl(urls[0]);
+            } else {
+                preloadImage.source = "";
+                nextPreloadedUrl = "";
+            }
+            preloadImage2.source = urls.length > 1 ? urls[1] : "";
         }
 
         function advanceToNextPage() {
@@ -1137,10 +1281,17 @@ WallpaperItem {
     Component {
         id: notificationComponent
         Notification {
-            componentName: "plasma_workspace"
+            componentName: "org.robertsm.wallhaven"
             eventId: "notification"
             autoDelete: true
         }
+    }
+
+    QQC2.TextEdit {
+        id: clipboardHelper
+        visible: false
+        width: 1
+        height: 1
     }
 
     Item {
@@ -1198,6 +1349,16 @@ WallpaperItem {
 
     Image {
         id: preloadImage
+        visible: false
+        width: 1
+        height: 1
+        asynchronous: true
+        cache: false
+        sourceSize: root.wallpaperSourceSize
+    }
+
+    Image {
+        id: preloadImage2
         visible: false
         width: 1
         height: 1
@@ -1386,9 +1547,29 @@ WallpaperItem {
     Timer {
         id: intervalTimer
         interval: Math.max(cfg.RandomInterval, 0) * 60 * 1000
-        running: cfg.RandomInterval > 0
+        running: cfg.RandomInterval > 0 && !cfg.SlideshowPaused
         repeat: true
         onTriggered: engine.skipForward()
+    }
+
+    Timer {
+        id: connectivityTimer
+        interval: 45000
+        running: root._configured
+        repeat: true
+        onTriggered: root.checkConnectivity()
+    }
+
+    Connections {
+        target: Qt.application
+        function onStateChanged() {
+            if (Qt.application.state !== Qt.ApplicationActive) {
+                return;
+            }
+            Qt.callLater(function() {
+                root.checkConnectivity();
+            });
+        }
     }
 
     Timer {
@@ -1504,6 +1685,13 @@ WallpaperItem {
         function onImageQualityChanged() { if (root._configured) engine.resetSlideshow(); }
         function onKenBurnsEnabledChanged() { kenBurnsAnimation.restart(); }
         function onKenBurnsSpeedChanged() { if (cfg.KenBurnsEnabled) kenBurnsAnimation.restart(); }
+        function onSlideshowPausedChanged() {
+            if (cfg.SlideshowPaused) {
+                intervalTimer.stop();
+            } else if (cfg.RandomInterval > 0) {
+                intervalTimer.restart();
+            }
+        }
     }
 
     Component.onCompleted: {
@@ -1513,6 +1701,7 @@ WallpaperItem {
         engine.fetchFreshWallpaper(false);
         root._configured = true;
         scheduleConfigPreviewCapture();
+        Qt.callLater(function() { root.checkConnectivity(); });
     }
 
     Component.onDestruction: {
