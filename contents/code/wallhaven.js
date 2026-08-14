@@ -99,6 +99,186 @@ function serializeSeenIds(ids) {
     return JSON.stringify(ids.slice(-500));
 }
 
+function parseIdList(raw) {
+    return parseSeenIds(raw);
+}
+
+function serializeIdList(ids, max) {
+    max = max || 1000;
+    if (!ids || !ids.length) {
+        return "[]";
+    }
+    return JSON.stringify(ids.slice(-max));
+}
+
+function parseBlockedIds(raw) {
+    return parseIdList(raw);
+}
+
+function serializeBlockedIds(ids) {
+    return serializeIdList(ids, 1000);
+}
+
+function isBlocked(id, blockedIds) {
+    return blockedIds && blockedIds.indexOf(String(id)) !== -1;
+}
+
+function addBlockedId(blockedIds, id) {
+    id = String(id || "");
+    if (!id) {
+        return blockedIds || [];
+    }
+    var list = (blockedIds || []).slice();
+    if (list.indexOf(id) !== -1) {
+        return list;
+    }
+    list.push(id);
+    if (list.length > 1000) {
+        list = list.slice(-1000);
+    }
+    return list;
+}
+
+function filterWallpapersByBlocklist(wallpapers, blockedIds) {
+    if (!wallpapers || !wallpapers.length || !blockedIds || !blockedIds.length) {
+        return wallpapers || [];
+    }
+    return wallpapers.filter(function(wallpaper) {
+        return !isBlocked(wallpaper.id, blockedIds);
+    });
+}
+
+function parseSearchPresets(raw) {
+    if (!raw) {
+        return [];
+    }
+    try {
+        var parsed = JSON.parse(raw);
+        return parsed && parsed.length ? parsed : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function serializeSearchPresets(presets) {
+    if (!presets || !presets.length) {
+        return "[]";
+    }
+    return JSON.stringify(presets);
+}
+
+var EXPORTABLE_SETTINGS_KEYS = [
+    "SearchText", "ApiKey", "BrowseMode", "CollectionUser", "CollectionId",
+    "RandomInterval", "SlideshowPaused", "CrossfadeMs", "ImageQuality",
+    "Sortings", "LocalSortings", "Order", "CategoryGeneral", "CategoryAnime",
+    "CategoryPeople", "PuritySfw", "PuritySketchy", "PurityNsfw",
+    "MinWidth", "MinHeight", "Ratio", "ColorFilter", "TopRange",
+    "ExactResolutions", "UseBlacklist", "DedupEnabled", "KenBurnsEnabled",
+    "KenBurnsSpeed", "ShowAttribution", "RequestTimeoutSec", "RetryDelaySec",
+    "RetryAttempts", "NotifyOnRefresh", "NotifyOnError", "ShowStatusBanner",
+    "DiskCacheEnabled", "DiskCacheMaxSlots", "OfflineCacheFallback",
+    "OfflineOnlyMode", "TimeOfDayEnabled", "DaySearch", "NightSearch",
+    "BlockedIdsJson", "SearchPresetsJson",
+];
+
+function exportSettingsSnapshot(cfg) {
+    var snapshot = {
+        version: 2,
+        plugin: "org.robertsm.wallhaven",
+        exportedAt: new Date().toISOString(),
+        settings: {},
+    };
+    for (var i = 0; i < EXPORTABLE_SETTINGS_KEYS.length; i++) {
+        var key = EXPORTABLE_SETTINGS_KEYS[i];
+        if (cfg && cfg[key] !== undefined) {
+            snapshot.settings[key] = cfg[key];
+        }
+    }
+    return JSON.stringify(snapshot, null, 2);
+}
+
+function importSettingsSnapshot(raw) {
+    var parsed = JSON.parse(raw);
+    if (!parsed || parsed.plugin !== "org.robertsm.wallhaven" || !parsed.settings) {
+        throw new Error("invalid snapshot");
+    }
+    return parsed.settings;
+}
+
+function buildPresetFromConfig(name, cfg) {
+    return {
+        name: String(name || "").trim(),
+        SearchText: cfg.SearchText || "",
+        Sortings: cfg.Sortings || "random",
+        Order: cfg.Order || "desc",
+        TopRange: cfg.TopRange || "1M",
+        CategoryGeneral: !!cfg.CategoryGeneral,
+        CategoryAnime: !!cfg.CategoryAnime,
+        CategoryPeople: !!cfg.CategoryPeople,
+        PuritySfw: !!cfg.PuritySfw,
+        PuritySketchy: !!cfg.PuritySketchy,
+        PurityNsfw: !!cfg.PurityNsfw,
+        MinWidth: cfg.MinWidth || "",
+        MinHeight: cfg.MinHeight || "",
+        Ratio: cfg.Ratio || "landscape",
+        ColorFilter: cfg.ColorFilter || "",
+        ExactResolutions: cfg.ExactResolutions || "",
+        UseBlacklist: !!cfg.UseBlacklist,
+        TimeOfDayEnabled: !!cfg.TimeOfDayEnabled,
+        DaySearch: cfg.DaySearch || "",
+        NightSearch: cfg.NightSearch || "",
+    };
+}
+
+function applyPresetToConfig(preset, configuration) {
+    if (!preset || !configuration) {
+        return false;
+    }
+    var keys = Object.keys(preset);
+    for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        if (key === "name") {
+            continue;
+        }
+        configuration[key] = preset[key];
+    }
+    return true;
+}
+
+function parseRateLimitDelayMs(xhr, statusCode) {
+    if (!xhr) {
+        return 0;
+    }
+    if (statusCode === 429) {
+        var retryAfter = xhr.getResponseHeader("Retry-After");
+        if (retryAfter) {
+            var seconds = parseInt(retryAfter, 10);
+            if (!isNaN(seconds) && seconds > 0) {
+                return seconds * 1000;
+            }
+        }
+    }
+    return 0;
+}
+
+function buildWallpaperPageUrl(id) {
+    id = String(id || "");
+    return id ? ("https://wallhaven.cc/w/" + id) : "";
+}
+
+function tagsToCopyString(tags) {
+    if (!tags || !tags.length) {
+        return "";
+    }
+    var names = [];
+    for (var i = 0; i < tags.length; i++) {
+        if (tags[i] && tags[i].name) {
+            names.push(String(tags[i].name));
+        }
+    }
+    return names.join(", ");
+}
+
 var DISK_CACHE_SLOTS = 40;
 
 function diskCacheSlotCount() {
@@ -217,6 +397,7 @@ function cloneSlideshowState(state) {
         totalShown: state.totalShown,
         usedIndices: state.usedIndices.slice(),
         seenIds: state.seenIds.slice(),
+        blockedIds: (state.blockedIds || []).slice(),
         screenWidth: state.screenWidth,
         screenHeight: state.screenHeight,
         searchQuery: state.searchQuery,
@@ -441,10 +622,13 @@ function formatTags(tags) {
     return result;
 }
 
-function pickRandomIndex(wallpapers, usedIndices, seenIds, dedupEnabled) {
+function pickRandomIndex(wallpapers, usedIndices, seenIds, dedupEnabled, blockedIds) {
     var available = [];
     for (var i = 0; i < wallpapers.length; i++) {
         if (usedIndices.indexOf(i) !== -1) {
+            continue;
+        }
+        if (isBlocked(wallpapers[i].id, blockedIds)) {
             continue;
         }
         if (dedupEnabled && seenIds.indexOf(String(wallpapers[i].id)) !== -1) {
@@ -455,9 +639,13 @@ function pickRandomIndex(wallpapers, usedIndices, seenIds, dedupEnabled) {
 
     if (!available.length) {
         for (var j = 0; j < wallpapers.length; j++) {
-            if (usedIndices.indexOf(j) === -1) {
-                available.push(j);
+            if (usedIndices.indexOf(j) !== -1) {
+                continue;
             }
+            if (isBlocked(wallpapers[j].id, blockedIds)) {
+                continue;
+            }
+            available.push(j);
         }
     }
 
@@ -474,6 +662,7 @@ function findNextWallpaper(cfg, state, wallpapers) {
         return { wallpaper: null, exhausted: true };
     }
 
+    var blockedIds = state.blockedIds || [];
     var index = state.index;
     var usedIndices = state.usedIndices.slice();
 
@@ -484,6 +673,7 @@ function findNextWallpaper(cfg, state, wallpapers) {
             usedIndices,
             state.seenIds,
             cfg.DedupEnabled,
+            blockedIds,
         );
         if (index < 0) {
             return { wallpaper: null, exhausted: true };
@@ -509,12 +699,13 @@ function findNextWallpaper(cfg, state, wallpapers) {
         break;
     }
 
-    if (cfg.DedupEnabled) {
+    if (cfg.DedupEnabled || blockedIds.length) {
         var attempts = 0;
         while (attempts < pageLength
-               && state.seenIds.indexOf(String(wallpapers[index].id)) !== -1) {
+               && ((cfg.DedupEnabled && state.seenIds.indexOf(String(wallpapers[index].id)) !== -1)
+                   || isBlocked(wallpapers[index].id, blockedIds))) {
             if (cfg.LocalSortings === "random") {
-                var nextIndex = pickRandomIndex(wallpapers, usedIndices, state.seenIds, false);
+                var nextIndex = pickRandomIndex(wallpapers, usedIndices, state.seenIds, false, blockedIds);
                 if (nextIndex < 0) {
                     return { wallpaper: null, exhausted: true };
                 }
@@ -555,17 +746,19 @@ function pickWallpaper(cfg, state, wallpapers, preferRandom) {
         return null;
     }
 
+    var blockedIds = state.blockedIds || [];
     var index = 0;
     if (preferRandom || cfg.LocalSortings === "random") {
-        index = pickRandomIndex(wallpapers, [], state.seenIds, cfg.DedupEnabled);
+        index = pickRandomIndex(wallpapers, [], state.seenIds, cfg.DedupEnabled, blockedIds);
     }
 
-    if (cfg.DedupEnabled) {
+    if (cfg.DedupEnabled || blockedIds.length) {
         var attempts = 0;
         while (attempts < pageLength
-               && state.seenIds.indexOf(String(wallpapers[index].id)) !== -1) {
+               && ((cfg.DedupEnabled && state.seenIds.indexOf(String(wallpapers[index].id)) !== -1)
+                   || isBlocked(wallpapers[index].id, blockedIds))) {
             if (preferRandom || cfg.LocalSortings === "random") {
-                index = pickRandomIndex(wallpapers, [], state.seenIds, false);
+                index = pickRandomIndex(wallpapers, [], state.seenIds, false, blockedIds);
             } else {
                 index = (index + 1) % pageLength;
             }
@@ -591,6 +784,7 @@ function peekNextWallpaper(cfg, state, wallpapers) {
         totalShown: state.totalShown,
         usedIndices: state.usedIndices.slice(),
         seenIds: state.seenIds.slice(),
+        blockedIds: (state.blockedIds || []).slice(),
         screenWidth: state.screenWidth,
         screenHeight: state.screenHeight,
         searchQuery: state.searchQuery,

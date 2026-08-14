@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls as QtControls2
 import QtQuick.Layouts
+import QtQuick.Dialogs
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.plasmoid
 import "../code/wallhaven.js" as Wallhaven
@@ -95,6 +96,7 @@ ColumnLayout {
     property alias cfg_DiskCacheEnabled: diskCacheCheck.checked
     property alias cfg_DiskCacheMaxSlots: diskCacheSlotsSpin.value
     property alias cfg_OfflineCacheFallback: offlineCacheCheck.checked
+    property alias cfg_OfflineOnlyMode: offlineOnlyCheck.checked
     property alias cfg_TimeOfDayEnabled: timeOfDayCheck.checked
     property alias cfg_DaySearch: daySearchField.text
     property alias cfg_NightSearch: nightSearchField.text
@@ -103,7 +105,100 @@ ColumnLayout {
         // Keep PreviewImage / attribution keys; they are runtime state for the settings preview.
     }
 
+    function currentPresets() {
+        if (!wallpaperConfiguration) {
+            return [];
+        }
+        return Wallhaven.parseSearchPresets(wallpaperConfiguration.SearchPresetsJson || "[]");
+    }
+
+    function persistPresets(presets) {
+        if (!wallpaperConfiguration) {
+            return;
+        }
+        wallpaperConfiguration.SearchPresetsJson = Wallhaven.serializeSearchPresets(presets);
+        if (wallpaperConfiguration.writeConfig) {
+            wallpaperConfiguration.writeConfig();
+        }
+        presetCombo.model = presets;
+    }
+
+    function buildCurrentConfigObject() {
+        if (!wallpaperConfiguration) {
+            return {};
+        }
+        return {
+            SearchText: wallpaperConfiguration.SearchText,
+            Sortings: wallpaperConfiguration.Sortings,
+            Order: wallpaperConfiguration.Order,
+            TopRange: wallpaperConfiguration.TopRange,
+            CategoryGeneral: wallpaperConfiguration.CategoryGeneral,
+            CategoryAnime: wallpaperConfiguration.CategoryAnime,
+            CategoryPeople: wallpaperConfiguration.CategoryPeople,
+            PuritySfw: wallpaperConfiguration.PuritySfw,
+            PuritySketchy: wallpaperConfiguration.PuritySketchy,
+            PurityNsfw: wallpaperConfiguration.PurityNsfw,
+            MinWidth: wallpaperConfiguration.MinWidth,
+            MinHeight: wallpaperConfiguration.MinHeight,
+            Ratio: wallpaperConfiguration.Ratio,
+            ColorFilter: wallpaperConfiguration.ColorFilter,
+            ExactResolutions: wallpaperConfiguration.ExactResolutions,
+            UseBlacklist: wallpaperConfiguration.UseBlacklist,
+            TimeOfDayEnabled: wallpaperConfiguration.TimeOfDayEnabled,
+            DaySearch: wallpaperConfiguration.DaySearch,
+            NightSearch: wallpaperConfiguration.NightSearch,
+        };
+    }
+
+    function exportSettingsToClipboard() {
+        if (!wallpaperConfiguration) {
+            return;
+        }
+        var json = Wallhaven.exportSettingsSnapshot(wallpaperConfiguration);
+        settingsClipboardHelper.text = json;
+        settingsClipboardHelper.selectAll();
+        settingsClipboardHelper.copy();
+        importExportStatus.text = i18n("Settings copied to clipboard as JSON.");
+    }
+
+    function importSettingsFromText(raw) {
+        if (!wallpaperConfiguration) {
+            return;
+        }
+        try {
+            var settings = Wallhaven.importSettingsSnapshot(raw);
+            var keys = Object.keys(settings);
+            for (var i = 0; i < keys.length; i++) {
+                wallpaperConfiguration[keys[i]] = settings[keys[i]];
+            }
+            if (wallpaperConfiguration.writeConfig) {
+                wallpaperConfiguration.writeConfig();
+            }
+            if (liveWallpaper && liveWallpaper.reloadWallpaper) {
+                liveWallpaper.reloadWallpaper();
+            }
+            importExportStatus.text = i18n("Settings imported.");
+        } catch (e) {
+            importExportStatus.text = i18n("Could not import settings file.");
+        }
+    }
+
     spacing: Kirigami.Units.smallSpacing
+
+    QtControls2.TextEdit {
+        id: settingsClipboardHelper
+        visible: false
+        width: 1
+        height: 1
+    }
+
+    QtControls2.Label {
+        id: importExportStatus
+        Layout.fillWidth: true
+        wrapMode: Text.WordWrap
+        opacity: 0.7
+        visible: text !== ""
+    }
 
     // Current wallpaper: landscape preview above description, centered
     ColumnLayout {
@@ -556,6 +651,91 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Duplicates:")
                     text: i18n("Avoid recent duplicates (saved across restarts)")
                 }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Search Presets")
+                    Kirigami.FormData.isSection: true
+                    visible: parent.searchFilters
+                }
+
+                QtControls2.TextField {
+                    id: presetNameField
+                    Kirigami.FormData.label: i18n("Preset name:")
+                    placeholderText: i18n("e.g. Anime night")
+                    visible: parent.searchFilters
+                }
+
+                QtControls2.ComboBox {
+                    id: presetCombo
+                    Kirigami.FormData.label: i18n("Saved presets:")
+                    textRole: "name"
+                    visible: parent.searchFilters
+                    model: root.currentPresets()
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Save preset:")
+                    text: i18n("Save current search")
+                    visible: parent.searchFilters
+                    onClicked: {
+                        var name = presetNameField.text.trim();
+                        if (!name) {
+                            return;
+                        }
+                        var presets = root.currentPresets().slice();
+                        var preset = Wallhaven.buildPresetFromConfig(name, root.buildCurrentConfigObject());
+                        var replaced = false;
+                        for (var i = 0; i < presets.length; i++) {
+                            if (presets[i].name === name) {
+                                presets[i] = preset;
+                                replaced = true;
+                                break;
+                            }
+                        }
+                        if (!replaced) {
+                            presets.push(preset);
+                        }
+                        root.persistPresets(presets);
+                        var idx = -1;
+                        for (var j = 0; j < presets.length; j++) {
+                            if (presets[j].name === name) {
+                                idx = j;
+                                break;
+                            }
+                        }
+                        presetCombo.currentIndex = idx;
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Apply preset:")
+                    text: i18n("Apply selected preset")
+                    visible: parent.searchFilters
+                    enabled: presetCombo.currentIndex >= 0
+                    onClicked: {
+                        var presets = root.currentPresets();
+                        var preset = presets[presetCombo.currentIndex];
+                        if (preset && wallpaperConfiguration) {
+                            Wallhaven.applyPresetToConfig(preset, wallpaperConfiguration);
+                            if (wallpaperConfiguration.writeConfig) {
+                                wallpaperConfiguration.writeConfig();
+                            }
+                        }
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Delete preset:")
+                    text: i18n("Delete selected preset")
+                    visible: parent.searchFilters
+                    enabled: presetCombo.currentIndex >= 0
+                    onClicked: {
+                        var presets = root.currentPresets().slice();
+                        presets.splice(presetCombo.currentIndex, 1);
+                        root.persistPresets(presets);
+                        presetCombo.currentIndex = -1;
+                    }
+                }
             }
         }
 
@@ -732,6 +912,13 @@ ColumnLayout {
                     enabled: diskCacheCheck.checked
                 }
 
+                QtControls2.CheckBox {
+                    id: offlineOnlyCheck
+                    Kirigami.FormData.label: i18n("Offline only:")
+                    text: i18n("Never use the network; cycle cached wallpapers only")
+                    enabled: diskCacheCheck.checked
+                }
+
                 QtControls2.Label {
                     Kirigami.FormData.label: i18n("Cache status:")
                     wrapMode: Text.WordWrap
@@ -757,6 +944,55 @@ ColumnLayout {
                     wrapMode: Text.WordWrap
                     opacity: 0.7
                     text: i18n("Images decode to screen size. Inactive crossfade layers are released, and settings preview writes are deferred.")
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Blocklist")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Blocked IDs:")
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: wallpaperConfiguration
+                        ? i18n("%1 blocked wallpaper(s)", Wallhaven.parseBlockedIds(wallpaperConfiguration.BlockedIdsJson || "[]").length)
+                        : i18n("Apply Wallhaven as the wallpaper type to manage the blocklist.")
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Clear blocklist:")
+                    text: i18n("Clear blocklist")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.clearBlockedIds) {
+                            liveWallpaper.clearBlockedIds();
+                        }
+                    }
+                }
+
+                QtControls2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: i18n("Block the current wallpaper from desktop Wallpaper Actions. Blocked IDs are skipped during search.")
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Settings Backup")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Export:")
+                    text: i18n("Copy settings to clipboard")
+                    onClicked: root.exportSettingsToClipboard()
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Import:")
+                    text: i18n("Import settings from file…")
+                    onClicked: importSettingsDialog.open()
                 }
 
                 Kirigami.Separator {
@@ -791,6 +1027,33 @@ ColumnLayout {
                     enabled: timeOfDayCheck.checked
                 }
             }
+        }
+    }
+
+    FileDialog {
+        id: importSettingsDialog
+        title: i18n("Import Wallhaven Settings")
+        nameFilters: [i18n("JSON files (*.json)")]
+        fileMode: FileDialog.OpenFile
+        onAccepted: settingsImportLoader.load(selectedFile)
+    }
+
+    QtObject {
+        id: settingsImportLoader
+        function load(fileUrl) {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", fileUrl);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== XMLHttpRequest.DONE) {
+                    return;
+                }
+                if (xhr.status === 0 || xhr.status === 200) {
+                    root.importSettingsFromText(xhr.responseText);
+                } else {
+                    importExportStatus.text = i18n("Could not read settings file.");
+                }
+            };
+            xhr.send();
         }
     }
 

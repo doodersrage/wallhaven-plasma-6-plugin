@@ -18,6 +18,11 @@
   <url type="bugtracker">https://github.com/robertsm/wallhaven-plasma-6-plugin/issues</url>
   <launchable type="desktop-id">org.kde.plasmashell.desktop</launchable>
   <releases>
+    <release version="1.2.0" date="2026-08-14">
+      <description>
+        <p>Copy tags/URL, blocklist, search presets, settings import/export, offline-only mode, smarter rate-limit backoff, and cache file deletion.</p>
+      </description>
+    </release>
     <release version="1.1.0" date="2026-08-14">
       <description>
         <p>Collection picker, slideshow pause, offline cache fallback, dual preload, wake/reconnect handling, and shipping polish.</p>

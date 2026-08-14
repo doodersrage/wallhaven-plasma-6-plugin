@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.0 — 2026-08-14
+
+### Added
+- **Copy Tags** and **Copy Page URL** desktop actions
+- **Favorite on Wallhaven…** (opens browser; Wallhaven has no public write API)
+- **Block This Wallpaper** action + blocklist management in settings
+- **Search presets** — save/apply/delete named search profiles
+- **Settings import/export** — copy JSON to clipboard or import from file
+- **Offline-only mode** — cycle cached wallpapers with no network use
+- **Rate-limit header** parsing (`Retry-After`) for smarter backoff
+- Cache file deletion on clear (via `rm`)
+- Release docs, translation template, shortcut helper, store `preview.jpg`
+
+### Changed
+- Blocked wallpapers are filtered from API results and random picks
+- Tag metadata is fetched for copy/actions even when attribution overlay is off
+
 ## 1.1.0 — 2026-08-14
 
 ### Added

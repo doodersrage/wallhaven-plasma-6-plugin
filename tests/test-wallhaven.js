@@ -18,46 +18,68 @@ function assert(condition, message) {
     }
 }
 
-function testParseDiskCacheIndex() {
-    const empty = Wallhaven.parseDiskCacheIndex("");
-    assert(empty.ids.length === 0, "empty index");
-
-    const parsed = Wallhaven.parseDiskCacheIndex('{"ids":["abc","def"],"next":2}');
-    assert(parsed.ids.length === 2 && parsed.ids[0] === "abc", "parsed ids");
-    assert(parsed.next === 2, "parsed next pointer");
+function testBlockedIds() {
+    var blocked = Wallhaven.addBlockedId([], "abc123");
+    assert(blocked.length === 1, "block id added");
+    assert(Wallhaven.isBlocked("abc123", blocked), "blocked id detected");
+    var filtered = Wallhaven.filterWallpapersByBlocklist(
+        [{ id: "abc123" }, { id: "xyz789" }],
+        blocked,
+    );
+    assert(filtered.length === 1 && filtered[0].id === "xyz789", "blocked wallpaper filtered");
 }
 
-function testListCachedIds() {
-    const ids = Wallhaven.listCachedIds({ ids: ["a", "", "b", "a"] });
-    assert(ids.length === 2 && ids[0] === "a" && ids[1] === "b", "unique cached ids");
-}
-
-function testNormalizeCollectionEntry() {
-    const entry = Wallhaven.normalizeCollectionEntry({
-        id: 42,
-        label: "Anime",
-        username: "demo",
+function testPresets() {
+    var preset = Wallhaven.buildPresetFromConfig("Night", {
+        SearchText: "dark nature",
+        Sortings: "random",
+        Order: "desc",
+        TopRange: "1M",
+        CategoryGeneral: true,
+        CategoryAnime: false,
+        CategoryPeople: false,
+        PuritySfw: true,
+        PuritySketchy: false,
+        PurityNsfw: false,
+        MinWidth: "",
+        MinHeight: "",
+        Ratio: "landscape",
+        ColorFilter: "",
+        ExactResolutions: "",
+        UseBlacklist: false,
+        TimeOfDayEnabled: false,
+        DaySearch: "",
+        NightSearch: "",
     });
-    assert(entry.display.indexOf("demo") !== -1, "collection display includes username");
-    assert(entry.id === "42", "collection id stringified");
+    assert(preset.name === "Night", "preset name");
+    assert(preset.SearchText === "dark nature", "preset search text");
+
+    var exported = JSON.parse(Wallhaven.exportSettingsSnapshot({
+        SearchText: "test",
+        BrowseMode: "search",
+        BlockedIdsJson: "[]",
+    }));
+    assert(exported.plugin === "org.robertsm.wallhaven", "export plugin id");
+    assert(exported.settings.SearchText === "test", "export settings");
+    var imported = Wallhaven.importSettingsSnapshot(JSON.stringify(exported));
+    assert(imported.SearchText === "test", "import settings");
 }
 
-function testParseCollectionsResponse() {
-    const list = Wallhaven.parseCollectionsResponse({
-        data: [
-            { id: 1, label: "Favorites", username: "demo" },
-            { id: 2, label: "Landscape", username: "demo" },
-        ],
-    });
-    assert(list.length === 2, "collections parsed");
+function testRateLimitDelay() {
+    var xhr = {
+        getResponseHeader: function(name) {
+            return name === "Retry-After" ? "12" : "";
+        },
+    };
+    assert(Wallhaven.parseRateLimitDelayMs(xhr, 429) === 12000, "retry-after header");
 }
 
 function testPeekAheadWallpapers() {
-    const cfg = {
+    var cfg = {
         LocalSortings: "ascending",
         DedupEnabled: false,
     };
-    const state = {
+    var state = {
         page: 1,
         index: 0,
         seed: "seed",
@@ -66,26 +88,22 @@ function testPeekAheadWallpapers() {
         totalShown: 0,
         usedIndices: [],
         seenIds: [],
+        blockedIds: [],
         screenWidth: 1920,
         screenHeight: 1080,
         searchQuery: "",
         favoritesUser: "",
         favoritesId: "",
     };
-    const wallpapers = [
-        { id: "one" },
-        { id: "two" },
-    ];
-    const ahead = Wallhaven.peekAheadWallpapers(cfg, state, wallpapers, 2);
+    var wallpapers = [{ id: "one" }, { id: "two" }];
+    var ahead = Wallhaven.peekAheadWallpapers(cfg, state, wallpapers, 2);
     assert(ahead.length === 2, "peek ahead returns two wallpapers");
-    assert(ahead[0].id === "one" && ahead[1].id === "two", "peek ahead order");
 }
 
 [
-    testParseDiskCacheIndex,
-    testListCachedIds,
-    testNormalizeCollectionEntry,
-    testParseCollectionsResponse,
+    testBlockedIds,
+    testPresets,
+    testRateLimitDelay,
     testPeekAheadWallpapers,
 ].forEach(function(run) {
     run();

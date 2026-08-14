@@ -70,6 +70,7 @@ package_plugin() {
     fi
     tar -cJf "${archive}" -C "${SCRIPT_DIR}" "${files[@]}"
     echo "Created ${archive}"
+    echo "See RELEASE.md for publish steps."
 }
 
 main() {

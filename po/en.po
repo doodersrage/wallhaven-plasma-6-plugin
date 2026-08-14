@@ -1,0 +1,18 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: org.robertsm.wallhaven 1.2.0\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Wallhaven"
+msgstr "Wallhaven"
+
+msgid "Next Wallpaper"
+msgstr "Next Wallpaper"
+
+msgid "Copy Tags"
+msgstr "Copy Tags"
+
+msgid "Offline mode — showing cached wallpaper."
+msgstr "Offline mode — showing cached wallpaper."
