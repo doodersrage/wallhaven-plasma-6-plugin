@@ -17,6 +17,13 @@ spectacle -f -o screenshots/settings-source.png
 
 Or use your preferred screenshot tool. Recommended size: 1280×720 or wider.
 
+Generate placeholder crops from `preview.jpg` when real captures are unavailable:
+
+```bash
+chmod +x scripts/generate-screenshots-from-preview.sh
+./scripts/generate-screenshots-from-preview.sh
+```
+
 ## Wayland resize checklist
 
 After changing display scale or resolution:

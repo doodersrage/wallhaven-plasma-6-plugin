@@ -892,6 +892,7 @@ function buildStatusSnapshot(data) {
     return JSON.stringify({
         id: data.id || "",
         thumbUrl: data.thumbUrl || "",
+        localThumbUrl: data.localThumbUrl || "",
         pageUrl: data.pageUrl || "",
         tags: data.tags || "",
         paused: !!data.paused,
@@ -1033,7 +1034,7 @@ function buildPresetShareUrl(preset) {
 }
 
 function pluginVersion() {
-    return "2.0.0";
+    return "2.1.0";
 }
 
 function appendDebugLogLine(existing, line, maxLines) {

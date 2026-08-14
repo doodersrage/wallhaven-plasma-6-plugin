@@ -17,11 +17,13 @@ PlasmoidItem {
     property var statusData: ({
         id: "",
         thumbUrl: "",
+        localThumbUrl: "",
         pageUrl: "",
         paused: false,
         slideshowActive: false,
         nextChangeMs: 0,
     })
+    property bool dbusOffline: false
     property int countdownMs: 0
 
     function sendCommand(cmd, query) {
@@ -61,6 +63,7 @@ PlasmoidItem {
             arguments: [statusFile],
         });
         PDBus.SessionBus.asyncCall(msg, function(text) {
+            root.dbusOffline = false;
             if (!text) {
                 return;
             }
@@ -72,6 +75,7 @@ PlasmoidItem {
                 statusData = {
                     id: parsed.id || "",
                     thumbUrl: parsed.thumbUrl || "",
+                    localThumbUrl: parsed.localThumbUrl || "",
                     pageUrl: parsed.pageUrl || "",
                     paused: !!parsed.paused,
                     slideshowActive: !!parsed.slideshowActive,
@@ -81,8 +85,16 @@ PlasmoidItem {
             } catch (e) {
             }
         }, function(err) {
+            root.dbusOffline = true;
             console.warn("Wallhaven plasmoid status read failed:", err);
         });
+    }
+
+    function plasmoidThumbSource() {
+        if (statusData.localThumbUrl) {
+            return statusData.localThumbUrl;
+        }
+        return statusData.thumbUrl;
     }
 
     function formatCountdown(ms) {
@@ -132,13 +144,13 @@ PlasmoidItem {
                 anchors.fill: parent
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
-                visible: statusData.thumbUrl !== ""
-                source: statusData.thumbUrl
+                visible: root.plasmoidThumbSource() !== ""
+                source: root.plasmoidThumbSource()
             }
 
             PlasmaCore.IconItem {
                 anchors.centerIn: parent
-                visible: statusData.thumbUrl === ""
+                visible: root.plasmoidThumbSource() === ""
                 source: "preferences-desktop-wallpaper"
                 width: Kirigami.Units.iconSizes.medium
                 height: width
@@ -177,7 +189,7 @@ PlasmoidItem {
             QtControls2.Label {
                 font.pointSize: 7
                 opacity: 0.65
-                text: statusData.paused ? i18n("Slideshow paused") : i18n("Wallhaven")
+                text: root.dbusOffline ? i18n("D-Bus offline") : (statusData.paused ? i18n("Slideshow paused") : i18n("Wallhaven"))
             }
         }
 

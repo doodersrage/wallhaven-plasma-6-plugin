@@ -33,6 +33,7 @@ Commands:
   extract-i18n    Extract translatable strings to po/*.pot
   dbus-install    Install and enable user D-Bus service
   dbus-uninstall  Disable and remove user D-Bus service
+  register-preset Register wallhaven:// preset URL handler (xdg-mime)
   help            Show this help
 EOF
 }
@@ -131,7 +132,7 @@ package_plugin() {
     local version
     version="$(grep -Po '"Version"\s*:\s*"\K[^"]+' "${SCRIPT_DIR}/metadata.json")"
     local archive="${SCRIPT_DIR}/wallhaven-plasma-${version}.tar.xz"
-    local files=(contents metadata.json plasmoid tools krunner examples metainfo share packaging po)
+    local files=(contents metadata.json plasmoid tools krunner examples metainfo share packaging po screenshots)
     if [[ -f "${SCRIPT_DIR}/preview.jpg" ]]; then
         files+=(preview.jpg)
     fi
@@ -156,6 +157,17 @@ uninstall_dbus_service() {
     rm -f "${SYSTEMD_USER}/wallhaven-dbus.service"
     systemctl --user daemon-reload
     echo "Removed wallhaven-dbus.service"
+}
+
+register_preset_handler() {
+    install_plugin
+    if command -v xdg-mime >/dev/null 2>&1; then
+        xdg-mime default wallhaven-preset.desktop x-scheme-handler/wallhaven 2>/dev/null || true
+        echo "Registered wallhaven:// preset handler (wallhaven-preset.desktop)"
+    else
+        echo "xdg-mime not found; install xdg-utils" >&2
+        exit 1
+    fi
 }
 
 deploy_all() {
@@ -186,6 +198,7 @@ main() {
         extract-i18n) extract_i18n ;;
         dbus-install) install_dbus_service ;;
         dbus-uninstall) uninstall_dbus_service ;;
+        register-preset) register_preset_handler ;;
         help|--help|-h) usage ;;
         *) echo "Unknown command: $1"; usage; exit 1 ;;
     esac

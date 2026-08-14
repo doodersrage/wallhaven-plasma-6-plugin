@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 2.0.0\n"
+"Project-Id-Version: org.robertsm.wallhaven 2.1.0\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -87,7 +87,7 @@ msgid "Apply Variety search to Wallhaven"
 msgstr "Variety-Suche auf Wallhaven anwenden"
 
 msgid "Apply Wallhaven as the wallpaper type to import settings."
-msgstr "Apply Wallhaven as the wallpaper type to import settings."
+msgstr "Wallhaven als Hintergrundtyp wählen, um Einstellungen zu importieren."
 
 msgid "Apply Wallhaven as the wallpaper type to manage the blocklist."
 msgstr "Wallhaven als Hintergrundtyp wählen, um die Sperrliste zu verwalten."
@@ -356,6 +356,12 @@ msgstr "Tag-/Nacht-Intervalle überschreiben das Basisintervall (6–20 Uhr = Ta
 msgid "Day search:"
 msgstr "Tagessuche:"
 
+msgid "D-Bus offline"
+msgstr "D-Bus offline"
+
+msgid "D-Bus service:"
+msgstr "D-Bus-Dienst:"
+
 msgid "Debug info:"
 msgstr "Debug-Info:"
 
@@ -363,7 +369,7 @@ msgid "Debug log:"
 msgstr "Debug-Protokoll:"
 
 msgid "Debug log is empty."
-msgstr "Debug log is empty."
+msgstr "Debug-Protokoll ist leer."
 
 msgid "default"
 msgstr "Standard"
@@ -474,7 +480,7 @@ msgid "General:"
 msgstr "Allgemein:"
 
 msgid "Getting started:"
-msgstr "Getting started:"
+msgstr "Erste Schritte:"
 
 msgid "GitHub issue:"
 msgstr "GitHub-Issue:"
@@ -522,7 +528,7 @@ msgid "Imported preset %1."
 msgstr "Voreinstellung %1 importiert."
 
 msgid "Importing settings…"
-msgstr "Importing settings…"
+msgstr "Importiere Einstellungen…"
 
 msgid "Import preset from URL"
 msgstr "Voreinstellung von URL importieren"
@@ -666,7 +672,7 @@ msgid "No more wallpapers match your current filters."
 msgstr "Keine weiteren Hintergrundbilder entsprechen den aktuellen Filtern."
 
 msgid "(none found)"
-msgstr "(none found)"
+msgstr "(nichts gefunden)"
 
 msgid "No previous wallpaper in history."
 msgstr "Kein vorheriges Hintergrundbild im Verlauf."
@@ -795,7 +801,7 @@ msgid "Preset name:"
 msgstr "Voreinstellungsname:"
 
 msgid "Presets:"
-msgstr "Presets:"
+msgstr "Voreinstellungen:"
 
 msgid "Preset share URL copied."
 msgstr "Voreinstellungs-URL kopiert."
@@ -804,7 +810,7 @@ msgid "Preset URL:"
 msgstr "Voreinstellungs-URL:"
 
 msgid "Preview Variety search"
-msgstr "Preview Variety search"
+msgstr "Variety-Suche vorschauen"
 
 msgid "Previous wallpaper"
 msgstr "Vorheriges Hintergrundbild"
@@ -912,7 +918,7 @@ msgid "Search"
 msgstr "Suche"
 
 msgid "Search:"
-msgstr "Search:"
+msgstr "Suche:"
 
 msgid "Search Presets"
 msgstr "Voreinstellungen suchen"
@@ -972,7 +978,7 @@ msgid "Show overlay on desktop"
 msgstr "Overlay auf Desktop anzeigen"
 
 msgid "Show recent log lines"
-msgstr "Show recent log lines"
+msgstr "Letzte Protokollzeilen anzeigen"
 
 msgid "Show setup wizard again"
 msgstr "Einrichtungsassistent erneut anzeigen"
@@ -1014,7 +1020,7 @@ msgid "Slideshow resumed."
 msgstr "Diashow fortgesetzt."
 
 msgid "Slideshow resumed (power/activity rules cleared)."
-msgstr "Slideshow resumed (power/activity rules cleared)."
+msgstr "Diashow fortgesetzt (Energie-/Aktivitätsregeln aufgehoben)."
 
 msgid "Slideshow rules"
 msgstr "Diashow-Regeln"
@@ -1146,7 +1152,7 @@ msgid "Variety metadata:"
 msgstr "Variety-Metadaten:"
 
 msgid "Variety preview:"
-msgstr "Variety preview:"
+msgstr "Variety-Vorschau:"
 
 msgid "Variety symlink:"
 msgstr "Variety-Symlink:"
@@ -1156,6 +1162,9 @@ msgstr "Aufrufe"
 
 msgid "Wallhaven"
 msgstr "Wallhaven"
+
+msgid "Wallhaven D-Bus service is not running. Run: systemctl --user enable --now wallhaven-dbus.service"
+msgstr "Der Wallhaven-D-Bus-Dienst läuft nicht. Ausführen: systemctl --user enable --now wallhaven-dbus.service"
 
 msgid "wallhaven://preset/…"
 msgstr "wallhaven://preset/…"
@@ -1203,7 +1212,7 @@ msgid "White"
 msgstr "Weiß"
 
 msgid "Would apply search: %1"
-msgstr "Would apply search: %1"
+msgstr "Würde Suche anwenden: %1"
 
 msgid "Write current wallpaper JSON for external tools"
 msgstr "Aktuelles Hintergrundbild-JSON für externe Tools schreiben"

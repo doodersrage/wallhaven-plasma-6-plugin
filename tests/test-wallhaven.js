@@ -118,6 +118,15 @@ function testVarietyParse() {
     assert(Wallhaven.parseVarietySearch(ini) === "nature landscape", "variety parse");
 }
 
+function testStatusSnapshotLocalThumb() {
+    var snap = JSON.parse(Wallhaven.buildStatusSnapshot({
+        id: "abc12",
+        thumbUrl: "https://th.wallhaven.cc/small/abc/abc12.jpg",
+        localThumbUrl: "file:///home/user/.cache/wallhaven/abc12.jpg",
+    }));
+    assert(snap.localThumbUrl.indexOf("file://") === 0, "local thumb in status bus");
+}
+
 function testPluginVersion() {
     assert(/^\d+\.\d+\.\d+$/.test(Wallhaven.pluginVersion()), "plugin version semver");
 }
@@ -144,6 +153,7 @@ function testAppendDebugLogLine() {
     testMetrics,
     testImportPresetUrl,
     testVarietyParse,
+    testStatusSnapshotLocalThumb,
     testPluginVersion,
     testAppendDebugLogLine,
 ].forEach(function(run) {

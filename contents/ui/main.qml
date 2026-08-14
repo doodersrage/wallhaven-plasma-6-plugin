@@ -532,12 +532,15 @@ WallpaperItem {
         if (_nextSlideshowAt > 0 && !cfg.SlideshowPaused && slideshowActive()) {
             nextMs = Math.max(0, _nextSlideshowAt - Date.now());
         }
+        var layerSource = activeIsForeground ? foregroundImage.source : backgroundImage.source;
+        var localThumb = String(layerSource || "").indexOf("file://") === 0 ? String(layerSource) : "";
         settingsFileWriter.writeFile(
             statusBusFile,
             Wallhaven.buildStatusSnapshot({
                 id: currentWallpaperId !== "wallpaper" ? currentWallpaperId : "",
                 thumbUrl: currentWallpaperId !== "wallpaper"
                     ? Wallhaven.thumbUrlForId(currentWallpaperId) : "",
+                localThumbUrl: localThumb,
                 pageUrl: currentPageUrl,
                 tags: _currentTags,
                 paused: cfg.SlideshowPaused,
@@ -669,12 +672,26 @@ WallpaperItem {
         }
     }
 
+    function isDbusServiceAvailable() {
+        return typeof PDBus !== "undefined"
+            && PDBus.SessionBus
+            && PDBus.SessionBus.nameHasOwner
+            && PDBus.SessionBus.nameHasOwner("org.robertsm.Wallhaven");
+    }
+
     function varietyConfigPath() {
         return StandardPaths.writableLocation(StandardPaths.HomeLocation)
             + "/.config/variety/variety.conf";
     }
 
     function previewVarietySearch(callback) {
+        if (!isDbusServiceAvailable()) {
+            engine.showStatus(i18n("Wallhaven D-Bus service is not running. Run: systemctl --user enable --now wallhaven-dbus.service"), "warn");
+            if (callback) {
+                callback("");
+            }
+            return;
+        }
         dbusHelper.readFile(varietyConfigPath(), function(text) {
             if (!text) {
                 if (callback) {
@@ -690,6 +707,10 @@ WallpaperItem {
     }
 
     function applyVarietySearch() {
+        if (!isDbusServiceAvailable()) {
+            engine.showStatus(i18n("Wallhaven D-Bus service is not running. Run: systemctl --user enable --now wallhaven-dbus.service"), "warn");
+            return;
+        }
         previewVarietySearch(function(search) {
             if (!search) {
                 engine.showStatus(i18n("No image_fetch_search in Variety config."), "warn");

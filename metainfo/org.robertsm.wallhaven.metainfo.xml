@@ -19,11 +19,32 @@
   <launchable type="desktop-id">org.kde.plasmashell.desktop</launchable>
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/doodersrage/wallhaven-plasma-6-plugin/main/preview.jpg</image>
+      <image>https://raw.githubusercontent.com/doodersrage/wallhaven-plasma-6-plugin/main/screenshots/desktop-wallpaper.png</image>
       <caption>Wallhaven wallpaper on KDE Plasma 6</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/doodersrage/wallhaven-plasma-6-plugin/main/screenshots/settings-source.png</image>
+      <caption>Settings — source and preview</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/doodersrage/wallhaven-plasma-6-plugin/main/screenshots/settings-filters.png</image>
+      <caption>Settings — filters and tag blocklist</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/doodersrage/wallhaven-plasma-6-plugin/main/screenshots/plasmoid-control.png</image>
+      <caption>Wallhaven Control plasmoid with countdown</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/doodersrage/wallhaven-plasma-6-plugin/main/screenshots/wallpaper-actions.png</image>
+      <caption>Desktop wallpaper actions menu</caption>
     </screenshot>
   </screenshots>
   <releases>
+    <release version="2.1.0" date="2026-08-14">
+      <description>
+        <p>French i18n, unified translation pipeline, KDE Store screenshot gallery, plasmoid local cache thumbnails, D-Bus offline hints, packaging smoke CI, and automatic AUR publish on release tags.</p>
+      </description>
+    </release>
     <release version="2.0.0" date="2026-08-14">
       <description>
         <p>Stable 2.0 milestone: complete Plasma 6 port with MPRIS, KRunner, D-Bus control, German i18n, Flatpak manifest, AppStream screenshots, and production packaging.</p>

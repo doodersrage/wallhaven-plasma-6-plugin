@@ -20,20 +20,21 @@ jobs:
 
       - name: Validate and test
         run: |
-          chmod +x scripts/validate.sh dev-helper.sh scripts/release.sh tests/validate-qml.sh
+          chmod +x scripts/validate.sh dev-helper.sh scripts/release.sh tests/validate-qml.sh scripts/validate-packaging.sh
           ./scripts/validate.sh
           ./tests/validate-qml.sh
           ./dev-helper.sh test
 
-      - name: Compile translations
+      - name: Sync translations
         run: |
-          if compgen -G "po/*.po" >/dev/null; then
-            chmod +x scripts/compile-translations.sh
-            ./dev-helper.sh translations
-          fi
+          chmod +x scripts/sync-i18n.sh scripts/check-i18n.sh
+          ./scripts/sync-i18n.sh
 
       - name: Build package
         run: ./dev-helper.sh package
+
+      - name: Packaging smoke
+        run: ./scripts/validate-packaging.sh
 
       - name: Extract release notes
         id: notes

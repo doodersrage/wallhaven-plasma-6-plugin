@@ -139,6 +139,8 @@ ColumnLayout {
     property alias cfg_SmartColorFromWallpaper: smartColorCheck.checked
     property string settingsFilter: ""
     property bool showSetupWizard: wallpaperConfiguration && !wallpaperConfiguration.SetupWizardCompleted
+    readonly property bool dbusServiceOnline: liveWallpaper && liveWallpaper.isDbusServiceAvailable
+        ? liveWallpaper.isDbusServiceAvailable() : false
     property string varietyPreviewSearch: ""
 
     function fieldVisible(keywords) {
@@ -1952,6 +1954,15 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Variety symlink:")
                     text: i18n("Symlink cached wallpaper as wallhaven-current.jpg")
                     enabled: varietyFolderField.text !== ""
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("D-Bus service:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    visible: liveWallpaper !== null && !root.dbusServiceOnline
+                    color: Kirigami.Theme.negativeTextColor
+                    text: i18n("Wallhaven D-Bus service is not running. Run: systemctl --user enable --now wallhaven-dbus.service")
                 }
 
                 QtControls2.Button {

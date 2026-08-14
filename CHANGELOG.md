@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.1.0 — 2026-08-14
+
+Polish release: i18n expansion, store assets, control UX, and packaging automation.
+
+### Added
+- **French UI translation** — full ~406 string catalog alongside German
+- **Unified i18n pipeline** — `scripts/fill-po.py` replaces locale-specific fillers; `sync-i18n.sh` runs coverage checks
+- **KDE Store screenshot gallery** — six 1280×720 assets + AppStream multi-screenshot metadata
+- **Plasmoid local cache thumbnail** — status bus publishes `localThumbUrl` from on-disk wallpaper
+- **D-Bus offline hints** — Variety bridge and plasmoid show when `wallhaven-dbus.service` is not running
+- **Packaging smoke CI** — `scripts/validate-packaging.sh` + PKGBUILD `--nobuild` against release tarball
+- **AUR on release tags** — `aur-publish.yml` triggers automatically when `AUR_SSH_PRIVATE_KEY` is set
+- **Screenshot generator** — `scripts/generate-screenshots-from-preview.sh` for placeholder store assets
+- **Preset handler helper** — `dev-helper.sh register-preset` registers `wallhaven://` MIME handler
+
+### Changed
+- **Variety apply** — separate D-Bus availability check before reading Variety config
+- **Release tarball** — includes `screenshots/` and compiled French `.mo` files
+
 ## 2.0.0 — 2026-08-14
 
 Stable milestone release of the Wallhaven KDE Plasma 6 port.

@@ -12,6 +12,21 @@ System Settings → Appearance → Wallpaper → **Wallhaven**
 
 Enable **Wallhaven** in System Settings → Search → Plasma Search (KRunner).
 
+## v2.1.0 — polish release
+
+| Area | Highlights |
+|------|------------|
+| **i18n** | Full French UI (~406 strings) + unified `fill-po.py` pipeline |
+| **Store** | Six screenshot assets + AppStream gallery for KDE Store / Discover |
+| **Control** | Plasmoid uses local cache thumbnail; D-Bus offline hints in settings |
+| **Packaging** | AUR auto-publish on release tags, PKGBUILD smoke CI, preset MIME helper |
+
+```bash
+./dev-helper.sh deploy
+./dev-helper.sh register-preset   # wallhaven:// URL handler
+./dev-helper.sh release           # tag v2.1.0 + GitHub release
+```
+
 ## v2.0.0 — stable milestone
 
 Wallhaven for KDE Plasma 6 is feature-complete for this port cycle. Highlights across the 1.x → 2.0 line:
@@ -21,7 +36,7 @@ Wallhaven for KDE Plasma 6 is feature-complete for this port cycle. Highlights a
 | **Wallpaper** | Search, collections, favorites, WOTD, disk cache, effects, blocklist, presets |
 | **Control** | D-Bus service, MPRIS, KRunner, panel plasmoid, control bus, sync advance |
 | **Integration** | Variety bridge, lock screen sync, panel accent, KWallet, preset URLs |
-| **i18n** | Full German UI (~395 strings) |
+| **i18n** | Full German + French UI (~406 strings each) |
 | **Packaging** | Arch/Fedora, Flatpak, AUR workflows, systemd user service |
 
 ```bash
