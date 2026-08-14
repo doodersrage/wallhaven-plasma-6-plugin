@@ -187,11 +187,13 @@ var EXPORTABLE_SETTINGS_KEYS = [
     "CollectionRotationEnabled", "CollectionRotationJson",
     "SyncLockScreen", "PanelTintEnabled", "ParallaxEnabled", "ParallaxStrength",
     "VarietyFolderPath", "VarietySymlinkEnabled",
+    "WallpaperOfDayEnabled", "FavoritesRefreshMin", "DebugLogEnabled",
+    "PinnedCacheIdsJson", "AdaptivePreloadEnabled", "PreloadCount",
 ];
 
 function exportSettingsSnapshot(cfg) {
     var snapshot = {
-        version: 3,
+        version: 4,
         plugin: "org.robertsm.wallhaven",
         exportedAt: new Date().toISOString(),
         settings: {},
@@ -289,7 +291,7 @@ function tagsToCopyString(tags) {
 
 function appendSearchModifiers(query, cfg) {
     query = String(query || "").trim();
-    if (cfg.FileTypeFilter === "jpg" || cfg.FileTypeFilter === "png") {
+    if (cfg.FileTypeFilter === "jpg" || cfg.FileTypeFilter === "png" || cfg.FileTypeFilter === "webp") {
         query = (query ? query + " " : "") + "type:" + cfg.FileTypeFilter;
     }
     if (cfg.TagBlocklistJson) {
@@ -397,7 +399,7 @@ function diskCacheSlotForId(index, id) {
     return index.ids.indexOf(String(id));
 }
 
-function allocateDiskCacheSlot(index, id, maxSlots) {
+function allocateDiskCacheSlot(index, id, maxSlots, pinnedIds) {
     maxSlots = maxSlots || DISK_CACHE_SLOTS;
     id = String(id || "");
     if (!id) {
@@ -406,13 +408,23 @@ function allocateDiskCacheSlot(index, id, maxSlots) {
     if (!index.ids) {
         index.ids = [];
     }
+    pinnedIds = pinnedIds || [];
     var existing = index.ids.indexOf(id);
     if (existing !== -1) {
         return existing;
     }
-    var slot = (index.next || 0) % maxSlots;
     while (index.ids.length < maxSlots) {
         index.ids.push("");
+    }
+    var slot = (index.next || 0) % maxSlots;
+    var attempts = 0;
+    while (attempts < maxSlots) {
+        var occupant = String(index.ids[slot] || "");
+        if (!occupant || pinnedIds.indexOf(occupant) === -1) {
+            break;
+        }
+        slot = (slot + 1) % maxSlots;
+        attempts++;
     }
     index.ids[slot] = id;
     index.next = (slot + 1) % maxSlots;
@@ -655,18 +667,23 @@ function parseControlCommand(raw) {
             cmd: String(parsed.cmd),
             ts: parseInt(parsed.ts, 10) || 0,
             group: parsed.group ? String(parsed.group) : "default",
+            query: parsed.query ? String(parsed.query) : "",
         };
     } catch (e) {
         return null;
     }
 }
 
-function buildControlCommand(cmd, group) {
-    return JSON.stringify({
+function buildControlCommand(cmd, group, query) {
+    var payload = {
         cmd: cmd,
         ts: Date.now(),
         group: group || "default",
-    });
+    };
+    if (query) {
+        payload.query = String(query);
+    }
+    return JSON.stringify(payload);
 }
 
 function parseSyncAdvance(raw) {
@@ -874,6 +891,142 @@ function varietySymlinkName() {
     return "wallhaven-current.jpg";
 }
 
+function parsePinnedCacheIds(raw) {
+    return parseIdList(raw);
+}
+
+function serializePinnedCacheIds(ids) {
+    return serializeIdList(ids, 100);
+}
+
+function computePreloadCount(cfg, networkOnline, metered) {
+    var base = Math.max(0, Math.min(4, cfg.PreloadCount || 2));
+    if (!cfg.AdaptivePreloadEnabled) {
+        return base;
+    }
+    if (!networkOnline || metered) {
+        return Math.max(0, base - 1);
+    }
+    return base;
+}
+
+function parseCuratedPresets(raw) {
+    if (!raw) {
+        return [];
+    }
+    try {
+        var parsed = JSON.parse(raw);
+        if (!parsed || !parsed.length) {
+            return [];
+        }
+        return parsed;
+    } catch (e) {
+        return [];
+    }
+}
+
+function mergePresetLists(existing, curated) {
+    var out = existing ? existing.slice() : [];
+    for (var i = 0; i < curated.length; i++) {
+        var preset = curated[i];
+        if (!preset || !preset.name) {
+            continue;
+        }
+        var found = false;
+        for (var j = 0; j < out.length; j++) {
+            if (out[j].name === preset.name) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            out.push(preset);
+        }
+    }
+    return out;
+}
+
+function encodePresetSharePayload(preset) {
+    if (!preset) {
+        return "";
+    }
+    var json = JSON.stringify(preset);
+    return base64EncodeUtf8(json);
+}
+
+function decodePresetSharePayload(encoded) {
+    if (!encoded) {
+        throw new Error("empty preset payload");
+    }
+    var binary = atobPolyfill(String(encoded).trim());
+    return JSON.parse(binary);
+}
+
+function atobPolyfill(input) {
+    var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+    var str = String(input).replace(/=+$/, "");
+    var output = "";
+    for (var bc = 0, bs = 0, buffer, i = 0; (buffer = str.charAt(i++));) {
+        buffer = chars.indexOf(buffer);
+        if (buffer === -1) {
+            continue;
+        }
+        bs = bc % 4 ? bs * 64 + buffer : buffer;
+        if (bc++ % 4) {
+            output += String.fromCharCode(255 & (bs >> ((-2 * bc) & 6)));
+        }
+    }
+    return output;
+}
+
+function buildPresetShareUrl(preset) {
+    var payload = encodePresetSharePayload(preset);
+    return "wallhaven://preset/" + payload;
+}
+
+function appendDebugLogLine(existing, line, maxLines) {
+    maxLines = maxLines || 200;
+    var lines = String(existing || "").split("\n").filter(function(entry) { return entry.length > 0; });
+    lines.push(String(line || ""));
+    if (lines.length > maxLines) {
+        lines = lines.slice(-maxLines);
+    }
+    return lines.join("\n") + "\n";
+}
+
+function buildDebugBundle(cfg, extras) {
+    extras = extras || {};
+    return JSON.stringify({
+        plugin: "org.robertsm.wallhaven",
+        version: extras.version || "",
+        exportedAt: new Date().toISOString(),
+        settings: exportSettingsSnapshot(cfg),
+        status: extras.status || null,
+        logTail: extras.logTail || "",
+    }, null, 2);
+}
+
+function listCacheEntries(index, pinnedIds) {
+    pinnedIds = pinnedIds || [];
+    if (!index || !index.ids) {
+        return [];
+    }
+    var entries = [];
+    for (var i = 0; i < index.ids.length; i++) {
+        var id = String(index.ids[i] || "").trim();
+        if (!id) {
+            continue;
+        }
+        entries.push({
+            id: id,
+            slot: i,
+            pinned: pinnedIds.indexOf(id) !== -1,
+            thumbUrl: thumbUrlForId(id),
+        });
+    }
+    return entries;
+}
+
 // Wallhaven only accepts these palette values for the colors= filter.
 var WALLHAVEN_COLORS = [
     "660000", "990000", "cc0000", "cc3333", "ea4c88",
@@ -935,15 +1088,22 @@ function buildSearchUrl(cfg, state) {
     var url = "https://wallhaven.cc/api/v1/search?";
     var params = [];
 
-    params.push("sorting=" + encodeURIComponent(cfg.Sortings || "random"));
+    var sorting = cfg.Sortings || "random";
+    var topRange = cfg.TopRange || "1M";
+    if (cfg.WallpaperOfDayEnabled) {
+        sorting = "toplist";
+        topRange = "1d";
+    }
+
+    params.push("sorting=" + encodeURIComponent(sorting));
     params.push("order=" + encodeURIComponent(cfg.Order || "desc"));
     params.push("page=" + encodeURIComponent(String(state.page)));
 
-    if (cfg.Sortings === "random") {
+    if (sorting === "random") {
         params.push("seed=" + encodeURIComponent(state.seed));
     }
-    if (cfg.Sortings === "toplist" && cfg.TopRange) {
-        params.push("topRange=" + encodeURIComponent(cfg.TopRange));
+    if (sorting === "toplist" && topRange) {
+        params.push("topRange=" + encodeURIComponent(topRange));
     }
 
     var query = state.searchQuery || getEffectiveSearchText(cfg);

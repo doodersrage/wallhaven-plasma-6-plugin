@@ -80,6 +80,26 @@ function testPanelTint() {
     assert(hex === "660000", "dominant color");
 }
 
+function testPresetShare() {
+    var preset = { name: "Test", SearchText: "nature" };
+    var encoded = Wallhaven.encodePresetSharePayload(preset);
+    var decoded = Wallhaven.decodePresetSharePayload(encoded);
+    assert(decoded.name === "Test", "preset share roundtrip");
+}
+
+function testPreloadCount() {
+    var online = Wallhaven.computePreloadCount({ PreloadCount: 2, AdaptivePreloadEnabled: true }, true, false);
+    assert(online === 2, "online preload");
+    var metered = Wallhaven.computePreloadCount({ PreloadCount: 2, AdaptivePreloadEnabled: true }, true, true);
+    assert(metered === 1, "metered preload");
+}
+
+function testWotdUrl() {
+    var cfg = { WallpaperOfDayEnabled: true, Sortings: "random", Order: "desc" };
+    var url = Wallhaven.buildSearchUrl(cfg, { page: 1, seed: "x", searchQuery: "", screenWidth: 1920, screenHeight: 1080 });
+    assert(url.indexOf("toplist") !== -1 && url.indexOf("topRange=1d") !== -1, "wotd url");
+}
+
 [
     testFileTypeFilter,
     testSimilarSearch,
@@ -92,6 +112,9 @@ function testPanelTint() {
     testHistory,
     testTransitionPick,
     testPanelTint,
+    testPresetShare,
+    testPreloadCount,
+    testWotdUrl,
 ].forEach(function(run) {
     run();
 });

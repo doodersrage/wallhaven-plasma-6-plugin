@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.5.0 — 2026-08-14
+
+### Added
+- **Setup wizard** on first run (API key, search, interval, curated presets)
+- **Settings filter** search box across tabs
+- **Wallpaper of the day** mode (toplist / 24h)
+- **Favorites auto-refresh** interval
+- **Debug log** + copy debug info bundle
+- **Cache manager** with pin/unpin/evict (LRU respects pins)
+- **Adaptive preload** count (network/metered aware)
+- **WebP** file type filter
+- **Curated presets** pack + import + share URL (`wallhaven://preset/…`)
+- **KRunner** plugin (`wh next`, `wallhaven search …`)
+- **D-Bus player API** at `/Player` (Next/Previous/PlayPause/Metadata)
+- **Variety watch** script (`inotifywait`)
+- **Webhook bot example** for automation
+- **Plasma shortcuts** documentation
+- Nightly CI workflow + QML smoke tests
+
 ## 1.4.0 — 2026-08-14
 
 ### Added

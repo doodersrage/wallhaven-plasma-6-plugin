@@ -1,0 +1,39 @@
+[
+  {
+    "name": "Nature landscapes",
+    "SearchText": "nature landscape mountains",
+    "Sortings": "random",
+    "Ratio": "landscape",
+    "CategoryGeneral": true,
+    "CategoryAnime": false,
+    "CategoryPeople": false
+  },
+  {
+    "name": "Anime night city",
+    "SearchText": "anime city night rain",
+    "Sortings": "random",
+    "CategoryAnime": true,
+    "CategoryGeneral": false,
+    "CategoryPeople": false
+  },
+  {
+    "name": "Minimal dark",
+    "SearchText": "minimal dark abstract",
+    "Sortings": "toplist",
+    "TopRange": "1M",
+    "ColorFilter": "000000"
+  },
+  {
+    "name": "Cyberpunk",
+    "SearchText": "cyberpunk neon",
+    "Sortings": "random",
+    "CategoryGeneral": true,
+    "CategoryAnime": true
+  },
+  {
+    "name": "Space",
+    "SearchText": "space nebula stars",
+    "Sortings": "random",
+    "Ratio": "landscape"
+  }
+]

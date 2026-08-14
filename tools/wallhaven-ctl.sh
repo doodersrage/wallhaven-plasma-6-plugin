@@ -12,12 +12,47 @@ usage() {
     cat <<EOF
 Send commands to the Wallhaven wallpaper plugin.
 
-Usage: $(basename "$0") <next|prev|reload|pause|resume>
+Usage: $(basename "$0") <next|prev|reload|pause|resume|search query...>
 
 Environment:
   WALLHAVEN_SYNC_GROUP   Control/sync group name (default: default)
 EOF
 }
+
+write_control_file() {
+    local cmd="$1"
+    local query="${2:-}"
+    python3 - <<PY
+import json, time
+payload = {"cmd": "${cmd}", "ts": int(time.time() * 1000), "group": "${GROUP}"}
+query = """${query}"""
+if query:
+    payload["query"] = query
+with open("${CONTROL_FILE}", "w", encoding="utf-8") as fh:
+    json.dump(payload, fh)
+PY
+}
+
+if [[ "${CMD}" == "search" ]]; then
+    shift
+    QUERY="$*"
+    if [[ -z "${QUERY}" ]]; then
+        echo "Usage: $(basename "$0") search <query>" >&2
+        exit 1
+    fi
+    if command -v qdbus6 >/dev/null 2>&1; then
+        if qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.Search "${QUERY}" "${GROUP}" 2>/dev/null; then
+            echo "Sent search via D-Bus"
+            exit 0
+        fi
+    fi
+    if [[ -f "${DBUS_PY}" ]]; then
+        WALLHAVEN_SYNC_GROUP="${GROUP}" python3 "${DBUS_PY}" search ${QUERY@Q} 2>/dev/null && exit 0
+    fi
+    write_control_file search "${QUERY}"
+    echo "Sent search to ${CONTROL_FILE}"
+    exit 0
+fi
 
 case "${CMD}" in
     next|prev|reload|pause|resume) ;;
@@ -37,11 +72,5 @@ if [[ -f "${DBUS_PY}" ]]; then
 fi
 
 mkdir -p "${CACHE}"
-python3 - <<PY
-import json, time
-payload = {"cmd": "${CMD}", "ts": int(time.time() * 1000), "group": "${GROUP}"}
-with open("${CONTROL_FILE}", "w", encoding="utf-8") as fh:
-    json.dump(payload, fh)
-PY
-
+write_control_file "${CMD}"
 echo "Sent '${CMD}' to ${CONTROL_FILE}"

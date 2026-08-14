@@ -4,8 +4,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ID="org.robertsm.wallhaven"
 PLASMOID_ID="org.robertsm.wallhaven.control"
+KRUNNER_ID="org.robertsm.wallhaven"
 INSTALL_DIR="${HOME}/.local/share/plasma/wallpapers/${PLUGIN_ID}"
 PLASMOID_DIR="${HOME}/.local/share/plasma/plasmoids/${PLASMOID_ID}"
+KRUNNER_DIR="${HOME}/.local/share/krunner/dplugins"
 NOTIFY_DIR="${HOME}/.local/share/knotifications6"
 DATA_DIR="${HOME}/.local/share/wallhaven-plasma"
 SYSTEMD_USER="${HOME}/.config/systemd/user"
@@ -60,9 +62,15 @@ install_plugin() {
     chmod +x "${DATA_DIR}/tools/variety-sync.sh" 2>/dev/null || true
     chmod +x "${DATA_DIR}/tools/apply-panel-tint.sh" 2>/dev/null || true
     chmod +x "${DATA_DIR}/tools/wallhaven-dbus.py" 2>/dev/null || true
+    chmod +x "${DATA_DIR}/tools/wallhaven-bot-example.py" 2>/dev/null || true
+    chmod +x "${DATA_DIR}/tools/variety-watch.sh" 2>/dev/null || true
+
+    mkdir -p "${KRUNNER_DIR}"
+    cp "${SCRIPT_DIR}/krunner/${KRUNNER_ID}.desktop" "${KRUNNER_DIR}/"
 
     echo "Installed wallpaper to ${INSTALL_DIR}"
     echo "Installed plasmoid to ${PLASMOID_DIR}"
+    echo "Installed KRunner plugin to ${KRUNNER_DIR}/${KRUNNER_ID}.desktop"
     if [[ -f "${NOTIFY_DIR}/${PLUGIN_ID}.notifyrc" ]]; then
         echo "Installed notifications to ${NOTIFY_DIR}/${PLUGIN_ID}.notifyrc"
     fi
@@ -72,7 +80,8 @@ install_plugin() {
 uninstall_plugin() {
     rm -rf "${INSTALL_DIR}" "${PLASMOID_DIR}"
     rm -f "${NOTIFY_DIR}/${PLUGIN_ID}.notifyrc"
-    echo "Removed ${INSTALL_DIR} and ${PLASMOID_DIR}"
+    rm -f "${KRUNNER_DIR}/${KRUNNER_ID}.desktop"
+    echo "Removed ${INSTALL_DIR}, ${PLASMOID_DIR}, and KRunner plugin"
 }
 
 restart_plasma() {
@@ -105,7 +114,7 @@ package_plugin() {
     local version
     version="$(grep -Po '"Version"\s*:\s*"\K[^"]+' "${SCRIPT_DIR}/metadata.json")"
     local archive="${SCRIPT_DIR}/wallhaven-plasma-${version}.tar.xz"
-    local files=(contents metadata.json plasmoid tools metainfo)
+    local files=(contents metadata.json plasmoid tools krunner examples metainfo)
     if [[ -f "${SCRIPT_DIR}/preview.jpg" ]]; then
         files+=(preview.jpg)
     fi

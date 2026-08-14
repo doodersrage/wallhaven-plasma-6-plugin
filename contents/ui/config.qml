@@ -134,6 +134,89 @@ ColumnLayout {
     property alias cfg_ParallaxStrength: parallaxStrengthSpin.value
     property alias cfg_VarietyFolderPath: varietyFolderField.text
     property alias cfg_VarietySymlinkEnabled: varietySymlinkCheck.checked
+    property alias cfg_SetupWizardCompleted: setupWizardCompletedFlag.value
+    property alias cfg_WallpaperOfDayEnabled: wallpaperOfDayCheck.checked
+    property alias cfg_FavoritesRefreshMin: favoritesRefreshSpin.value
+    property alias cfg_DebugLogEnabled: debugLogCheck.checked
+    property alias cfg_AdaptivePreloadEnabled: adaptivePreloadCheck.checked
+    property alias cfg_PreloadCount: preloadCountSpin.value
+
+    property string settingsFilter: ""
+    property bool showSetupWizard: wallpaperConfiguration
+        && !wallpaperConfiguration.SetupWizardCompleted
+
+    function fieldVisible(keywords) {
+        if (!settingsFilter || !keywords || !keywords.length) {
+            return true;
+        }
+        var needle = settingsFilter.toLowerCase();
+        for (var i = 0; i < keywords.length; i++) {
+            if (String(keywords[i]).toLowerCase().indexOf(needle) >= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function importCuratedPresets() {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", Qt.resolvedUrl("../presets/curated.json"));
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState !== XMLHttpRequest.DONE) {
+                return;
+            }
+            if (xhr.status !== 0 && xhr.status !== 200) {
+                importExportStatus.text = i18n("Could not load curated presets.");
+                return;
+            }
+            var curated = Wallhaven.parseCuratedPresets(xhr.responseText);
+            var merged = Wallhaven.mergePresetLists(currentPresets(), curated);
+            persistPresets(merged);
+            importExportStatus.text = i18n("Imported %1 curated preset(s).", curated.length);
+        };
+        xhr.send();
+    }
+
+    function shareSelectedPresetUrl() {
+        var presets = currentPresets();
+        if (presetCombo.currentIndex < 0 || presetCombo.currentIndex >= presets.length) {
+            return;
+        }
+        var url = Wallhaven.buildPresetShareUrl(presets[presetCombo.currentIndex]);
+        settingsClipboardHelper.text = url;
+        settingsClipboardHelper.selectAll();
+        settingsClipboardHelper.copy();
+        importExportStatus.text = i18n("Preset share URL copied.");
+    }
+
+    function finishSetupWizard() {
+        if (!wallpaperConfiguration) {
+            return;
+        }
+        wallpaperConfiguration.SetupWizardCompleted = true;
+        if (wallpaperConfiguration.writeConfig) {
+            wallpaperConfiguration.writeConfig();
+        }
+        setupWizardCompletedFlag.value = true;
+    }
+
+    QtObject {
+        id: setupWizardCompletedFlag
+        property bool value: wallpaperConfiguration ? wallpaperConfiguration.SetupWizardCompleted : true
+    }
+
+    function refreshCacheModel() {
+        cacheModel.clear();
+        if (!liveWallpaper || !liveWallpaper.getCacheEntries) {
+            return;
+        }
+        var entries = liveWallpaper.getCacheEntries();
+        for (var i = 0; i < entries.length; i++) {
+            cacheModel.append(entries[i]);
+        }
+    }
+
+    ListModel { id: cacheModel }
 
     function tagBlocklistText() {
         if (!wallpaperConfiguration) {
@@ -543,6 +626,21 @@ ColumnLayout {
         }
     }
 
+    }
+
+    Item {
+        Layout.fillWidth: true
+        Layout.preferredHeight: settingsSearchField.implicitHeight
+        visible: fieldVisible(["search", "filter", "settings"])
+
+        QtControls2.TextField {
+            id: settingsSearchField
+            anchors.fill: parent
+            placeholderText: i18n("Filter settings…")
+            onTextChanged: root.settingsFilter = text.trim()
+        }
+    }
+
     Item {
         Layout.fillWidth: true
         Layout.preferredHeight: tabBar.implicitHeight
@@ -593,6 +691,24 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Search string:")
                     placeholderText: i18n("Tags, keywords, e.g. nature anime")
                     visible: browseModeCombo.currentValue === "search"
+                        && fieldVisible(["search", "tags", "query"])
+                }
+
+                QtControls2.CheckBox {
+                    id: wallpaperOfDayCheck
+                    Kirigami.FormData.label: i18n("Wallpaper of the day:")
+                    text: i18n("Use today's Wallhaven toplist (overrides sorting)")
+                    visible: browseModeCombo.currentValue === "search"
+                        && fieldVisible(["toplist", "daily", "wotd"])
+                }
+
+                QtControls2.SpinBox {
+                    id: favoritesRefreshSpin
+                    Kirigami.FormData.label: i18n("Favorites refresh (min):")
+                    from: 0
+                    to: 1440
+                    visible: browseModeCombo.currentValue === "favorites"
+                        && fieldVisible(["favorites", "refresh"])
                 }
 
                 QtControls2.Button {
@@ -848,6 +964,7 @@ ColumnLayout {
                         { label: i18n("Any"), value: "" },
                         { label: "JPEG", value: "jpg" },
                         { label: "PNG", value: "png" },
+                        { label: "WebP", value: "webp" },
                     ]
                 }
 
@@ -992,6 +1109,21 @@ ColumnLayout {
                 }
 
                 QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Import curated:")
+                    text: i18n("Import curated presets")
+                    visible: parent.searchFilters
+                    onClicked: root.importCuratedPresets()
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Share preset:")
+                    text: i18n("Copy preset share URL")
+                    visible: parent.searchFilters
+                    enabled: presetCombo.currentIndex >= 0
+                    onClicked: root.shareSelectedPresetUrl()
+                }
+
+                QtControls2.Button {
                     Kirigami.FormData.label: i18n("Delete preset:")
                     text: i18n("Delete selected preset")
                     visible: parent.searchFilters
@@ -1133,6 +1265,20 @@ ColumnLayout {
                     id: panelTintCheck
                     Kirigami.FormData.label: i18n("Panel tint hint:")
                     text: i18n("Write dominant color JSON for external theming tools")
+                }
+
+                QtControls2.SpinBox {
+                    id: preloadCountSpin
+                    Kirigami.FormData.label: i18n("Preload count:")
+                    from: 0
+                    to: 4
+                    enabled: adaptivePreloadCheck.checked
+                }
+
+                QtControls2.CheckBox {
+                    id: adaptivePreloadCheck
+                    Kirigami.FormData.label: i18n("Adaptive preload:")
+                    text: i18n("Reduce preloads when offline or metered")
                 }
 
                 QtControls2.CheckBox {
@@ -1327,6 +1473,85 @@ ColumnLayout {
                     onClicked: {
                         if (liveWallpaper && liveWallpaper.clearDiskCache) {
                             liveWallpaper.clearDiskCache();
+                            root.refreshCacheModel();
+                        }
+                    }
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Cache Manager")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Refresh cache list:")
+                    text: i18n("Refresh cached wallpapers")
+                    onClicked: root.refreshCacheModel()
+                }
+
+                ListView {
+                    id: cacheList
+                    Kirigami.FormData.label: i18n("Cached:")
+                    Layout.preferredWidth: parent.width
+                    Layout.preferredHeight: Math.min(240, cacheModel.count * 52)
+                    clip: true
+                    model: cacheModel
+                    delegate: RowLayout {
+                        width: cacheList.width
+                        spacing: Kirigami.Units.smallSpacing
+                        Image {
+                            Layout.preferredWidth: 64
+                            Layout.preferredHeight: 40
+                            fillMode: Image.PreserveAspectCrop
+                            source: model.thumbUrl
+                        }
+                        QtControls2.Label {
+                            Layout.fillWidth: true
+                            text: "#" + model.id + (model.pinned ? " ★" : "")
+                        }
+                        QtControls2.Button {
+                            text: model.pinned ? i18n("Unpin") : i18n("Pin")
+                            onClicked: {
+                                if (!liveWallpaper) {
+                                    return;
+                                }
+                                if (model.pinned) {
+                                    liveWallpaper.unpinCacheId(model.id);
+                                } else {
+                                    liveWallpaper.pinCacheId(model.id);
+                                }
+                                root.refreshCacheModel();
+                            }
+                        }
+                        QtControls2.Button {
+                            text: i18n("Evict")
+                            enabled: !model.pinned && liveWallpaper !== null
+                            onClicked: {
+                                liveWallpaper.evictCacheId(model.id);
+                                root.refreshCacheModel();
+                            }
+                        }
+                    }
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Diagnostics")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.CheckBox {
+                    id: debugLogCheck
+                    Kirigami.FormData.label: i18n("Debug log:")
+                    text: i18n("Write debug events to cache log file")
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Debug info:")
+                    text: i18n("Copy debug info")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.copyDebugInfo) {
+                            liveWallpaper.copyDebugInfo();
                         }
                     }
                 }
@@ -1618,5 +1843,81 @@ ColumnLayout {
         }
     }
 
-    Component.onCompleted: refreshHistoryModel()
+    Component.onCompleted: {
+        refreshHistoryModel();
+        refreshCacheModel();
+    }
+
+    Kirigami.OverlaySheet {
+        id: setupWizardSheet
+        visible: root.showSetupWizard
+        preferredWidth: Math.min(520, root.width > 0 ? root.width - 32 : 520)
+        header: Kirigami.InlineMessage {
+            type: Kirigami.MessageType.Information
+            text: i18n("Welcome to Wallhaven for Plasma")
+        }
+        footer: RowLayout {
+            spacing: Kirigami.Units.smallSpacing
+            Item { Layout.fillWidth: true }
+            QtControls2.Button {
+                text: i18n("Skip")
+                onClicked: root.finishSetupWizard()
+            }
+            QtControls2.Button {
+                text: i18n("Finish")
+                onClicked: {
+                    if (wallpaperConfiguration) {
+                        wallpaperConfiguration.RandomInterval = Math.max(
+                            wallpaperConfiguration.RandomInterval,
+                            wizardIntervalSpin.value,
+                        );
+                        if (wizardSearchField.text.trim()) {
+                            wallpaperConfiguration.SearchText = wizardSearchField.text.trim();
+                            wallpaperConfiguration.BrowseMode = "search";
+                        }
+                        if (wallpaperConfiguration.writeConfig) {
+                            wallpaperConfiguration.writeConfig();
+                        }
+                    }
+                    root.finishSetupWizard();
+                }
+            }
+        }
+        ColumnLayout {
+            width: parent.width
+            spacing: Kirigami.Units.largeSpacing
+            QtControls2.Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: i18n("Optional: add your Wallhaven API key for NSFW and favorites.")
+            }
+            QtControls2.TextField {
+                id: wizardApiKeyField
+                Layout.fillWidth: true
+                placeholderText: i18n("API key (optional)")
+                echoMode: TextInput.Password
+                text: apiKeyField.text
+                onTextChanged: apiKeyField.text = text
+            }
+            QtControls2.TextField {
+                id: wizardSearchField
+                Layout.fillWidth: true
+                placeholderText: i18n("Search tags, e.g. nature landscape")
+                text: searchTextField.text
+                onTextChanged: searchTextField.text = text
+            }
+            QtControls2.SpinBox {
+                id: wizardIntervalSpin
+                Kirigami.FormData.label: i18n("Slideshow interval (min):")
+                from: 0
+                to: 240
+                value: intervalSpin.value > 0 ? intervalSpin.value : 30
+                onValueChanged: intervalSpin.value = value
+            }
+            QtControls2.Button {
+                text: i18n("Import curated presets")
+                onClicked: root.importCuratedPresets()
+            }
+        }
+    }
 }

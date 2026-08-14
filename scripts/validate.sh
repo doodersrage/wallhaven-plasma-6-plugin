@@ -17,6 +17,8 @@ required=(
     tools/wallhaven-ctl.sh
     tools/wallhaven-dbus.py
     metainfo/org.robertsm.wallhaven.metainfo.xml
+    krunner/org.robertsm.wallhaven.desktop
+    contents/presets/curated.json
 )
 
 for path in "${required[@]}"; do

@@ -1,0 +1,28 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Full check suite
+        run: |
+          chmod +x scripts/validate.sh tests/validate-qml.sh dev-helper.sh
+          ./scripts/validate.sh
+          ./tests/validate-qml.sh
+          ./dev-helper.sh test
+
+      - name: Package
+        run: ./dev-helper.sh package
+
+      - name: Verify tarball paths
+        run: |
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'krunner/org.robertsm.wallhaven.desktop'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/presets/curated.json'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'examples/plasma-shortcuts.md'

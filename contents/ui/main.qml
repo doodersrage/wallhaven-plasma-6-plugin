@@ -21,6 +21,7 @@ WallpaperItem {
     readonly property string settingsExportFile: diskCacheDir + "/wallhaven-settings-export.json"
     readonly property string statusBusFile: diskCacheDir + "/wallhaven-status.json"
     readonly property string panelTintFile: diskCacheDir + "/wallhaven-panel-tint.json"
+    readonly property string debugLogFile: diskCacheDir + "/wallhaven-debug.log"
     readonly property int diskCacheEntryCount: Wallhaven.listCachedIds(_diskCacheIndex).length
 
     function syncAdvanceFile() {
@@ -381,7 +382,12 @@ WallpaperItem {
         if (req.image.status !== Image.Ready) {
             return;
         }
-        var slot = Wallhaven.allocateDiskCacheSlot(_diskCacheIndex, req.id, diskCacheMaxSlots());
+        var slot = Wallhaven.allocateDiskCacheSlot(
+            _diskCacheIndex,
+            req.id,
+            diskCacheMaxSlots(),
+            pinnedCacheIds(),
+        );
         if (slot < 0) {
             return;
         }
@@ -606,6 +612,83 @@ WallpaperItem {
 
     function effectiveTransitionMode() {
         return Wallhaven.pickTransitionMode(cfg);
+    }
+
+    function pinnedCacheIds() {
+        return Wallhaven.parsePinnedCacheIds(cfg.PinnedCacheIdsJson || "[]");
+    }
+
+    function logDebug(message) {
+        if (!cfg.DebugLogEnabled) {
+            return;
+        }
+        var line = new Date().toISOString() + " " + String(message || "");
+        debugLogWriter.appendLine(line);
+    }
+
+    function getCacheEntries() {
+        return Wallhaven.listCacheEntries(_diskCacheIndex, pinnedCacheIds());
+    }
+
+    function pinCacheId(id) {
+        id = String(id || "").trim();
+        if (!id || !root.configuration) {
+            return;
+        }
+        var ids = pinnedCacheIds();
+        if (ids.indexOf(id) === -1) {
+            ids.push(id);
+            root.configuration.PinnedCacheIdsJson = Wallhaven.serializePinnedCacheIds(ids);
+            scheduleConfigWrite();
+        }
+    }
+
+    function unpinCacheId(id) {
+        id = String(id || "").trim();
+        if (!id || !root.configuration) {
+            return;
+        }
+        var ids = pinnedCacheIds().filter(function(entry) { return entry !== id; });
+        root.configuration.PinnedCacheIdsJson = Wallhaven.serializePinnedCacheIds(ids);
+        scheduleConfigWrite();
+    }
+
+    function evictCacheId(id) {
+        id = String(id || "").trim();
+        if (!id || pinnedCacheIds().indexOf(id) !== -1) {
+            return;
+        }
+        var slot = Wallhaven.diskCacheSlotForId(_diskCacheIndex, id);
+        if (slot >= 0) {
+            _diskCacheIndex.ids[slot] = "";
+            persistDiskCacheIndex();
+            cacheRmProcess.command = ["rm", "-f", diskCacheLocalPath(slot)];
+            cacheRmProcess.start();
+            logDebug("Evicted cache id " + id);
+        }
+    }
+
+    function getDebugInfo() {
+        var logTail = "";
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", "file://" + debugLogFile);
+        xhr.send();
+        if (xhr.responseText) {
+            logTail = xhr.responseText;
+        }
+        return Wallhaven.buildDebugBundle(cfg, {
+            version: "1.5.0",
+            status: {
+                id: currentWallpaperId,
+                url: currentUrl,
+                paused: cfg.SlideshowPaused,
+            },
+            logTail: logTail.split("\n").slice(-40).join("\n"),
+        });
+    }
+
+    function copyDebugInfo() {
+        copyToClipboard(getDebugInfo(), i18n("Copied debug info."));
     }
 
     function writeControlCommand(cmd) {
@@ -977,6 +1060,7 @@ WallpaperItem {
                 CollectionRotationEnabled: cfg.CollectionRotationEnabled,
                 CollectionRotationJson: cfg.CollectionRotationJson,
                 CollectionRotationIndex: cfg.CollectionRotationIndex,
+                WallpaperOfDayEnabled: cfg.WallpaperOfDayEnabled,
             };
         }
 
@@ -1012,6 +1096,9 @@ WallpaperItem {
             }
             if (message && (type === "error" || type === "warn") && cfg.NotifyOnError && opts.notify !== false) {
                 root.sendSystemNotification(i18n("Wallhaven"), message, true);
+            }
+            if (message) {
+                root.logDebug(type + ": " + message);
             }
         }
 
@@ -1474,7 +1561,18 @@ WallpaperItem {
                 return;
             }
             var state = stateObject();
-            var ahead = Wallhaven.peekAheadWallpapers(configObject(), state, apiData.data, 2);
+            var count = Wallhaven.computePreloadCount(
+                cfg,
+                root._connectivityOnline,
+                networkInfo.meteredConnection,
+            );
+            if (count <= 0) {
+                preloadImage.source = "";
+                preloadImage2.source = "";
+                nextPreloadedUrl = "";
+                return;
+            }
+            var ahead = Wallhaven.peekAheadWallpapers(configObject(), state, apiData.data, count);
             var urls = [];
             for (var i = 0; i < ahead.length; i++) {
                 var remote = Wallhaven.wallpaperUrl(ahead[i], cfg.ImageQuality);
@@ -1927,6 +2025,62 @@ WallpaperItem {
     }
 
     QtObject {
+        id: debugLogWriter
+        property string pending: ""
+
+        function appendLine(line) {
+            pending = line;
+            debugLogProcess.command = [
+                "python3", "-c",
+                "import sys; p=sys.argv[1]; l=sys.argv[2]; open(p,'a',encoding='utf-8').write(l+'\\n')",
+                debugLogFile, line,
+            ];
+            debugLogProcess.start();
+        }
+    }
+
+    Process { id: debugLogProcess }
+
+    Timer {
+        id: favoritesRefreshTimer
+        interval: Math.max(60000, (cfg.FavoritesRefreshMin || 0) * 60000)
+        running: root._configured && cfg.BrowseMode === "favorites"
+            && (cfg.FavoritesRefreshMin || 0) > 0
+        repeat: true
+        onTriggered: {
+            engine.favoritesId = "";
+            engine.resetSlideshow();
+            logDebug("Favorites collection refresh");
+        }
+    }
+
+    Timer {
+        id: varietyWatchTimer
+        interval: 5000
+        running: root._configured && cfg.VarietySymlinkEnabled && cfg.VarietyFolderPath !== ""
+        repeat: true
+        property string lastPath: ""
+        onTriggered: {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "file://" + varietyMetadataFile);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== XMLHttpRequest.DONE || xhr.status > 200) {
+                    return;
+                }
+                try {
+                    var meta = JSON.parse(xhr.responseText || "{}");
+                    if (meta.localPath && meta.localPath !== lastPath) {
+                        lastPath = meta.localPath;
+                        updateVarietySymlink(meta.localPath);
+                    }
+                } catch (e) {
+                }
+            };
+            xhr.send();
+        }
+    }
+
+    QtObject {
         id: controlBusLoader
         function load(path) {
             var xhr = new XMLHttpRequest();
@@ -1953,6 +2107,15 @@ WallpaperItem {
                 case "pause":
                 case "resume":
                     root.toggleSlideshowPause();
+                    break;
+                case "search":
+                    if (cmd.query && root.configuration) {
+                        root.configuration.BrowseMode = "search";
+                        root.configuration.SearchText = cmd.query;
+                        root.configuration.WallpaperOfDayEnabled = false;
+                        scheduleConfigWrite();
+                        engine.resetSlideshow();
+                    }
                     break;
                 default: break;
                 }
@@ -2521,6 +2684,8 @@ WallpaperItem {
         function onWeekendSearchChanged() { if (root._configured) engine.resetSlideshow(); }
         function onCollectionRotationEnabledChanged() { if (root._configured) engine.resetSlideshow(); }
         function onCollectionRotationJsonChanged() { if (root._configured) engine.resetSlideshow(); }
+        function onWallpaperOfDayEnabledChanged() { if (root._configured) engine.resetSlideshow(); }
+        function onFavoritesRefreshMinChanged() { favoritesRefreshTimer.restart(); }
         function onUseKWalletForApiKeyChanged() { root.loadApiKeyFromKWallet(); }
     }
 

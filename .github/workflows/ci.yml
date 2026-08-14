@@ -19,6 +19,9 @@ jobs:
       - name: Run wallhaven.js tests
         run: node tests/test-wallhaven.js
 
+      - name: QML smoke checks
+        run: chmod +x tests/validate-qml.sh && ./tests/validate-qml.sh
+
       - name: Validate tool scripts are executable
         run: |
           chmod +x tools/wallhaven-ctl.sh tools/register-shortcuts.sh tools/variety-sync.sh tools/apply-panel-tint.sh
