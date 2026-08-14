@@ -8,6 +8,7 @@ KRUNNER_ID="org.robertsm.wallhaven"
 INSTALL_DIR="${HOME}/.local/share/plasma/wallpapers/${PLUGIN_ID}"
 PLASMOID_DIR="${HOME}/.local/share/plasma/plasmoids/${PLASMOID_ID}"
 KRUNNER_DIR="${HOME}/.local/share/krunner/dplugins"
+APPLICATIONS_DIR="${HOME}/.local/share/applications"
 NOTIFY_DIR="${HOME}/.local/share/knotifications6"
 DATA_DIR="${HOME}/.local/share/wallhaven-plasma"
 SYSTEMD_USER="${HOME}/.config/systemd/user"
@@ -64,9 +65,23 @@ install_plugin() {
     chmod +x "${DATA_DIR}/tools/wallhaven-dbus.py" 2>/dev/null || true
     chmod +x "${DATA_DIR}/tools/wallhaven-bot-example.py" 2>/dev/null || true
     chmod +x "${DATA_DIR}/tools/variety-watch.sh" 2>/dev/null || true
+    chmod +x "${DATA_DIR}/tools/variety-bridge.sh" 2>/dev/null || true
+    chmod +x "${DATA_DIR}/tools/import-preset-url.sh" 2>/dev/null || true
 
     mkdir -p "${KRUNNER_DIR}"
     cp "${SCRIPT_DIR}/krunner/${KRUNNER_ID}.desktop" "${KRUNNER_DIR}/"
+
+    mkdir -p "${APPLICATIONS_DIR}"
+    sed "s|/home/USER/.local/share/wallhaven-plasma/tools|${DATA_DIR}/tools|g" \
+        "${SCRIPT_DIR}/share/wallhaven-preset.desktop.in" \
+        > "${APPLICATIONS_DIR}/wallhaven-preset.desktop"
+    chmod +x "${APPLICATIONS_DIR}/wallhaven-preset.desktop" 2>/dev/null || true
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database "${APPLICATIONS_DIR}" 2>/dev/null || true
+    fi
+    if command -v xdg-mime >/dev/null 2>&1; then
+        xdg-mime default wallhaven-preset.desktop x-scheme-handler/wallhaven 2>/dev/null || true
+    fi
 
     echo "Installed wallpaper to ${INSTALL_DIR}"
     echo "Installed plasmoid to ${PLASMOID_DIR}"
@@ -81,6 +96,7 @@ uninstall_plugin() {
     rm -rf "${INSTALL_DIR}" "${PLASMOID_DIR}"
     rm -f "${NOTIFY_DIR}/${PLUGIN_ID}.notifyrc"
     rm -f "${KRUNNER_DIR}/${KRUNNER_ID}.desktop"
+    rm -f "${APPLICATIONS_DIR}/wallhaven-preset.desktop"
     echo "Removed ${INSTALL_DIR}, ${PLASMOID_DIR}, and KRunner plugin"
 }
 
@@ -114,7 +130,7 @@ package_plugin() {
     local version
     version="$(grep -Po '"Version"\s*:\s*"\K[^"]+' "${SCRIPT_DIR}/metadata.json")"
     local archive="${SCRIPT_DIR}/wallhaven-plasma-${version}.tar.xz"
-    local files=(contents metadata.json plasmoid tools krunner examples metainfo)
+    local files=(contents metadata.json plasmoid tools krunner examples metainfo share packaging)
     if [[ -f "${SCRIPT_DIR}/preview.jpg" ]]; then
         files+=(preview.jpg)
     fi

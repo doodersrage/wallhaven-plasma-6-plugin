@@ -1,0 +1,25 @@
+# Maintainer: Wallhaven Plasma Port
+pkgname=wallhaven-plasma-git
+pkgver=1.6.0.r0
+pkgrel=1
+pkgdesc="Wallhaven.cc wallpaper plugin for KDE Plasma 6"
+arch=('any')
+url="https://github.com/doodersrage/wallhaven-plasma-6-plugin"
+license=('GPL-2.0-or-later')
+depends=('plasma-framework' 'nodejs')
+makedepends=('git')
+source=("git+${url}.git")
+sha256sums=('SKIP')
+
+package() {
+    cd "${srcdir}/wallhaven-plasma-6-plugin"
+    install -dm755 "${pkgdir}/usr/share/plasma/wallpapers/org.robertsm.wallhaven"
+    cp -r contents metadata.json "${pkgdir}/usr/share/plasma/wallpapers/org.robertsm.wallhaven/"
+    install -dm755 "${pkgdir}/usr/share/plasma/plasmoids/org.robertsm.wallhaven.control"
+    cp -r plasmoid/contents plasmoid/metadata.json "${pkgdir}/usr/share/plasma/plasmoids/org.robertsm.wallhaven.control/"
+    install -Dm644 krunner/org.robertsm.wallhaven.desktop \
+        "${pkgdir}/usr/share/krunner/dplugins/org.robertsm.wallhaven.desktop"
+    install -dm755 "${pkgdir}/usr/share/wallhaven-plasma/tools"
+    cp -r tools/* "${pkgdir}/usr/share/wallhaven-plasma/tools/"
+    chmod +x "${pkgdir}/usr/share/wallhaven-plasma/tools/"*.sh "${pkgdir}/usr/share/wallhaven-plasma/tools/"*.py 2>/dev/null || true
+}

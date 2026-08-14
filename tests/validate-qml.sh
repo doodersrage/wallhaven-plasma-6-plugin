@@ -14,7 +14,8 @@ import xml.etree.ElementTree as ET
 path = "${ROOT}/contents/config/main.xml"
 tree = ET.parse(path)
 entries = [e.attrib["name"] for e in tree.findall(".//{http://www.kde.org/standards/kcfg/1.0}entry")]
-required = ["SetupWizardCompleted", "WallpaperOfDayEnabled", "PinnedCacheIdsJson", "DebugLogEnabled"]
+required = ["SetupWizardCompleted", "WallpaperOfDayEnabled", "PinnedCacheIdsJson", "DebugLogEnabled",
+            "AutoPanelAccentEnabled", "PauseOnBatteryLow", "TagFavoritesJson"]
 missing = [k for k in required if k not in entries]
 if missing:
     raise SystemExit("main.xml missing: " + ", ".join(missing))

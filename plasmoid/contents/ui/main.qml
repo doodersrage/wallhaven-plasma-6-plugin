@@ -16,22 +16,26 @@ PlasmoidItem {
     property var statusData: ({
         id: "",
         thumbUrl: "",
+        pageUrl: "",
         paused: false,
         slideshowActive: false,
         nextChangeMs: 0,
     })
     property int countdownMs: 0
 
-    function sendCommand(cmd) {
-        var payload = JSON.stringify({
+    function sendCommand(cmd, query) {
+        var payload = {
             cmd: cmd,
             ts: Date.now(),
             group: Plasmoid.configuration.syncGroup || "default",
-        });
-        var encoded = encodeURIComponent(payload);
+        };
+        if (query) {
+            payload.query = query;
+        }
+        var encoded = encodeURIComponent(JSON.stringify(payload));
         writeProcess.command = [
             "python3", "-c",
-            "import sys, urllib.parse; open(sys.argv[1],'w',encoding='utf-8').write(urllib.parse.unquote(sys.argv[2]))",
+            "import sys, urllib.parse, json; open(sys.argv[1],'w',encoding='utf-8').write(json.dumps(json.loads(urllib.parse.unquote(sys.argv[2]))))",
             controlFile, encoded,
         ];
         writeProcess.start();
@@ -55,6 +59,7 @@ PlasmoidItem {
                 statusData = {
                     id: parsed.id || "",
                     thumbUrl: parsed.thumbUrl || "",
+                    pageUrl: parsed.pageUrl || "",
                     paused: !!parsed.paused,
                     slideshowActive: !!parsed.slideshowActive,
                     nextChangeMs: Math.max(0, parseInt(parsed.nextChangeMs, 10) || 0),
@@ -100,6 +105,16 @@ PlasmoidItem {
         Item {
             Layout.preferredWidth: Kirigami.Units.iconSizes.large
             Layout.preferredHeight: Kirigami.Units.iconSizes.large
+
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.RightButton
+                onClicked: function(mouse) {
+                    if (mouse.button === Qt.RightButton) {
+                        plasmoidMenu.open();
+                    }
+                }
+            }
 
             Image {
                 anchors.fill: parent
@@ -177,6 +192,39 @@ PlasmoidItem {
             icon.name: "view-refresh"
             ToolTip.text: i18n("Reload wallpaper")
             onClicked: root.sendCommand("reload")
+        }
+        QtControls2.ToolButton {
+            display: QtControls2.AbstractButton.IconOnly
+            icon.name: "open-menu-symbolic"
+            ToolTip.text: i18n("More actions")
+            onClicked: plasmoidMenu.open()
+        }
+    }
+
+    QtControls2.Menu {
+        id: plasmoidMenu
+        QtControls2.MenuItem {
+            text: i18n("Open in browser")
+            enabled: statusData.pageUrl !== "" || statusData.id !== ""
+            onTriggered: {
+                if (statusData.pageUrl) {
+                    Qt.openUrlExternally(statusData.pageUrl);
+                } else if (statusData.id) {
+                    Qt.openUrlExternally("https://wallhaven.cc/w/" + statusData.id);
+                } else {
+                    root.sendCommand("open");
+                }
+            }
+        }
+        QtControls2.MenuItem {
+            text: i18n("Copy tags")
+            enabled: statusData.id !== ""
+            onTriggered: root.sendCommand("copytags")
+        }
+        QtControls2.MenuItem {
+            text: i18n("Block wallpaper")
+            enabled: statusData.id !== ""
+            onTriggered: root.sendCommand("block")
         }
     }
 }

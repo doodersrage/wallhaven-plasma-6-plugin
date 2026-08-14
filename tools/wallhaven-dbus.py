@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Session D-Bus control, KRunner, and player API for Wallhaven wallpaper."""
+"""Session D-Bus control, KRunner, MPRIS, and player API for Wallhaven wallpaper."""
 
 from __future__ import annotations
 
@@ -19,12 +19,16 @@ except ImportError as exc:  # pragma: no cover
     sys.exit(1)
 
 SERVICE = "org.robertsm.Wallhaven"
+MPRIS_SERVICE = "org.mpris.MediaPlayer2.wallhaven"
 OBJECT_PATH = "/Wallhaven"
 RUNNER_PATH = "/runner"
 PLAYER_PATH = "/Player"
+MPRIS_PATH = "/org/mpris/MediaPlayer2"
 INTERFACE = "org.robertsm.Wallhaven"
 RUNNER_IFACE = "org.kde.krunner1"
 PLAYER_IFACE = "org.robertsm.Wallhaven.Player"
+MPRIS_IFACE = "org.mpris.MediaPlayer2"
+MPRIS_PLAYER_IFACE = "org.mpris.MediaPlayer2.Player"
 
 CACHE = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
 PLASMA_CACHE = os.path.join(CACHE, "plasmashell")
@@ -100,16 +104,83 @@ class WallhavenPlayer(dbus.service.Object):
         return "Stopped"
 
 
+class MprisMediaPlayer2(dbus.service.Object):
+    def __init__(self, bus, group: str) -> None:
+        self.group = group
+        super().__init__(bus, MPRIS_PATH)
+
+    @dbus.service.method(MPRIS_IFACE, in_signature="", out_signature="")
+    def Raise(self) -> None:
+        pass
+
+    @dbus.service.method(MPRIS_IFACE, in_signature="", out_signature="")
+    def Quit(self) -> None:
+        pass
+
+    @dbus.service.property(MPRIS_IFACE, "b")
+    def CanQuit(self) -> bool:
+        return False
+
+    @dbus.service.property(MPRIS_IFACE, "b")
+    def CanRaise(self) -> bool:
+        return False
+
+    @dbus.service.property(MPRIS_IFACE, "b")
+    def HasTrackList(self) -> bool:
+        return False
+
+    @dbus.service.property(MPRIS_IFACE, "s")
+    def Identity(self) -> str:
+        return "Wallhaven"
+
+    @dbus.service.property(MPRIS_IFACE, "s", emit_change_signal=True)
+    def PlaybackStatus(self) -> str:
+        status = read_status()
+        if status.get("paused"):
+            return "Paused"
+        if status.get("slideshowActive"):
+            return "Playing"
+        return "Stopped"
+
+    @dbus.service.property(MPRIS_IFACE, "a{sv}", emit_change_signal=True)
+    def Metadata(self) -> dict[str, dbus.Object]:
+        status = read_status()
+        wall_id = str(status.get("id") or "current")
+        return {
+            "mpris:trackid": dbus.ObjectPath(f"/org/mpris/MediaPlayer2/wallhaven/track/{wall_id}"),
+            "xesam:title": dbus.String(f"Wallhaven #{wall_id}"),
+            "xesam:url": dbus.String(str(status.get("pageUrl") or "")),
+            "mpris:artUrl": dbus.String(str(status.get("thumbUrl") or "")),
+        }
+
+    @dbus.service.method(MPRIS_PLAYER_IFACE)
+    def Next(self) -> None:
+        write_command("next", self.group)
+
+    @dbus.service.method(MPRIS_PLAYER_IFACE)
+    def Previous(self) -> None:
+        write_command("prev", self.group)
+
+    @dbus.service.method(MPRIS_PLAYER_IFACE)
+    def PlayPause(self) -> None:
+        status = read_status()
+        write_command("resume" if status.get("paused") else "pause", self.group)
+
+    @dbus.service.method(MPRIS_PLAYER_IFACE)
+    def Stop(self) -> None:
+        write_command("pause", self.group)
+
+
 class WallhavenRunner(dbus.service.Object):
     def __init__(self, bus, group: str) -> None:
         self.group = group
         super().__init__(bus, RUNNER_PATH)
 
     @dbus.service.method(RUNNER_IFACE, in_signature="s", out_signature="a(sssida{sv})")
-    def Match(self, query: str) -> list[tuple[str, str, str, int, str, dict]]:
+    def Match(self, query: str) -> list[tuple[str, str, str, float, str, dict]]:
         query = query.strip()
         lowered = query.lower()
-        matches: list[tuple[str, str, str, int, str, dict]] = []
+        matches: list[tuple[str, str, str, float, str, dict]] = []
 
         def add(match_id: str, text: str, subtext: str, relevance: float) -> None:
             matches.append((match_id, text, "preferences-desktop-wallpaper", relevance, subtext, {}))
@@ -122,6 +193,12 @@ class WallhavenRunner(dbus.service.Object):
             add("wh-pause", "Pause/resume Wallhaven slideshow", "Toggle pause state", 0.95)
         if re.match(r"^(wh|wallhaven)\s*(reload|refresh)$", lowered):
             add("wh-reload", "Reload Wallhaven wallpaper", "Reset slideshow", 0.95)
+        if re.match(r"^(wh|wallhaven)\s*(open|browser)$", lowered):
+            add("wh-open", "Open current wallpaper in browser", "Wallhaven page", 0.9)
+        if re.match(r"^(wh|wallhaven)\s*block$", lowered):
+            add("wh-block", "Block current wallpaper", "Skip in future searches", 0.9)
+        if re.match(r"^(wh|wallhaven)\s*(tags|copy tags)$", lowered):
+            add("wh-copytags", "Copy current wallpaper tags", "Clipboard", 0.88)
         search = re.match(r"^(?:wh|wallhaven)\s+search\s+(.+)$", lowered)
         if search:
             term = query.split(None, 2)[-1] if len(query.split()) >= 3 else search.group(1)
@@ -139,6 +216,12 @@ class WallhavenRunner(dbus.service.Object):
             write_command("resume" if status.get("paused") else "pause", self.group)
         elif match_id == "wh-reload":
             write_command("reload", self.group)
+        elif match_id == "wh-open":
+            write_command("open", self.group)
+        elif match_id == "wh-block":
+            write_command("block", self.group)
+        elif match_id == "wh-copytags":
+            write_command("copytags", self.group)
         elif match_id.startswith("wh-search:"):
             term = match_id.split(":", 1)[1]
             write_command("search", self.group, term)
@@ -146,22 +229,24 @@ class WallhavenRunner(dbus.service.Object):
 
 def main() -> int:
     group = os.environ.get("WALLHAVEN_SYNC_GROUP", "default")
-    if len(sys.argv) > 1 and sys.argv[1] in {"next", "prev", "reload", "pause", "resume"}:
+    if len(sys.argv) > 1 and sys.argv[1] in {"next", "prev", "reload", "pause", "resume", "open", "block", "copytags"}:
         write_command(sys.argv[1], group)
         print(f"Sent '{sys.argv[1]}' via control bus")
         return 0
     if len(sys.argv) > 2 and sys.argv[1] == "search":
         write_command("search", group, " ".join(sys.argv[2:]))
-        print(f"Sent search via control bus")
+        print("Sent search via control bus")
         return 0
 
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SessionBus()
     dbus.service.BusName(SERVICE, bus)
+    dbus.service.BusName(MPRIS_SERVICE, bus)
     WallhavenControl(bus, group)
     WallhavenRunner(bus, group)
     WallhavenPlayer(bus, group)
-    print(f"D-Bus service {SERVICE} (control, runner, player)")
+    MprisMediaPlayer2(bus, group)
+    print(f"D-Bus services {SERVICE}, {MPRIS_SERVICE}")
     GLib.MainLoop().run()
     return 0
 

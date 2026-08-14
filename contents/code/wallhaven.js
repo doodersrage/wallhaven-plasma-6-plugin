@@ -189,11 +189,13 @@ var EXPORTABLE_SETTINGS_KEYS = [
     "VarietyFolderPath", "VarietySymlinkEnabled",
     "WallpaperOfDayEnabled", "FavoritesRefreshMin", "DebugLogEnabled",
     "PinnedCacheIdsJson", "AdaptivePreloadEnabled", "PreloadCount",
+    "AutoPanelAccentEnabled", "PauseOnBatteryLow", "BatteryLowThreshold",
+    "PauseWhenInactive", "SmartColorFromWallpaper", "TagFavoritesJson",
 ];
 
 function exportSettingsSnapshot(cfg) {
     var snapshot = {
-        version: 4,
+        version: 5,
         plugin: "org.robertsm.wallhaven",
         exportedAt: new Date().toISOString(),
         settings: {},
@@ -543,15 +545,34 @@ function parseCollectionsResponse(json) {
 }
 
 function getEffectiveSearchText(cfg) {
+    var base = "";
     if (cfg.TimeOfDayEnabled) {
         var hour = new Date().getHours();
         var isDay = hour >= 6 && hour < 20;
-        return isDay ? (cfg.DaySearch || "") : (cfg.NightSearch || "");
+        base = isDay ? (cfg.DaySearch || "") : (cfg.NightSearch || "");
+    } else if (cfg.ScheduleEnabled) {
+        base = isWeekend() ? (cfg.WeekendSearch || "") : (cfg.WeekdaySearch || "");
+    } else {
+        base = cfg.SearchText || "";
     }
-    if (cfg.ScheduleEnabled) {
-        return isWeekend() ? (cfg.WeekendSearch || "") : (cfg.WeekdaySearch || "");
+    return appendTagFavorites(base, parseTagFavorites(cfg.TagFavoritesJson));
+}
+
+function parseTagFavorites(raw) {
+    return parseTagBlocklist(raw);
+}
+
+function appendTagFavorites(query, tags) {
+    query = String(query || "").trim();
+    if (!tags || !tags.length) {
+        return query;
     }
-    return cfg.SearchText || "";
+    for (var i = 0; i < tags.length; i++) {
+        if (tags[i]) {
+            query += (query ? " " : "") + tags[i].replace(/_/g, " ");
+        }
+    }
+    return query.trim();
 }
 
 function isDayPeriod() {
@@ -847,11 +868,14 @@ function buildStatusSnapshot(data) {
     return JSON.stringify({
         id: data.id || "",
         thumbUrl: data.thumbUrl || "",
+        pageUrl: data.pageUrl || "",
+        tags: data.tags || "",
         paused: !!data.paused,
         slideshowActive: !!data.slideshowActive,
         nextChangeMs: Math.max(0, parseInt(data.nextChangeMs, 10) || 0),
         attribution: data.attribution || "",
         syncGroup: data.syncGroup || "default",
+        metrics: data.metrics || null,
         updatedAt: new Date().toISOString(),
     }, null, 2);
 }
@@ -1002,8 +1026,80 @@ function buildDebugBundle(cfg, extras) {
         exportedAt: new Date().toISOString(),
         settings: exportSettingsSnapshot(cfg),
         status: extras.status || null,
+        metrics: extras.metrics || null,
         logTail: extras.logTail || "",
+        githubIssue: buildGithubIssueBody(cfg, extras),
     }, null, 2);
+}
+
+function buildGithubIssueBody(cfg, extras) {
+    extras = extras || {};
+    var lines = [
+        "## Wallhaven Plasma bug report",
+        "",
+        "**Version:** " + (extras.version || "unknown"),
+        "**Wallpaper ID:** " + ((extras.status && extras.status.id) || "n/a"),
+        "",
+        "### Steps",
+        "1. ",
+        "",
+        "### Expected",
+        "",
+        "### Actual",
+        "",
+        "### Metrics",
+        "```json",
+        JSON.stringify(extras.metrics || {}, null, 2),
+        "```",
+        "",
+        "<details><summary>Settings snapshot</summary>",
+        "",
+        "```json",
+        exportSettingsSnapshot(cfg),
+        "```",
+        "",
+        "</details>",
+    ];
+    return lines.join("\n");
+}
+
+function createMetricsState() {
+    return {
+        fetchCount: 0,
+        cacheHits: 0,
+        cacheMisses: 0,
+        imageErrors: 0,
+        rateLimits: 0,
+        lastFetchMs: 0,
+        avgFetchMs: 0,
+    };
+}
+
+function recordFetchMetrics(metrics, elapsedMs, fromCache) {
+    metrics = metrics || createMetricsState();
+    metrics.fetchCount = (metrics.fetchCount || 0) + 1;
+    if (fromCache) {
+        metrics.cacheHits = (metrics.cacheHits || 0) + 1;
+    } else {
+        metrics.cacheMisses = (metrics.cacheMisses || 0) + 1;
+    }
+    if (elapsedMs > 0) {
+        metrics.lastFetchMs = elapsedMs;
+        var count = metrics.fetchCount;
+        metrics.avgFetchMs = Math.round(
+            ((metrics.avgFetchMs || 0) * (count - 1) + elapsedMs) / count,
+        );
+    }
+    return metrics;
+}
+
+function importPresetFromShareUrl(url) {
+    var raw = String(url || "").trim();
+    var prefix = "wallhaven://preset/";
+    if (raw.indexOf(prefix) === 0) {
+        raw = raw.substring(prefix.length);
+    }
+    return decodePresetSharePayload(raw);
 }
 
 function listCacheEntries(index, pinnedIds) {

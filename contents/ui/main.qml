@@ -107,6 +107,9 @@ WallpaperItem {
     property string _instanceId: Math.random().toString(36).slice(2, 10)
     property string wallpaperDetailsText: ""
     property int _nextSlideshowAt: 0
+    property var _metrics: Wallhaven.createMetricsState()
+    property int _batteryPercent: 100
+    property bool _rulesPausedSlideshow: false
 
     readonly property real parallaxOffsetX: {
         if (!cfg.ParallaxEnabled) {
@@ -525,11 +528,14 @@ WallpaperItem {
                 id: currentWallpaperId !== "wallpaper" ? currentWallpaperId : "",
                 thumbUrl: currentWallpaperId !== "wallpaper"
                     ? Wallhaven.thumbUrlForId(currentWallpaperId) : "",
+                pageUrl: currentPageUrl,
+                tags: _currentTags,
                 paused: cfg.SlideshowPaused,
                 slideshowActive: slideshowActive(),
                 nextChangeMs: nextMs,
                 attribution: attributionText,
                 syncGroup: cfg.SyncAdvanceGroup || "default",
+                metrics: _metrics,
             }),
         );
     }
@@ -601,13 +607,85 @@ WallpaperItem {
     }
 
     function writePanelTint(hexColor, wallpaperId) {
-        if (!cfg.PanelTintEnabled || !hexColor) {
+        if (!hexColor) {
             return;
         }
-        settingsFileWriter.writeFile(
-            panelTintFile,
-            Wallhaven.buildPanelTintMetadata(hexColor, wallpaperId),
-        );
+        if (cfg.PanelTintEnabled) {
+            settingsFileWriter.writeFile(
+                panelTintFile,
+                Wallhaven.buildPanelTintMetadata(hexColor, wallpaperId),
+                cfg.AutoPanelAccentEnabled ? function() {
+                    applyPanelAccent(hexColor);
+                } : null,
+            );
+        } else if (cfg.AutoPanelAccentEnabled) {
+            applyPanelAccent(hexColor);
+        }
+    }
+
+    function applyPanelAccent(hexColor) {
+        if (!hexColor) {
+            return;
+        }
+        panelAccentProcess.command = [
+            "bash", "-lc",
+            "command -v plasma-apply-colors >/dev/null && plasma-apply-colors --accent-color '#"
+                + hexColor.replace(/'/g, "") + "' || true",
+        ];
+        panelAccentProcess.start();
+    }
+
+    function applySmartColorFilter(hexColor) {
+        if (!cfg.SmartColorFromWallpaper || !hexColor || !root.configuration) {
+            return;
+        }
+        var nearest = Wallhaven.nearestWallhavenColor(hexColor);
+        if (nearest && root.configuration.ColorFilter !== nearest) {
+            root.configuration.ColorFilter = nearest;
+            scheduleConfigWrite();
+            logDebug("Smart color filter set to " + nearest);
+        }
+    }
+
+    function importPresetFromUrl(url) {
+        try {
+            var preset = Wallhaven.importPresetFromShareUrl(url);
+            if (!preset || !root.configuration) {
+                return;
+            }
+            Wallhaven.applyPresetToConfig(preset, root.configuration);
+            scheduleConfigWrite();
+            engine.showStatus(i18n("Imported preset %1.", preset.name || ""), "info");
+            engine.resetSlideshow();
+        } catch (e) {
+            engine.showStatus(i18n("Invalid preset URL."), "error");
+        }
+    }
+
+    function evaluateSlideshowRules() {
+        var shouldPause = false;
+        if (cfg.PauseOnBatteryLow && _batteryPercent >= 0
+                && _batteryPercent <= (cfg.BatteryLowThreshold || 20)) {
+            shouldPause = true;
+        }
+        if (cfg.PauseWhenInactive && Qt.application.state !== Qt.ApplicationActive) {
+            shouldPause = true;
+        }
+        if (shouldPause === _rulesPausedSlideshow) {
+            return;
+        }
+        _rulesPausedSlideshow = shouldPause;
+        if (!root.configuration) {
+            return;
+        }
+        if (shouldPause && !cfg.SlideshowPaused) {
+            root.configuration.SlideshowPaused = true;
+            scheduleConfigWrite();
+            intervalTimer.stop();
+            engine.showStatus(i18n("Slideshow paused by power/activity rules."), "info");
+        } else if (!shouldPause && cfg.SlideshowPaused && _rulesPausedSlideshow === false) {
+            // Only auto-resume if pause was from rules - keep simple: user resumes manually
+        }
     }
 
     function effectiveTransitionMode() {
@@ -677,14 +755,24 @@ WallpaperItem {
             logTail = xhr.responseText;
         }
         return Wallhaven.buildDebugBundle(cfg, {
-            version: "1.5.0",
+            version: "1.6.0",
             status: {
                 id: currentWallpaperId,
                 url: currentUrl,
                 paused: cfg.SlideshowPaused,
             },
+            metrics: _metrics,
             logTail: logTail.split("\n").slice(-40).join("\n"),
         });
+    }
+
+    function copyGithubIssue() {
+        try {
+            var bundle = JSON.parse(getDebugInfo());
+            copyToClipboard(bundle.githubIssue || getDebugInfo(), i18n("Copied GitHub issue template."));
+        } catch (e) {
+            copyDebugInfo();
+        }
     }
 
     function copyDebugInfo() {
@@ -1061,6 +1149,7 @@ WallpaperItem {
                 CollectionRotationJson: cfg.CollectionRotationJson,
                 CollectionRotationIndex: cfg.CollectionRotationIndex,
                 WallpaperOfDayEnabled: cfg.WallpaperOfDayEnabled,
+                TagFavoritesJson: cfg.TagFavoritesJson,
             };
         }
 
@@ -1419,6 +1508,7 @@ WallpaperItem {
                 var tint = Wallhaven.dominantColorFromWallhaven(json.data.colors);
                 if (tint) {
                     root.writePanelTint(tint, wallpaper.id);
+                    root.applySmartColorFilter(tint);
                 }
                 var tags = Wallhaven.formatTags(json.data.tags);
                 if (tags) {
@@ -1439,6 +1529,7 @@ WallpaperItem {
             root._pendingWallpaperId = wallpaper && wallpaper.id ? String(wallpaper.id) : "";
             var source = root.resolveImageSource(wallpaper, url);
             root._pendingUsedCache = source !== url && source.indexOf("file:") === 0;
+            _metrics = Wallhaven.recordFetchMetrics(_metrics, 0, root._pendingUsedCache);
             root.showImage(source, immediate);
             updateAttribution(wallpaper);
             writeVarietyMetadata(wallpaper, url);
@@ -2041,6 +2132,62 @@ WallpaperItem {
 
     Process { id: debugLogProcess }
 
+    Process {
+        id: panelAccentProcess
+    }
+
+    Timer {
+        id: batteryPollTimer
+        interval: 60000
+        running: root._configured && cfg.PauseOnBatteryLow
+        repeat: true
+        onTriggered: batteryPollProcess.start()
+    }
+
+    Process {
+        id: batteryPollProcess
+        property string batteryFile: diskCacheDir + "/battery-level.txt"
+        command: [
+            "python3", "-c",
+            "import glob,sys; out=sys.argv[1]; val=''\n"
+                + "for f in glob.glob('/sys/class/power_supply/BAT*/capacity'):\n"
+                + "  val=open(f).read().strip(); break\n"
+                + "open(out,'w').write(val)",
+            batteryFile,
+        ]
+        onFinished: function(exitCode) {
+            if (exitCode !== 0) {
+                return;
+            }
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "file://" + batteryFile);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== XMLHttpRequest.DONE) {
+                    return;
+                }
+                var pct = parseInt(String(xhr.responseText || "").trim(), 10);
+                if (!isNaN(pct)) {
+                    root._batteryPercent = pct;
+                    root.evaluateSlideshowRules();
+                }
+            };
+            xhr.send();
+        }
+    }
+
+    Connections {
+        target: Qt.application
+        function onStateChanged() {
+            root.evaluateSlideshowRules();
+            if (Qt.application.state !== Qt.ApplicationActive) {
+                return;
+            }
+            Qt.callLater(function() {
+                root.checkConnectivity();
+            });
+        }
+    }
+
     Timer {
         id: favoritesRefreshTimer
         interval: Math.max(60000, (cfg.FavoritesRefreshMin || 0) * 60000)
@@ -2115,6 +2262,22 @@ WallpaperItem {
                         root.configuration.WallpaperOfDayEnabled = false;
                         scheduleConfigWrite();
                         engine.resetSlideshow();
+                    }
+                    break;
+                case "open":
+                    if (root.currentPageUrl) {
+                        Qt.openUrlExternally(root.currentPageUrl);
+                    }
+                    break;
+                case "block":
+                    root.blockCurrentWallpaper();
+                    break;
+                case "copytags":
+                    root.copyCurrentTags();
+                    break;
+                case "importpreset":
+                    if (cmd.query) {
+                        root.importPresetFromUrl(cmd.query);
                     }
                     break;
                 default: break;
@@ -2523,18 +2686,6 @@ WallpaperItem {
         onTriggered: root.checkConnectivity()
     }
 
-    Connections {
-        target: Qt.application
-        function onStateChanged() {
-            if (Qt.application.state !== Qt.ApplicationActive) {
-                return;
-            }
-            Qt.callLater(function() {
-                root.checkConnectivity();
-            });
-        }
-    }
-
     Timer {
         id: retryTimer
         interval: 60000
@@ -2717,6 +2868,9 @@ WallpaperItem {
         scheduleConfigPreviewCapture();
         root.restartIntervalTimer();
         root.publishStatus();
+        if (cfg.PauseOnBatteryLow) {
+            batteryPollTimer.start();
+        }
         Qt.callLater(function() { root.checkConnectivity(); });
     }
 

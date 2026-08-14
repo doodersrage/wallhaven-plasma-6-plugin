@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Import Wallhaven Preset
+MimeType=x-scheme-handler/wallhaven;
+Exec=/home/USER/.local/share/wallhaven-plasma/tools/import-preset-url.sh %u
+NoDisplay=true

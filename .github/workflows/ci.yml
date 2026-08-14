@@ -24,7 +24,9 @@ jobs:
 
       - name: Validate tool scripts are executable
         run: |
-          chmod +x tools/wallhaven-ctl.sh tools/register-shortcuts.sh tools/variety-sync.sh tools/apply-panel-tint.sh
+          chmod +x tools/wallhaven-ctl.sh tools/register-shortcuts.sh tools/variety-sync.sh \
+            tools/apply-panel-tint.sh tools/import-preset-url.sh tools/variety-bridge.sh \
+            scripts/capture-screenshots.sh
           python3 -m py_compile tools/wallhaven-dbus.py
 
       - name: Build package
@@ -36,3 +38,5 @@ jobs:
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'metadata.json'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'plasmoid/contents/ui/main.qml'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'tools/wallhaven-dbus.py'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'share/wallhaven-preset.desktop.in'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'packaging/PKGBUILD'

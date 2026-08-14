@@ -18,6 +18,11 @@
   <url type="bugtracker">https://github.com/robertsm/wallhaven-plasma-6-plugin/issues</url>
   <launchable type="desktop-id">org.kde.plasmashell.desktop</launchable>
   <releases>
+    <release version="1.6.0" date="2026-08-14">
+      <description>
+        <p>MPRIS media controls, wallhaven:// preset URL handler, KRunner/plasmoid extras, auto panel accent, smart color search, slideshow rules, debug metrics, community presets, and downstream packaging stubs.</p>
+      </description>
+    </release>
     <release version="1.5.0" date="2026-08-14">
       <description>
         <p>Setup wizard, settings filter, wallpaper of the day, favorites refresh, debug log, cache manager with pins, adaptive preload, WebP filter, curated presets with share URLs, KRunner plugin, D-Bus player API, and automation examples.</p>

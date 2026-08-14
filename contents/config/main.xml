@@ -93,5 +93,11 @@
         <entry name="AdaptivePreloadEnabled" type="Bool"><default>true</default></entry>
         <entry name="PreloadCount" type="Int"><default>2</default></entry>
         <entry name="SettingsFilterHint" type="String"><default></default></entry>
+        <entry name="AutoPanelAccentEnabled" type="Bool"><default>false</default></entry>
+        <entry name="PauseOnBatteryLow" type="Bool"><default>false</default></entry>
+        <entry name="BatteryLowThreshold" type="Int"><default>20</default></entry>
+        <entry name="PauseWhenInactive" type="Bool"><default>false</default></entry>
+        <entry name="SmartColorFromWallpaper" type="Bool"><default>false</default></entry>
+        <entry name="TagFavoritesJson" type="String"><default>[]</default></entry>
     </group>
 </kcfg>

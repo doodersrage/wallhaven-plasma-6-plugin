@@ -140,6 +140,11 @@ ColumnLayout {
     property alias cfg_DebugLogEnabled: debugLogCheck.checked
     property alias cfg_AdaptivePreloadEnabled: adaptivePreloadCheck.checked
     property alias cfg_PreloadCount: preloadCountSpin.value
+    property alias cfg_AutoPanelAccentEnabled: autoPanelAccentCheck.checked
+    property alias cfg_PauseOnBatteryLow: pauseBatteryCheck.checked
+    property alias cfg_BatteryLowThreshold: batteryThresholdSpin.value
+    property alias cfg_PauseWhenInactive: pauseInactiveCheck.checked
+    property alias cfg_SmartColorFromWallpaper: smartColorCheck.checked
 
     property string settingsFilter: ""
     property bool showSetupWizard: wallpaperConfiguration
@@ -175,6 +180,46 @@ ColumnLayout {
             importExportStatus.text = i18n("Imported %1 curated preset(s).", curated.length);
         };
         xhr.send();
+    }
+
+    function importCommunityPresets() {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", Qt.resolvedUrl("../presets/community.json"));
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState !== XMLHttpRequest.DONE) {
+                return;
+            }
+            if (xhr.status !== 0 && xhr.status !== 200) {
+                importExportStatus.text = i18n("Could not load community presets.");
+                return;
+            }
+            var curated = Wallhaven.parseCuratedPresets(xhr.responseText);
+            var merged = Wallhaven.mergePresetLists(currentPresets(), curated);
+            persistPresets(merged);
+            importExportStatus.text = i18n("Imported %1 community preset(s).", curated.length);
+        };
+        xhr.send();
+    }
+
+    function importPresetFromUrlField() {
+        if (!presetUrlField.text.trim()) {
+            return;
+        }
+        if (liveWallpaper && liveWallpaper.importPresetFromUrl) {
+            liveWallpaper.importPresetFromUrl(presetUrlField.text.trim());
+            importExportStatus.text = i18n("Sent preset import request.");
+        }
+    }
+
+    function resetSetupWizard() {
+        if (!wallpaperConfiguration) {
+            return;
+        }
+        wallpaperConfiguration.SetupWizardCompleted = false;
+        if (wallpaperConfiguration.writeConfig) {
+            wallpaperConfiguration.writeConfig();
+        }
+        setupWizardCompletedFlag.value = false;
     }
 
     function shareSelectedPresetUrl() {
@@ -1116,6 +1161,46 @@ ColumnLayout {
                 }
 
                 QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Import community:")
+                    text: i18n("Import community presets")
+                    visible: parent.searchFilters
+                    onClicked: root.importCommunityPresets()
+                }
+
+                QtControls2.TextField {
+                    id: presetUrlField
+                    Kirigami.FormData.label: i18n("Preset URL:")
+                    placeholderText: i18n("wallhaven://preset/…")
+                    visible: parent.searchFilters
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Import URL:")
+                    text: i18n("Import preset from URL")
+                    visible: parent.searchFilters
+                    enabled: presetUrlField.text.trim() !== "" && liveWallpaper !== null
+                    onClicked: root.importPresetFromUrlField()
+                }
+
+                QtControls2.TextField {
+                    id: tagFavoritesField
+                    Kirigami.FormData.label: i18n("Favorite tags:")
+                    placeholderText: i18n("Comma-separated tags boosted in search")
+                    visible: parent.searchFilters
+                    text: Wallhaven.parseTagFavorites(wallpaperConfiguration ? wallpaperConfiguration.TagFavoritesJson || "[]" : "[]").join(", ")
+                    onEditingFinished: {
+                        if (!wallpaperConfiguration) {
+                            return;
+                        }
+                        var tags = text.split(",").map(function(t) { return t.trim(); }).filter(function(t) { return t; });
+                        wallpaperConfiguration.TagFavoritesJson = Wallhaven.serializeTagBlocklist(tags);
+                        if (wallpaperConfiguration.writeConfig) {
+                            wallpaperConfiguration.writeConfig();
+                        }
+                    }
+                }
+
+                QtControls2.Button {
                     Kirigami.FormData.label: i18n("Share preset:")
                     text: i18n("Copy preset share URL")
                     visible: parent.searchFilters
@@ -1265,6 +1350,43 @@ ColumnLayout {
                     id: panelTintCheck
                     Kirigami.FormData.label: i18n("Panel tint hint:")
                     text: i18n("Write dominant color JSON for external theming tools")
+                }
+
+                QtControls2.CheckBox {
+                    id: autoPanelAccentCheck
+                    Kirigami.FormData.label: i18n("Auto panel accent:")
+                    text: i18n("Apply accent color via plasma-apply-colors when available")
+                }
+
+                QtControls2.CheckBox {
+                    id: smartColorCheck
+                    Kirigami.FormData.label: i18n("Smart color search:")
+                    text: i18n("Set color filter from current wallpaper palette")
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Slideshow rules")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.CheckBox {
+                    id: pauseBatteryCheck
+                    Kirigami.FormData.label: i18n("Battery pause:")
+                    text: i18n("Pause slideshow on low battery")
+                }
+
+                QtControls2.SpinBox {
+                    id: batteryThresholdSpin
+                    Kirigami.FormData.label: i18n("Battery threshold (%):")
+                    from: 5
+                    to: 80
+                    enabled: pauseBatteryCheck.checked
+                }
+
+                QtControls2.CheckBox {
+                    id: pauseInactiveCheck
+                    Kirigami.FormData.label: i18n("Inactive pause:")
+                    text: i18n("Pause when Plasma session is inactive")
                 }
 
                 QtControls2.SpinBox {
@@ -1554,6 +1676,23 @@ ColumnLayout {
                             liveWallpaper.copyDebugInfo();
                         }
                     }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("GitHub issue:")
+                    text: i18n("Copy GitHub issue template")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.copyGithubIssue) {
+                            liveWallpaper.copyGithubIssue();
+                        }
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Setup wizard:")
+                    text: i18n("Show setup wizard again")
+                    onClicked: root.resetSetupWizard()
                 }
 
                 QtControls2.Label {

@@ -26,3 +26,15 @@ jobs:
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'krunner/org.robertsm.wallhaven.desktop'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/presets/curated.json'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'examples/plasma-shortcuts.md'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'packaging/PKGBUILD'
+
+  neon:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Neon container smoke (structure only)
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src ghcr.io/kde-neon/plasma:stable \
+            bash -c 'apt-get update -qq && apt-get install -y -qq nodejs >/dev/null && ./scripts/validate.sh && node tests/test-wallhaven.js'

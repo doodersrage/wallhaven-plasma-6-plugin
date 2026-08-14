@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Community — Cozy cabin",
+    "SearchText": "cabin cozy winter snow",
+    "Sortings": "random",
+    "Ratio": "landscape"
+  },
+  {
+    "name": "Community — Retro synth",
+    "SearchText": "retrowave synthwave 80s",
+    "Sortings": "toplist",
+    "TopRange": "1M"
+  },
+  {
+    "name": "Community — Ocean calm",
+    "SearchText": "ocean waves beach sunset",
+    "Sortings": "random",
+    "ColorFilter": "0066cc"
+  }
+]

@@ -100,8 +100,20 @@ function testWotdUrl() {
     assert(url.indexOf("toplist") !== -1 && url.indexOf("topRange=1d") !== -1, "wotd url");
 }
 
-[
-    testFileTypeFilter,
+function testMetrics() {
+    var m = Wallhaven.createMetricsState();
+    m = Wallhaven.recordFetchMetrics(m, 120, false);
+    assert(m.fetchCount === 1 && m.avgFetchMs === 120, "metrics");
+}
+
+function testImportPresetUrl() {
+    var preset = { name: "X", SearchText: "test" };
+    var url = Wallhaven.buildPresetShareUrl(preset);
+    var imported = Wallhaven.importPresetFromShareUrl(url);
+    assert(imported.name === "X", "preset url import");
+}
+
+[    testFileTypeFilter,
     testSimilarSearch,
     testIntervalJitter,
     testControlBus,
@@ -115,6 +127,8 @@ function testWotdUrl() {
     testPresetShare,
     testPreloadCount,
     testWotdUrl,
+    testMetrics,
+    testImportPresetUrl,
 ].forEach(function(run) {
     run();
 });

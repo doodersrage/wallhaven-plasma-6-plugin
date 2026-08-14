@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.6.0 — 2026-08-14
+
+### Added
+- **Full MPRIS** (`org.mpris.MediaPlayer2.wallhaven`) for KDE Connect/media keys
+- **`wallhaven://preset/` URL handler** + import from settings
+- **KRunner extras** — open, block, copy tags
+- **Plasmoid context menu** — open, block, copy tags
+- **Auto panel accent** via `plasma-apply-colors`
+- **Smart color search** from wallpaper palette
+- **Favorite tags** boosted in search queries
+- **Slideshow rules** — pause on low battery or inactive session
+- **GitHub issue template** in debug bundle
+- **Performance metrics** in status + debug export
+- **Community presets** pack + variety bridge script
+- **Packaging stubs** — AUR PKGBUILD, RPM spec
+- **Screenshot capture script** + Neon nightly CI extension
+
 ## 1.5.0 — 2026-08-14
 
 ### Added
