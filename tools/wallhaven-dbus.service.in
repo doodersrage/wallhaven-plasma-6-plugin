@@ -1,0 +1,12 @@
+[Unit]
+Description=Wallhaven wallpaper D-Bus control service
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 @INSTALL_DIR@/tools/wallhaven-dbus.py
+Restart=on-failure
+Environment=WALLHAVEN_SYNC_GROUP=default
+
+[Install]
+WantedBy=default.target

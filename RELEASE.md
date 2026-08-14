@@ -1,47 +1,56 @@
-# Release checklist
+# Release
 
-## Before tagging
+Most steps are automated via `dev-helper.sh` and GitHub Actions.
 
-1. Update version in `metadata.json` and `metainfo/org.robertsm.wallhaven.metainfo.xml`
-2. Add entry to `CHANGELOG.md`
-3. Run `./dev-helper.sh test`
-4. Run `./dev-helper.sh package`
-5. Capture screenshots (see `screenshots/README.md`)
-6. Confirm `preview.jpg` looks good in the wallpaper picker
-
-## Publish
-
-### GitHub Releases
+## One-command local release
 
 ```bash
-git tag v1.2.0
-git push origin v1.2.0
-gh release create v1.2.0 wallhaven-plasma-1.2.0.tar.xz \
-  --title "Wallhaven Plasma 1.2.0" \
-  --notes-file CHANGELOG.md
+./dev-helper.sh check
+./dev-helper.sh release          # tag vX.Y.Z, push, gh release + tarball
 ```
 
-### KDE Store
-
-1. Upload `wallhaven-plasma-1.2.0.tar.xz`
-2. Include AppStream metadata from `metainfo/`
-3. Attach 1–3 screenshots (1280×720 or wider)
-
-## Optional shortcuts
-
-Register global shortcuts manually:
+Dry run:
 
 ```bash
-./tools/register-shortcuts.sh
+./scripts/release.sh --dry-run
 ```
 
-Or run the D-Bus service:
+## One-command deploy (dev machine)
 
 ```bash
-python3 tools/wallhaven-dbus.py &
+./dev-helper.sh deploy
 ```
 
-Optional KGlobalAccel helper (requires KDE Frameworks dev packages):
+This validates, runs tests, installs the plugin + plasmoid, enables the user D-Bus
+service, and restarts plasmashell.
+
+## CI
+
+| Workflow | Trigger | Action |
+|----------|---------|--------|
+| `ci.yml` | push/PR to main | validate, test, package |
+| `release.yml` | push tag `v*` | validate, test, package, attach to GitHub Release |
+
+## Before bumping version
+
+1. Update `metadata.json`, `plasmoid/metadata.json`, `CHANGELOG.md`, `metainfo/`
+2. `./dev-helper.sh check && ./dev-helper.sh package`
+3. Capture screenshots (see `screenshots/README.md`) — manual
+4. `./dev-helper.sh release`
+
+## KDE Store
+
+Manual upload of `wallhaven-plasma-*.tar.xz` plus AppStream metadata and screenshots.
+No public KDE Store API automation is configured in this repo.
+
+## Shortcuts
+
+```bash
+./tools/register-shortcuts.sh     # documents Custom Shortcuts setup
+./dev-helper.sh dbus-install      # persistent D-Bus control (recommended)
+```
+
+Optional KGlobalAccel binary (requires KDE dev packages):
 
 ```bash
 cmake -S tools/wallhaven-shortcuts -B build-shortcuts
@@ -50,10 +59,9 @@ cmake --build build-shortcuts
 
 ## Translations
 
-Extract new strings when UI changes:
-
 ```bash
-./scripts/extract-messages.sh
+./dev-helper.sh extract-i18n      # refresh po/org.robertsm.wallhaven.pot
+./dev-helper.sh translations      # compile .po → contents/locale/
 ```
 
-Compile `.po` files to `.qm` and install under `contents/locale/` before packaging localized builds.
+Packaging auto-compiles translations when `po/*.po` exists.

@@ -1,0 +1,10 @@
+# Build artifacts
+wallhaven-plasma-*.tar.xz
+build-shortcuts/
+build/
+tools/__pycache__/
+
+# Editor / OS
+*.swp
+*~
+.DS_Store

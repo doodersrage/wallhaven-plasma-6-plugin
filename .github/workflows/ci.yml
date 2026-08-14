@@ -13,16 +13,8 @@ jobs:
 
       - name: Validate plugin structure
         run: |
-          test -f metadata.json
-          test -f contents/ui/main.qml
-          test -f contents/ui/config.qml
-          test -f contents/code/wallhaven.js
-          test -f contents/config/main.xml
-          test -f plasmoid/contents/ui/main.qml
-          test -f tools/wallhaven-ctl.sh
-          test -f tools/wallhaven-dbus.py
-          grep -q 'TagBlocklistJson' contents/config/main.xml
-          grep -q 'WallpaperHistoryJson' contents/config/main.xml
+          chmod +x scripts/validate.sh
+          ./scripts/validate.sh
 
       - name: Run wallhaven.js tests
         run: node tests/test-wallhaven.js

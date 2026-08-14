@@ -7,6 +7,8 @@ PLASMOID_ID="org.robertsm.wallhaven.control"
 INSTALL_DIR="${HOME}/.local/share/plasma/wallpapers/${PLUGIN_ID}"
 PLASMOID_DIR="${HOME}/.local/share/plasma/plasmoids/${PLASMOID_ID}"
 NOTIFY_DIR="${HOME}/.local/share/knotifications6"
+DATA_DIR="${HOME}/.local/share/wallhaven-plasma"
+SYSTEMD_USER="${HOME}/.config/systemd/user"
 
 usage() {
     cat <<EOF
@@ -15,13 +17,19 @@ Wallhaven Plasma 6 wallpaper helper
 Usage: $(basename "$0") <command>
 
 Commands:
-  install       Install wallpaper + plasmoid + notifyrc
-  uninstall     Remove user installation
-  restart       Restart plasmashell
-  package       Create distributable .tar.xz package
-  test          Run wallhaven.js unit tests
-  translations  Compile .po files to contents/locale/
-  help          Show this help
+  install         Install wallpaper + plasmoid + notifyrc
+  uninstall       Remove user installation
+  restart         Restart plasmashell
+  deploy          translations + install + dbus + restart
+  package         Create distributable .tar.xz package
+  test            Run wallhaven.js unit tests
+  check           Validate structure + run tests
+  release         Tag and publish GitHub release (see scripts/release.sh)
+  translations    Compile .po files to contents/locale/
+  extract-i18n    Extract translatable strings to po/*.pot
+  dbus-install    Install and enable user D-Bus service
+  dbus-uninstall  Disable and remove user D-Bus service
+  help            Show this help
 EOF
 }
 
@@ -43,18 +51,22 @@ install_plugin() {
     cp -r "${SCRIPT_DIR}/plasmoid/contents" "${PLASMOID_DIR}/"
     cp "${SCRIPT_DIR}/plasmoid/metadata.json" "${PLASMOID_DIR}/"
 
-    chmod +x "${SCRIPT_DIR}/tools/wallhaven-ctl.sh" 2>/dev/null || true
-    chmod +x "${SCRIPT_DIR}/tools/register-shortcuts.sh" 2>/dev/null || true
-    chmod +x "${SCRIPT_DIR}/tools/variety-sync.sh" 2>/dev/null || true
-    chmod +x "${SCRIPT_DIR}/tools/apply-panel-tint.sh" 2>/dev/null || true
-    chmod +x "${SCRIPT_DIR}/tools/wallhaven-dbus.py" 2>/dev/null || true
+    mkdir -p "${DATA_DIR}"
+    ln -sfn "${SCRIPT_DIR}" "${DATA_DIR}/source"
+    cp -a "${SCRIPT_DIR}/tools" "${DATA_DIR}/"
+
+    chmod +x "${DATA_DIR}/tools/wallhaven-ctl.sh" 2>/dev/null || true
+    chmod +x "${DATA_DIR}/tools/register-shortcuts.sh" 2>/dev/null || true
+    chmod +x "${DATA_DIR}/tools/variety-sync.sh" 2>/dev/null || true
+    chmod +x "${DATA_DIR}/tools/apply-panel-tint.sh" 2>/dev/null || true
+    chmod +x "${DATA_DIR}/tools/wallhaven-dbus.py" 2>/dev/null || true
 
     echo "Installed wallpaper to ${INSTALL_DIR}"
     echo "Installed plasmoid to ${PLASMOID_DIR}"
     if [[ -f "${NOTIFY_DIR}/${PLUGIN_ID}.notifyrc" ]]; then
         echo "Installed notifications to ${NOTIFY_DIR}/${PLUGIN_ID}.notifyrc"
     fi
-    echo "Restart plasmashell, pick 'Wallhaven' wallpaper, optionally add 'Wallhaven Control' widget."
+    echo "Tools linked at ${DATA_DIR}/tools"
 }
 
 uninstall_plugin() {
@@ -73,27 +85,63 @@ run_tests() {
     node "${SCRIPT_DIR}/tests/test-wallhaven.js"
 }
 
+run_check() {
+    "${SCRIPT_DIR}/scripts/validate.sh"
+    run_tests
+}
+
 compile_translations() {
     "${SCRIPT_DIR}/scripts/compile-translations.sh"
 }
 
+extract_i18n() {
+    "${SCRIPT_DIR}/scripts/extract-messages.sh"
+}
+
 package_plugin() {
+    if compgen -G "${SCRIPT_DIR}/po/*.po" >/dev/null; then
+        compile_translations
+    fi
     local version
     version="$(grep -Po '"Version"\s*:\s*"\K[^"]+' "${SCRIPT_DIR}/metadata.json")"
     local archive="${SCRIPT_DIR}/wallhaven-plasma-${version}.tar.xz"
-    local files=(contents metadata.json plasmoid tools)
+    local files=(contents metadata.json plasmoid tools metainfo)
     if [[ -f "${SCRIPT_DIR}/preview.jpg" ]]; then
         files+=(preview.jpg)
     fi
-    if [[ -d "${SCRIPT_DIR}/metainfo" ]]; then
-        files+=(metainfo)
-    fi
-    if [[ -d "${SCRIPT_DIR}/contents/locale" ]]; then
-        : # already under contents/
-    fi
     tar -cJf "${archive}" -C "${SCRIPT_DIR}" "${files[@]}"
     echo "Created ${archive}"
-    echo "See RELEASE.md for publish steps."
+}
+
+install_dbus_service() {
+    install_plugin
+    mkdir -p "${SYSTEMD_USER}"
+    sed "s|@INSTALL_DIR@|${DATA_DIR}|g" \
+        "${SCRIPT_DIR}/tools/wallhaven-dbus.service.in" \
+        > "${SYSTEMD_USER}/wallhaven-dbus.service"
+    systemctl --user daemon-reload
+    systemctl --user enable --now wallhaven-dbus.service
+    echo "D-Bus service enabled: wallhaven-dbus.service"
+    systemctl --user status wallhaven-dbus.service --no-pager || true
+}
+
+uninstall_dbus_service() {
+    systemctl --user disable --now wallhaven-dbus.service 2>/dev/null || true
+    rm -f "${SYSTEMD_USER}/wallhaven-dbus.service"
+    systemctl --user daemon-reload
+    echo "Removed wallhaven-dbus.service"
+}
+
+deploy_all() {
+    run_check
+    install_dbus_service
+    restart_plasma
+    echo "Deploy complete: plugin installed, D-Bus service running, plasmashell restarted"
+    echo "Add 'Wallhaven Control' widget; configure wallpaper in System Settings."
+}
+
+run_release() {
+    "${SCRIPT_DIR}/scripts/release.sh" "$@"
 }
 
 main() {
@@ -102,9 +150,15 @@ main() {
         install) install_plugin ;;
         uninstall) uninstall_plugin ;;
         restart) restart_plasma ;;
+        deploy) deploy_all ;;
         package) package_plugin ;;
         test) run_tests ;;
+        check) run_check ;;
+        release) shift; run_release "$@" ;;
         translations) compile_translations ;;
+        extract-i18n) extract_i18n ;;
+        dbus-install) install_dbus_service ;;
+        dbus-uninstall) uninstall_dbus_service ;;
         help|--help|-h) usage ;;
         *) echo "Unknown command: $1"; usage; exit 1 ;;
     esac

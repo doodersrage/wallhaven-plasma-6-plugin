@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate and test
+        run: |
+          chmod +x scripts/validate.sh dev-helper.sh scripts/release.sh
+          ./scripts/validate.sh
+          ./dev-helper.sh test
+
+      - name: Compile translations
+        run: |
+          if compgen -G "po/*.po" >/dev/null; then
+            chmod +x scripts/compile-translations.sh
+            ./dev-helper.sh translations
+          fi
+
+      - name: Build package
+        run: ./dev-helper.sh package
+
+      - name: Extract release notes
+        id: notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          {
+            echo "## Wallhaven Plasma ${version}"
+            echo
+            awk -v ver="${version}" '
+              $0 ~ "^## " ver " " { found=1; next }
+              found && /^## / { exit }
+              found { print }
+            ' CHANGELOG.md
+          } > release-notes.md
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: wallhaven-plasma-*.tar.xz
+          body_path: release-notes.md
+          generate_release_notes: false

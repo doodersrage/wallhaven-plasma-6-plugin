@@ -32,13 +32,13 @@ Optional: add **Wallhaven Control** widget to panel/desk.
 ## Commands
 
 ```bash
+./dev-helper.sh deploy            # validate, install, D-Bus service, restart
+./dev-helper.sh check             # validate + tests
+./dev-helper.sh release           # GitHub release for current version
 ./dev-helper.sh test
-./dev-helper.sh translations
 ./dev-helper.sh package
 ./tools/wallhaven-ctl.sh next
-python3 tools/wallhaven-dbus.py next    # one-shot
-./tools/variety-sync.sh ~/Pictures/Variety
-./tools/apply-panel-tint.sh
+python3 tools/wallhaven-dbus.py next
 ```
 
 ## Per-monitor profiles
