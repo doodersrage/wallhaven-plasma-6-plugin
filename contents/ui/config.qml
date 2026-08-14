@@ -1579,6 +1579,17 @@ ColumnLayout {
                     enabled: varietyFolderField.text !== ""
                 }
 
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Variety bridge:")
+                    text: i18n("Apply Variety search to Wallhaven")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.applyVarietySearch) {
+                            liveWallpaper.applyVarietySearch();
+                        }
+                    }
+                }
+
                 QtControls2.Label {
                     Kirigami.FormData.label: i18n("Cache status:")
                     wrapMode: Text.WordWrap

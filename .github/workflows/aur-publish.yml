@@ -1,0 +1,41 @@
+name: AUR publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      pkgname:
+        description: AUR package name
+        required: true
+        default: wallhaven-plasma-git
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: github.repository_owner != 'dependabot'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate packaging files
+        run: |
+          test -f packaging/PKGBUILD
+          grep -q 'wallhaven-plasma' packaging/PKGBUILD
+
+      - name: Publish to AUR (requires secret)
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          if [[ -z "${AUR_SSH_PRIVATE_KEY}" ]]; then
+            echo "Set repository secret AUR_SSH_PRIVATE_KEY to enable automated AUR publish."
+            exit 0
+          fi
+          eval "$(ssh-agent -s)"
+          echo "${AUR_SSH_PRIVATE_KEY}" | ssh-add -
+          mkdir -p ~/.ssh
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+          git clone "ssh://aur@aur.archlinux.org/${{ inputs.pkgname }}.git" aur-pkg
+          cp packaging/PKGBUILD aur-pkg/
+          cd aur-pkg
+          makepkg --printsrcinfo > .SRCINFO
+          git add PKGBUILD .SRCINFO
+          git diff --staged --quiet || git commit -m "Update to $(grep -Po 'pkgver=\K[^ ]+' ../packaging/PKGBUILD)"
+          git push

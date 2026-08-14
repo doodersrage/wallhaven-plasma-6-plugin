@@ -113,6 +113,11 @@ function testImportPresetUrl() {
     assert(imported.name === "X", "preset url import");
 }
 
+function testVarietyParse() {
+    var ini = "[preferences]\nimage_fetch_search = nature landscape\n";
+    assert(Wallhaven.parseVarietySearch(ini) === "nature landscape", "variety parse");
+}
+
 [    testFileTypeFilter,
     testSimilarSearch,
     testIntervalJitter,
@@ -129,6 +134,7 @@ function testImportPresetUrl() {
     testWotdUrl,
     testMetrics,
     testImportPresetUrl,
+    testVarietyParse,
 ].forEach(function(run) {
     run();
 });

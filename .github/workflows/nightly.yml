@@ -13,8 +13,9 @@ jobs:
 
       - name: Full check suite
         run: |
-          chmod +x scripts/validate.sh tests/validate-qml.sh dev-helper.sh
+          chmod +x scripts/validate.sh tests/validate-qml.sh dev-helper.sh scripts/sync-i18n.sh
           ./scripts/validate.sh
+          ./scripts/sync-i18n.sh
           ./tests/validate-qml.sh
           ./dev-helper.sh test
 

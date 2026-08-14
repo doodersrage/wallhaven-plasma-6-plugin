@@ -18,6 +18,11 @@
   <url type="bugtracker">https://github.com/robertsm/wallhaven-plasma-6-plugin/issues</url>
   <launchable type="desktop-id">org.kde.plasmashell.desktop</launchable>
   <releases>
+    <release version="1.7.0" date="2026-08-14">
+      <description>
+        <p>Full German translation, Variety bridge apply, live MPRIS metadata updates, screenshot capture workflow, and complete downstream packaging.</p>
+      </description>
+    </release>
     <release version="1.6.0" date="2026-08-14">
       <description>
         <p>MPRIS media controls, wallhaven:// preset URL handler, KRunner/plasmoid extras, auto panel accent, smart color search, slideshow rules, debug metrics, community presets, and downstream packaging stubs.</p>

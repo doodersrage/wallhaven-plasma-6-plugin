@@ -29,6 +29,7 @@ Commands:
   check           Validate structure + run tests
   release         Tag and publish GitHub release (see scripts/release.sh)
   translations    Compile .po files to contents/locale/
+  sync-i18n       Extract strings, refresh .po, compile .mo
   extract-i18n    Extract translatable strings to po/*.pot
   dbus-install    Install and enable user D-Bus service
   dbus-uninstall  Disable and remove user D-Bus service
@@ -130,7 +131,7 @@ package_plugin() {
     local version
     version="$(grep -Po '"Version"\s*:\s*"\K[^"]+' "${SCRIPT_DIR}/metadata.json")"
     local archive="${SCRIPT_DIR}/wallhaven-plasma-${version}.tar.xz"
-    local files=(contents metadata.json plasmoid tools krunner examples metainfo share packaging)
+    local files=(contents metadata.json plasmoid tools krunner examples metainfo share packaging po)
     if [[ -f "${SCRIPT_DIR}/preview.jpg" ]]; then
         files+=(preview.jpg)
     fi
@@ -181,6 +182,7 @@ main() {
         check) run_check ;;
         release) shift; run_release "$@" ;;
         translations) compile_translations ;;
+        sync-i18n) "${SCRIPT_DIR}/scripts/sync-i18n.sh" ;;
         extract-i18n) extract_i18n ;;
         dbus-install) install_dbus_service ;;
         dbus-uninstall) uninstall_dbus_service ;;

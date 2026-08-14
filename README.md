@@ -12,6 +12,16 @@ System Settings → Appearance → Wallpaper → **Wallhaven**
 
 Enable **Wallhaven** in System Settings → Search → Plasma Search (KRunner).
 
+## v1.7.0 highlights
+
+| Feature | Notes |
+|---------|--------|
+| German i18n | Full UI translation + `scripts/sync-i18n.sh` pipeline |
+| Variety apply | `--apply` flag + settings button imports Variety search |
+| Live MPRIS | Status file watcher updates media keys / KDE Connect UI |
+| Screenshots | Guided 6-shot capture script for KDE Store |
+| Packaging | Complete PKGBUILD/RPM + AUR workflow template |
+
 ## v1.6.0 highlights
 
 | Feature | Notes |
@@ -52,8 +62,9 @@ Enable **Wallhaven** in System Settings → Search → Plasma Search (KRunner).
 ./tools/wallhaven-ctl.sh search nature   # via D-Bus one-shot
 python3 tools/wallhaven-bot-example.py   # webhook example (optional)
 ./tools/variety-watch.sh ~/Pictures/Variety
-./tools/import-preset-url.sh 'wallhaven://preset/...'
-./tools/variety-bridge.sh
+./scripts/sync-i18n.sh              # extract + update de.po + compile .mo
+./scripts/capture-screenshots.sh --list
+./tools/variety-bridge.sh --apply
 ```
 
 See `examples/plasma-shortcuts.md` for Custom Shortcuts and D-Bus examples.

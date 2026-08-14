@@ -1,25 +1,41 @@
 # Maintainer: Wallhaven Plasma Port
 pkgname=wallhaven-plasma-git
-pkgver=1.6.0.r0
+pkgver=1.7.0.r0
 pkgrel=1
 pkgdesc="Wallhaven.cc wallpaper plugin for KDE Plasma 6"
 arch=('any')
 url="https://github.com/doodersrage/wallhaven-plasma-6-plugin"
 license=('GPL-2.0-or-later')
-depends=('plasma-framework' 'nodejs')
-makedepends=('git')
+depends=('plasma-framework' 'nodejs' 'python-dbus' 'python-gobject')
+optdepends=(
+    'kwallet: API key storage'
+    'spectacle: screenshot capture helper'
+    'variety: wallpaper bridge'
+)
+makedepends=('git' 'gettext')
 source=("git+${url}.git")
 sha256sums=('SKIP')
 
 package() {
     cd "${srcdir}/wallhaven-plasma-6-plugin"
-    install -dm755 "${pkgdir}/usr/share/plasma/wallpapers/org.robertsm.wallhaven"
-    cp -r contents metadata.json "${pkgdir}/usr/share/plasma/wallpapers/org.robertsm.wallhaven/"
+    local wp="${pkgdir}/usr/share/plasma/wallpapers/org.robertsm.wallhaven"
+    install -dm755 "${wp}"
+    cp -r contents metadata.json "${wp}/"
     install -dm755 "${pkgdir}/usr/share/plasma/plasmoids/org.robertsm.wallhaven.control"
     cp -r plasmoid/contents plasmoid/metadata.json "${pkgdir}/usr/share/plasma/plasmoids/org.robertsm.wallhaven.control/"
     install -Dm644 krunner/org.robertsm.wallhaven.desktop \
         "${pkgdir}/usr/share/krunner/dplugins/org.robertsm.wallhaven.desktop"
+    install -Dm644 metainfo/org.robertsm.wallhaven.metainfo.xml \
+        "${pkgdir}/usr/share/metainfo/org.robertsm.wallhaven.metainfo.xml"
+    install -Dm644 contents/notifications/org.robertsm.wallhaven.notifyrc \
+        "${pkgdir}/usr/share/knotifications6/org.robertsm.wallhaven.notifyrc"
     install -dm755 "${pkgdir}/usr/share/wallhaven-plasma/tools"
     cp -r tools/* "${pkgdir}/usr/share/wallhaven-plasma/tools/"
     chmod +x "${pkgdir}/usr/share/wallhaven-plasma/tools/"*.sh "${pkgdir}/usr/share/wallhaven-plasma/tools/"*.py 2>/dev/null || true
+    install -Dm644 tools/wallhaven-dbus.service.in \
+        "${pkgdir}/usr/share/wallhaven-plasma/tools/wallhaven-dbus.service.in"
+    install -Dm644 share/wallhaven-preset.desktop.in \
+        "${pkgdir}/usr/share/applications/wallhaven-preset.desktop"
+    sed -i "s|/home/USER/.local/share/wallhaven-plasma/tools|/usr/share/wallhaven-plasma/tools|g" \
+        "${pkgdir}/usr/share/applications/wallhaven-preset.desktop"
 }

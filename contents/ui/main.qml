@@ -662,6 +662,12 @@ WallpaperItem {
         }
     }
 
+    function applyVarietySearch() {
+        var path = StandardPaths.writableLocation(StandardPaths.HomeLocation)
+            + "/.config/variety/variety.conf";
+        varietyConfLoader.load(path);
+    }
+
     function evaluateSlideshowRules() {
         var shouldPause = false;
         if (cfg.PauseOnBatteryLow && _batteryPercent >= 0
@@ -2221,6 +2227,37 @@ WallpaperItem {
                         updateVarietySymlink(meta.localPath);
                     }
                 } catch (e) {
+                }
+            };
+            xhr.send();
+        }
+    }
+
+    QtObject {
+        id: varietyConfLoader
+        function load(path) {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "file://" + path);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== XMLHttpRequest.DONE) {
+                    return;
+                }
+                if (xhr.status !== 0 && xhr.status !== 200) {
+                    engine.showStatus(i18n("No Variety config found."), "warn");
+                    return;
+                }
+                var search = Wallhaven.parseVarietySearch(xhr.responseText);
+                if (!search) {
+                    engine.showStatus(i18n("No image_fetch_search in Variety config."), "warn");
+                    return;
+                }
+                if (root.configuration) {
+                    root.configuration.BrowseMode = "search";
+                    root.configuration.SearchText = search;
+                    root.configuration.WallpaperOfDayEnabled = false;
+                    scheduleConfigWrite();
+                    engine.resetSlideshow();
+                    engine.showStatus(i18n("Applied Variety search: %1", search), "info");
                 }
             };
             xhr.send();

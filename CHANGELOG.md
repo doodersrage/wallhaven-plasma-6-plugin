@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.7.0 — 2026-08-14
+
+### Added
+- **Full German translation** (~390 UI strings) with extract/sync/compile pipeline
+- **Variety bridge `--apply`** + settings button to push Variety search to Wallhaven
+- **Live MPRIS metadata** — D-Bus watches status file for KDE Connect/media UI updates
+- **Screenshot capture v2** — guided 6-shot checklist for KDE Store assets
+- **Complete packaging** — PKGBUILD/RPM install locale, metainfo, notifyrc, tools, preset handler
+- **AUR publish workflow template** (manual trigger + SSH secret)
+
+### Fixed
+- **i18n extract** no longer embeds source file paths in msgids
+
 ## 1.6.0 — 2026-08-14
 
 ### Added

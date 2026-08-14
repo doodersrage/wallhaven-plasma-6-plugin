@@ -707,6 +707,30 @@ function buildControlCommand(cmd, group, query) {
     return JSON.stringify(payload);
 }
 
+function parseVarietySearch(iniText) {
+    if (!iniText) {
+        return "";
+    }
+    var lines = String(iniText).split("\n");
+    var inPrefs = false;
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].replace(/^\s+|\s+$/g, "");
+        if (line === "[preferences]") {
+            inPrefs = true;
+            continue;
+        }
+        if (line.length && line.charAt(0) === "[") {
+            inPrefs = false;
+            continue;
+        }
+        if (inPrefs && line.indexOf("image_fetch_search") === 0) {
+            var parts = line.split("=", 2);
+            return parts.length > 1 ? parts[1].replace(/^\s+|\s+$/g, "") : "";
+        }
+    }
+    return "";
+}
+
 function parseSyncAdvance(raw) {
     if (!raw) {
         return null;

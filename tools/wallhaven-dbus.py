@@ -29,6 +29,7 @@ RUNNER_IFACE = "org.kde.krunner1"
 PLAYER_IFACE = "org.robertsm.Wallhaven.Player"
 MPRIS_IFACE = "org.mpris.MediaPlayer2"
 MPRIS_PLAYER_IFACE = "org.mpris.MediaPlayer2.Player"
+PROPERTIES_IFACE = "org.freedesktop.DBus.Properties"
 
 CACHE = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
 PLASMA_CACHE = os.path.join(CACHE, "plasmashell")
@@ -51,6 +52,37 @@ def read_status() -> dict:
             return json.load(handle)
     except OSError:
         return {}
+
+
+def status_signature(status: dict) -> str:
+    return json.dumps(
+        {
+            "id": status.get("id"),
+            "paused": status.get("paused"),
+            "slideshowActive": status.get("slideshowActive"),
+            "pageUrl": status.get("pageUrl"),
+            "thumbUrl": status.get("thumbUrl"),
+        },
+        sort_keys=True,
+    )
+
+
+def playback_status_from(status: dict) -> str:
+    if status.get("paused"):
+        return "Paused"
+    if status.get("slideshowActive"):
+        return "Playing"
+    return "Stopped"
+
+
+def metadata_from(status: dict) -> dict[str, dbus.Object]:
+    wall_id = str(status.get("id") or "current")
+    return {
+        "mpris:trackid": dbus.ObjectPath(f"/org/mpris/MediaPlayer2/wallhaven/track/{wall_id}"),
+        "xesam:title": dbus.String(f"Wallhaven #{wall_id}"),
+        "xesam:url": dbus.String(str(status.get("pageUrl") or "")),
+        "mpris:artUrl": dbus.String(str(status.get("thumbUrl") or "")),
+    }
 
 
 class WallhavenControl(dbus.service.Object):
@@ -107,7 +139,29 @@ class WallhavenPlayer(dbus.service.Object):
 class MprisMediaPlayer2(dbus.service.Object):
     def __init__(self, bus, group: str) -> None:
         self.group = group
+        self._status: dict = read_status()
+        self._status_key = status_signature(self._status)
         super().__init__(bus, MPRIS_PATH)
+
+    def refresh_status(self, force: bool = False) -> None:
+        status = read_status()
+        key = status_signature(status)
+        if not force and key == self._status_key:
+            return
+        self._status = status
+        self._status_key = key
+        self.PropertiesChanged(
+            MPRIS_IFACE,
+            {
+                "Metadata": metadata_from(status),
+                "PlaybackStatus": playback_status_from(status),
+            },
+            [],
+        )
+
+    @dbus.service.signal(PROPERTIES_IFACE, signature="sa{sv}as")
+    def PropertiesChanged(self, interface, changed, invalidated):  # noqa: N802
+        pass
 
     @dbus.service.method(MPRIS_IFACE, in_signature="", out_signature="")
     def Raise(self) -> None:
@@ -135,23 +189,11 @@ class MprisMediaPlayer2(dbus.service.Object):
 
     @dbus.service.property(MPRIS_IFACE, "s", emit_change_signal=True)
     def PlaybackStatus(self) -> str:
-        status = read_status()
-        if status.get("paused"):
-            return "Paused"
-        if status.get("slideshowActive"):
-            return "Playing"
-        return "Stopped"
+        return playback_status_from(self._status)
 
     @dbus.service.property(MPRIS_IFACE, "a{sv}", emit_change_signal=True)
     def Metadata(self) -> dict[str, dbus.Object]:
-        status = read_status()
-        wall_id = str(status.get("id") or "current")
-        return {
-            "mpris:trackid": dbus.ObjectPath(f"/org/mpris/MediaPlayer2/wallhaven/track/{wall_id}"),
-            "xesam:title": dbus.String(f"Wallhaven #{wall_id}"),
-            "xesam:url": dbus.String(str(status.get("pageUrl") or "")),
-            "mpris:artUrl": dbus.String(str(status.get("thumbUrl") or "")),
-        }
+        return metadata_from(self._status)
 
     @dbus.service.method(MPRIS_PLAYER_IFACE)
     def Next(self) -> None:
@@ -169,6 +211,30 @@ class MprisMediaPlayer2(dbus.service.Object):
     @dbus.service.method(MPRIS_PLAYER_IFACE)
     def Stop(self) -> None:
         write_command("pause", self.group)
+
+
+def watch_status_file(mpris: MprisMediaPlayer2) -> None:
+    def emit_if_changed(*_args) -> bool:
+        mpris.refresh_status()
+        return True
+
+    def attach(path: str) -> None:
+        if not os.path.isfile(path):
+            return
+        GLib.io_add_watch(path, GLib.IOCondition.IN_MODIFY, emit_if_changed)
+        mpris.refresh_status(force=True)
+
+    if os.path.isfile(STATUS_FILE):
+        attach(STATUS_FILE)
+        return
+
+    def wait_for_file() -> bool:
+        if os.path.isfile(STATUS_FILE):
+            attach(STATUS_FILE)
+            return False
+        return True
+
+    GLib.timeout_add_seconds(1, wait_for_file)
 
 
 class WallhavenRunner(dbus.service.Object):
@@ -245,7 +311,9 @@ def main() -> int:
     WallhavenControl(bus, group)
     WallhavenRunner(bus, group)
     WallhavenPlayer(bus, group)
-    MprisMediaPlayer2(bus, group)
+    mpris = MprisMediaPlayer2(bus, group)
+    watch_status_file(mpris)
+    GLib.timeout_add_seconds(2, lambda: mpris.refresh_status() or True)
     print(f"D-Bus services {SERVICE}, {MPRIS_SERVICE}")
     GLib.MainLoop().run()
     return 0

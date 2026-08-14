@@ -35,8 +35,9 @@ service, and restarts plasmashell.
 
 1. Update `metadata.json`, `plasmoid/metadata.json`, `CHANGELOG.md`, `metainfo/`
 2. `./dev-helper.sh check && ./dev-helper.sh package`
-3. Capture screenshots (see `screenshots/README.md`) — manual
-4. `./dev-helper.sh release`
+3. Capture screenshots: `./scripts/capture-screenshots.sh --list` then run interactively
+4. Sync translations: `./dev-helper.sh sync-i18n`
+5. `./dev-helper.sh release`
 
 ## KDE Store
 

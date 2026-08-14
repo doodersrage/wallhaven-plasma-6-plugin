@@ -16,6 +16,11 @@ jobs:
           chmod +x scripts/validate.sh
           ./scripts/validate.sh
 
+      - name: Sync translations
+        run: |
+          chmod +x scripts/sync-i18n.sh scripts/extract-messages.sh
+          ./scripts/sync-i18n.sh
+
       - name: Run wallhaven.js tests
         run: node tests/test-wallhaven.js
 
@@ -26,7 +31,7 @@ jobs:
         run: |
           chmod +x tools/wallhaven-ctl.sh tools/register-shortcuts.sh tools/variety-sync.sh \
             tools/apply-panel-tint.sh tools/import-preset-url.sh tools/variety-bridge.sh \
-            scripts/capture-screenshots.sh
+            scripts/capture-screenshots.sh scripts/sync-i18n.sh
           python3 -m py_compile tools/wallhaven-dbus.py
 
       - name: Build package
@@ -40,3 +45,6 @@ jobs:
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'tools/wallhaven-dbus.py'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'share/wallhaven-preset.desktop.in'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'packaging/PKGBUILD'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/locale/de/LC_MESSAGES/org.robertsm.wallhaven.mo'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'po/de.po'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'metainfo/org.robertsm.wallhaven.metainfo.xml'

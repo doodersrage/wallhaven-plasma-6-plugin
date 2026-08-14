@@ -9,7 +9,7 @@ mkdir -p "${ROOT}/po"
 extract_strings() {
     local dir="$1"
     if [[ -d "${dir}" ]]; then
-        rg -o 'i18n\("[^"]*"' "${dir}" 2>/dev/null | sed 's/i18n("//;s/"$//' || true
+        rg --no-filename -o 'i18n\("[^"]*"' "${dir}" 2>/dev/null | sed 's/i18n("//;s/"$//' || true
     fi
 }
 
