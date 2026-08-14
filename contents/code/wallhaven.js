@@ -183,11 +183,15 @@ var EXPORTABLE_SETTINGS_KEYS = [
     "AttributionAutoHideSec", "AttributionFontScale", "UseKWalletForApiKey",
     "MeteredCacheOnly", "SyncAdvanceEnabled", "SyncAdvanceGroup",
     "VarietyMetadataEnabled", "ControlBusEnabled",
+    "TagBlocklistJson", "ScheduleEnabled", "WeekdaySearch", "WeekendSearch",
+    "CollectionRotationEnabled", "CollectionRotationJson",
+    "SyncLockScreen", "PanelTintEnabled", "ParallaxEnabled", "ParallaxStrength",
+    "VarietyFolderPath", "VarietySymlinkEnabled",
 ];
 
 function exportSettingsSnapshot(cfg) {
     var snapshot = {
-        version: 2,
+        version: 3,
         plugin: "org.robertsm.wallhaven",
         exportedAt: new Date().toISOString(),
         settings: {},
@@ -288,7 +292,59 @@ function appendSearchModifiers(query, cfg) {
     if (cfg.FileTypeFilter === "jpg" || cfg.FileTypeFilter === "png") {
         query = (query ? query + " " : "") + "type:" + cfg.FileTypeFilter;
     }
+    if (cfg.TagBlocklistJson) {
+        query = appendTagBlocklist(query, parseTagBlocklist(cfg.TagBlocklistJson));
+    }
     return query.trim();
+}
+
+function parseTagBlocklist(raw) {
+    if (!raw) {
+        return [];
+    }
+    try {
+        var parsed = JSON.parse(raw);
+        if (!parsed || !parsed.length) {
+            return [];
+        }
+        return parsed.map(function(tag) {
+            return String(tag || "").trim().replace(/\s+/g, "_");
+        }).filter(function(tag) { return tag.length > 0; });
+    } catch (e) {
+        return [];
+    }
+}
+
+function serializeTagBlocklist(tags) {
+    if (!tags || !tags.length) {
+        return "[]";
+    }
+    var cleaned = [];
+    for (var i = 0; i < tags.length; i++) {
+        var tag = String(tags[i] || "").trim();
+        if (tag && cleaned.indexOf(tag) === -1) {
+            cleaned.push(tag);
+        }
+    }
+    return JSON.stringify(cleaned);
+}
+
+function appendTagBlocklist(query, tags) {
+    query = String(query || "").trim();
+    if (!tags || !tags.length) {
+        return query;
+    }
+    for (var i = 0; i < tags.length; i++) {
+        if (tags[i]) {
+            query += " -" + tags[i];
+        }
+    }
+    return query.trim();
+}
+
+function isWeekend() {
+    var day = new Date().getDay();
+    return day === 0 || day === 6;
 }
 
 function buildSimilarSearchQuery(wallpaperId) {
@@ -478,7 +534,10 @@ function getEffectiveSearchText(cfg) {
     if (cfg.TimeOfDayEnabled) {
         var hour = new Date().getHours();
         var isDay = hour >= 6 && hour < 20;
-        return isDay ? cfg.DaySearch : cfg.NightSearch;
+        return isDay ? (cfg.DaySearch || "") : (cfg.NightSearch || "");
+    }
+    if (cfg.ScheduleEnabled) {
+        return isWeekend() ? (cfg.WeekendSearch || "") : (cfg.WeekdaySearch || "");
     }
     return cfg.SearchText || "";
 }
@@ -630,6 +689,189 @@ function buildSyncAdvance(issuer) {
         advanceAt: Date.now(),
         issuer: issuer || "wallhaven",
     });
+}
+
+function parseCollectionRotation(raw) {
+    if (!raw) {
+        return [];
+    }
+    try {
+        var parsed = JSON.parse(raw);
+        if (!parsed || !parsed.length) {
+            return [];
+        }
+        var results = [];
+        for (var i = 0; i < parsed.length; i++) {
+            var entry = parsed[i];
+            if (!entry || !entry.user || !entry.id) {
+                continue;
+            }
+            results.push({
+                user: String(entry.user).trim(),
+                id: String(entry.id).trim(),
+                label: entry.label ? String(entry.label) : "",
+            });
+        }
+        return results;
+    } catch (e) {
+        return [];
+    }
+}
+
+function serializeCollectionRotation(entries) {
+    if (!entries || !entries.length) {
+        return "[]";
+    }
+    return JSON.stringify(entries);
+}
+
+function parseCollectionRotationLines(text) {
+    var lines = String(text || "").split(/\r?\n/);
+    var results = [];
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line || line.charAt(0) === "#") {
+            continue;
+        }
+        var parts = line.split(/[\/:]/);
+        if (parts.length < 2) {
+            continue;
+        }
+        results.push({
+            user: parts[0].trim(),
+            id: parts[1].trim(),
+            label: parts.slice(2).join(":").trim(),
+        });
+    }
+    return results;
+}
+
+function formatCollectionRotationLines(entries) {
+    if (!entries || !entries.length) {
+        return "";
+    }
+    return entries.map(function(entry) {
+        var line = entry.user + "/" + entry.id;
+        if (entry.label) {
+            line += "  # " + entry.label;
+        }
+        return line;
+    }).join("\n");
+}
+
+function pickCollectionRotation(entries, index) {
+    if (!entries || !entries.length) {
+        return null;
+    }
+    var idx = Math.max(0, parseInt(index, 10) || 0) % entries.length;
+    return {
+        entry: entries[idx],
+        index: idx,
+        nextIndex: (idx + 1) % entries.length,
+    };
+}
+
+function parseWallpaperHistory(raw) {
+    if (!raw) {
+        return [];
+    }
+    try {
+        var parsed = JSON.parse(raw);
+        if (!parsed || !parsed.length) {
+            return [];
+        }
+        return parsed.filter(function(entry) {
+            return entry && entry.id;
+        }).map(function(entry) {
+            return {
+                id: String(entry.id),
+                thumbUrl: entry.thumbUrl ? String(entry.thumbUrl) : thumbUrlForId(String(entry.id)),
+                ts: parseInt(entry.ts, 10) || 0,
+            };
+        });
+    } catch (e) {
+        return [];
+    }
+}
+
+function serializeWallpaperHistory(entries, maxEntries) {
+    maxEntries = maxEntries || 30;
+    if (!entries || !entries.length) {
+        return "[]";
+    }
+    var slice = entries.slice(-maxEntries);
+    return JSON.stringify(slice);
+}
+
+function appendWallpaperHistory(history, entry, maxEntries) {
+    history = history ? history.slice() : [];
+    if (!entry || !entry.id) {
+        return history;
+    }
+    var id = String(entry.id);
+    for (var i = history.length - 1; i >= 0; i--) {
+        if (history[i].id === id) {
+            history.splice(i, 1);
+        }
+    }
+    history.push({
+        id: id,
+        thumbUrl: entry.thumbUrl || thumbUrlForId(id),
+        ts: entry.ts || Date.now(),
+    });
+    maxEntries = maxEntries || 30;
+    if (history.length > maxEntries) {
+        history = history.slice(-maxEntries);
+    }
+    return history;
+}
+
+function buildStatusSnapshot(data) {
+    return JSON.stringify({
+        id: data.id || "",
+        thumbUrl: data.thumbUrl || "",
+        paused: !!data.paused,
+        slideshowActive: !!data.slideshowActive,
+        nextChangeMs: Math.max(0, parseInt(data.nextChangeMs, 10) || 0),
+        attribution: data.attribution || "",
+        syncGroup: data.syncGroup || "default",
+        updatedAt: new Date().toISOString(),
+    }, null, 2);
+}
+
+function pickTransitionMode(cfg) {
+    var mode = cfg && cfg.TransitionMode ? String(cfg.TransitionMode) : "crossfade";
+    if (mode !== "random") {
+        return mode;
+    }
+    var modes = ["crossfade", "fadeblack", "slide", "zoom"];
+    return modes[Math.floor(Math.random() * modes.length)];
+}
+
+function dominantColorFromWallhaven(colors) {
+    if (!colors || !colors.length) {
+        return "";
+    }
+    var first = colors[0];
+    if (typeof first === "string") {
+        return String(first).replace("#", "").trim().toLowerCase();
+    }
+    if (first && first.hex) {
+        return String(first.hex).replace("#", "").trim().toLowerCase();
+    }
+    return "";
+}
+
+function buildPanelTintMetadata(hexColor, wallpaperId) {
+    return JSON.stringify({
+        wallpaperId: wallpaperId ? String(wallpaperId) : "",
+        color: hexColor || "",
+        updatedAt: new Date().toISOString(),
+    }, null, 2);
+}
+
+function varietySymlinkName() {
+    return "wallhaven-current.jpg";
 }
 
 // Wallhaven only accepts these palette values for the colors= filter.

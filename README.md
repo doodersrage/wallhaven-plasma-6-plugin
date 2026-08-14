@@ -13,25 +13,21 @@ System Settings → Appearance → Wallpaper → **Wallhaven**
 
 Optional: add **Wallhaven Control** widget to panel/desk.
 
-## v1.3.0 highlights
+## v1.4.0 highlights
 
 | Feature | Notes |
 |---------|--------|
-| Similar wallpapers | Desktop action + `like:` search |
-| File type filter | JPEG / PNG in Filters |
-| Search test + API key test | Source tab |
-| Details panel | Views, favorites, tags in settings preview |
-| Slideshow jitter | ±% randomness |
-| Day/night intervals | Override base interval by time |
-| Fade-through-black | Transition mode in Playback |
-| Attribution tuning | Corner, auto-hide, font scale |
-| Control bus | `tools/wallhaven-ctl.sh next\|prev\|reload\|pause` |
-| Sync advance | Multi-monitor same group |
-| Metered mode | Cache-only on cellular |
-| KWallet | Optional API key load |
-| Variety metadata | JSON for external tools |
-| Export settings | Clipboard or file |
-| Plasmoid | `org.robertsm.wallhaven.control` |
+| Tag blocklist | Comma-separated tags excluded from search |
+| Weekday/weekend schedule | Separate searches Mon–Fri vs Sat–Sun |
+| Collection rotation | `user/id` list, cycles on each advance |
+| History gallery | Re-open recent wallpapers from settings |
+| Lock screen sync | Uses cached image via `kscreenlockerrc` |
+| Transitions | Slide, zoom, random + parallax offset |
+| Panel tint hint | Writes dominant color JSON for theming tools |
+| Variety symlink | `wallhaven-current.jpg` in a folder you choose |
+| Plasmoid v2 | Thumbnail, countdown, pause indicator |
+| D-Bus | `python3 tools/wallhaven-dbus.py` (session service) |
+| Global shortcuts | `./tools/register-shortcuts.sh` or optional C++ helper |
 
 ## Commands
 
@@ -40,7 +36,14 @@ Optional: add **Wallhaven Control** widget to panel/desk.
 ./dev-helper.sh translations
 ./dev-helper.sh package
 ./tools/wallhaven-ctl.sh next
+python3 tools/wallhaven-dbus.py next    # one-shot
+./tools/variety-sync.sh ~/Pictures/Variety
+./tools/apply-panel-tint.sh
 ```
+
+## Per-monitor profiles
+
+Set a **different sync group + search** on each screen in wallpaper settings, or the **same group** to advance together.
 
 ## Flatpak
 

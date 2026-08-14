@@ -18,9 +18,19 @@ jobs:
           test -f contents/ui/config.qml
           test -f contents/code/wallhaven.js
           test -f contents/config/main.xml
+          test -f plasmoid/contents/ui/main.qml
+          test -f tools/wallhaven-ctl.sh
+          test -f tools/wallhaven-dbus.py
+          grep -q 'TagBlocklistJson' contents/config/main.xml
+          grep -q 'WallpaperHistoryJson' contents/config/main.xml
 
       - name: Run wallhaven.js tests
         run: node tests/test-wallhaven.js
+
+      - name: Validate tool scripts are executable
+        run: |
+          chmod +x tools/wallhaven-ctl.sh tools/register-shortcuts.sh tools/variety-sync.sh tools/apply-panel-tint.sh
+          python3 -m py_compile tools/wallhaven-dbus.py
 
       - name: Build package
         run: ./dev-helper.sh package
@@ -29,3 +39,5 @@ jobs:
         run: |
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/ui/main.qml'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'metadata.json'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'plasmoid/contents/ui/main.qml'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'tools/wallhaven-dbus.py'

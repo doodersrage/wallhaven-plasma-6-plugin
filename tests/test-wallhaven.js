@@ -44,12 +44,54 @@ function testBase64() {
     assert(encoded.length > 0, "base64 encode");
 }
 
+function testTagBlocklist() {
+    var tags = Wallhaven.parseTagBlocklist('["nsfw","text"]');
+    assert(tags.length === 2, "tag parse");
+    var query = Wallhaven.appendTagBlocklist("nature", tags);
+    assert(query.indexOf("-nsfw") !== -1 && query.indexOf("-text") !== -1, "tag append");
+}
+
+function testSchedule() {
+    var cfg = { ScheduleEnabled: true, WeekdaySearch: "weekday", WeekendSearch: "weekend" };
+    var text = Wallhaven.getEffectiveSearchText(cfg);
+    assert(text === "weekday" || text === "weekend", "schedule search");
+}
+
+function testCollectionRotation() {
+    var lines = "alice/42 # fav\nbob/7";
+    var entries = Wallhaven.parseCollectionRotationLines(lines);
+    assert(entries.length === 2 && entries[0].user === "alice", "rotation lines");
+    var pick = Wallhaven.pickCollectionRotation(entries, 1);
+    assert(pick.entry.id === "7", "rotation pick");
+}
+
+function testHistory() {
+    var history = Wallhaven.appendWallpaperHistory([], { id: "abc", ts: 1 }, 5);
+    assert(history.length === 1 && history[0].id === "abc", "history append");
+}
+
+function testTransitionPick() {
+    var mode = Wallhaven.pickTransitionMode({ TransitionMode: "crossfade" });
+    assert(mode === "crossfade", "fixed transition");
+}
+
+function testPanelTint() {
+    var hex = Wallhaven.dominantColorFromWallhaven(["660000", "ffffff"]);
+    assert(hex === "660000", "dominant color");
+}
+
 [
     testFileTypeFilter,
     testSimilarSearch,
     testIntervalJitter,
     testControlBus,
     testBase64,
+    testTagBlocklist,
+    testSchedule,
+    testCollectionRotation,
+    testHistory,
+    testTransitionPick,
+    testPanelTint,
 ].forEach(function(run) {
     run();
 });

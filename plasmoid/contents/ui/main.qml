@@ -9,8 +9,18 @@ import org.kde.kirigami as Kirigami
 PlasmoidItem {
     id: root
 
-    readonly property string controlFile: StandardPaths.writableLocation(StandardPaths.CacheLocation)
-        + "/wallhaven-control.json"
+    readonly property string cacheDir: StandardPaths.writableLocation(StandardPaths.CacheLocation)
+    readonly property string controlFile: cacheDir + "/wallhaven-control.json"
+    readonly property string statusFile: cacheDir + "/wallhaven-status.json"
+
+    property var statusData: ({
+        id: "",
+        thumbUrl: "",
+        paused: false,
+        slideshowActive: false,
+        nextChangeMs: 0,
+    })
+    property int countdownMs: 0
 
     function sendCommand(cmd) {
         var payload = JSON.stringify({
@@ -27,17 +37,121 @@ PlasmoidItem {
         writeProcess.start();
     }
 
+    function loadStatus() {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", "file://" + statusFile);
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState !== XMLHttpRequest.DONE) {
+                return;
+            }
+            if (xhr.status !== 0 && xhr.status !== 200) {
+                return;
+            }
+            try {
+                var parsed = JSON.parse(xhr.responseText);
+                if (!parsed) {
+                    return;
+                }
+                statusData = {
+                    id: parsed.id || "",
+                    thumbUrl: parsed.thumbUrl || "",
+                    paused: !!parsed.paused,
+                    slideshowActive: !!parsed.slideshowActive,
+                    nextChangeMs: Math.max(0, parseInt(parsed.nextChangeMs, 10) || 0),
+                };
+                countdownMs = statusData.nextChangeMs;
+            } catch (e) {
+            }
+        };
+        xhr.send();
+    }
+
+    function formatCountdown(ms) {
+        if (ms <= 0 || statusData.paused || !statusData.slideshowActive) {
+            return statusData.paused ? i18n("Paused") : i18n("Manual");
+        }
+        var totalSec = Math.ceil(ms / 1000);
+        var min = Math.floor(totalSec / 60);
+        var sec = totalSec % 60;
+        return min + ":" + (sec < 10 ? "0" : "") + sec;
+    }
+
     Process { id: writeProcess }
+
+    Timer {
+        interval: 1000
+        running: true
+        repeat: true
+        onTriggered: {
+            root.loadStatus();
+            if (countdownMs > 0 && !statusData.paused) {
+                countdownMs = Math.max(0, countdownMs - 1000);
+            }
+        }
+    }
+
+    Component.onCompleted: loadStatus()
 
     preferredRepresentation: fullRepresentation
 
     fullRepresentation: RowLayout {
         spacing: Kirigami.Units.smallSpacing
 
-        PlasmaCore.IconItem {
-            source: "preferences-desktop-wallpaper"
-            Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium
-            Layout.preferredHeight: width
+        Item {
+            Layout.preferredWidth: Kirigami.Units.iconSizes.large
+            Layout.preferredHeight: Kirigami.Units.iconSizes.large
+
+            Image {
+                anchors.fill: parent
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                visible: statusData.thumbUrl !== ""
+                source: statusData.thumbUrl
+            }
+
+            PlasmaCore.IconItem {
+                anchors.centerIn: parent
+                visible: statusData.thumbUrl === ""
+                source: "preferences-desktop-wallpaper"
+                width: Kirigami.Units.iconSizes.medium
+                height: width
+            }
+
+            Rectangle {
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                radius: 3
+                color: "#000000"
+                opacity: 0.65
+                visible: statusData.id !== ""
+                width: idLabel.implicitWidth + 6
+                height: idLabel.implicitHeight + 2
+
+                QtControls2.Label {
+                    id: idLabel
+                    anchors.centerIn: parent
+                    color: "#ffffff"
+                    font.pointSize: 7
+                    text: statusData.id ? ("#" + statusData.id) : ""
+                }
+            }
+        }
+
+        ColumnLayout {
+            spacing: 0
+            Layout.alignment: Qt.AlignVCenter
+
+            QtControls2.Label {
+                font.pointSize: 8
+                opacity: 0.8
+                text: root.formatCountdown(root.countdownMs)
+            }
+
+            QtControls2.Label {
+                font.pointSize: 7
+                opacity: 0.65
+                text: statusData.paused ? i18n("Slideshow paused") : i18n("Wallhaven")
+            }
         }
 
         QtControls2.ToolButton {
@@ -54,9 +168,9 @@ PlasmoidItem {
         }
         QtControls2.ToolButton {
             display: QtControls2.AbstractButton.IconOnly
-            icon.name: "media-playback-pause"
-            ToolTip.text: i18n("Toggle slideshow pause")
-            onClicked: root.sendCommand("pause")
+            icon.name: statusData.paused ? "media-playback-start" : "media-playback-pause"
+            ToolTip.text: statusData.paused ? i18n("Resume slideshow") : i18n("Pause slideshow")
+            onClicked: root.sendCommand(statusData.paused ? "resume" : "pause")
         }
         QtControls2.ToolButton {
             display: QtControls2.AbstractButton.IconOnly

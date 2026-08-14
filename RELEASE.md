@@ -35,7 +35,18 @@ Register global shortcuts manually:
 ./tools/register-shortcuts.sh
 ```
 
-Or configure **System Settings → Shortcuts → Custom Shortcuts** using the commands printed by that script.
+Or run the D-Bus service:
+
+```bash
+python3 tools/wallhaven-dbus.py &
+```
+
+Optional KGlobalAccel helper (requires KDE Frameworks dev packages):
+
+```bash
+cmake -S tools/wallhaven-shortcuts -B build-shortcuts
+cmake --build build-shortcuts
+```
 
 ## Translations
 

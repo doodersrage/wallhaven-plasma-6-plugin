@@ -19,6 +19,8 @@ WallpaperItem {
     readonly property string controlBusFile: diskCacheDir + "/wallhaven-control.json"
     readonly property string varietyMetadataFile: diskCacheDir + "/wallhaven-variety.json"
     readonly property string settingsExportFile: diskCacheDir + "/wallhaven-settings-export.json"
+    readonly property string statusBusFile: diskCacheDir + "/wallhaven-status.json"
+    readonly property string panelTintFile: diskCacheDir + "/wallhaven-panel-tint.json"
     readonly property int diskCacheEntryCount: Wallhaven.listCachedIds(_diskCacheIndex).length
 
     function syncAdvanceFile() {
@@ -103,6 +105,25 @@ WallpaperItem {
     property int _lastSyncAdvanceTs: 0
     property string _instanceId: Math.random().toString(36).slice(2, 10)
     property string wallpaperDetailsText: ""
+    property int _nextSlideshowAt: 0
+
+    readonly property real parallaxOffsetX: {
+        if (!cfg.ParallaxEnabled) {
+            return 0;
+        }
+        var strength = Math.max(0, Math.min(100, cfg.ParallaxStrength || 50)) / 100;
+        var seed = parseInt(String(_instanceId).slice(0, 4), 36) || 0;
+        return ((seed % 50) - 25) / 25 * (root.width || 1920) * 0.02 * strength;
+    }
+
+    readonly property real parallaxOffsetY: {
+        if (!cfg.ParallaxEnabled) {
+            return 0;
+        }
+        var strength = Math.max(0, Math.min(100, cfg.ParallaxStrength || 50)) / 100;
+        var seed = parseInt(String(_instanceId).slice(4, 8), 36) || 0;
+        return ((seed % 50) - 25) / 25 * (root.height || 1080) * 0.015 * strength;
+    }
 
     NetworkInformation {
         id: networkInfo
@@ -372,6 +393,10 @@ WallpaperItem {
             }
             if (result.saveToFile(path)) {
                 persistDiskCacheIndex();
+                if (cfg.SyncLockScreen || cfg.VarietySymlinkEnabled) {
+                    root.syncLockScreenImage(path);
+                    root.updateVarietySymlink(path);
+                }
             }
         }, size);
     }
@@ -473,10 +498,114 @@ WallpaperItem {
     function restartIntervalTimer() {
         if (!slideshowActive() || cfg.SlideshowPaused) {
             intervalTimer.stop();
+            _nextSlideshowAt = 0;
+            publishStatus();
             return;
         }
         intervalTimer.interval = Wallhaven.computeIntervalMs(cfg, Wallhaven.isDayPeriod());
         intervalTimer.restart();
+        _nextSlideshowAt = Date.now() + intervalTimer.interval;
+        publishStatus();
+    }
+
+    function publishStatus() {
+        var nextMs = 0;
+        if (_nextSlideshowAt > 0 && !cfg.SlideshowPaused && slideshowActive()) {
+            nextMs = Math.max(0, _nextSlideshowAt - Date.now());
+        }
+        settingsFileWriter.writeFile(
+            statusBusFile,
+            Wallhaven.buildStatusSnapshot({
+                id: currentWallpaperId !== "wallpaper" ? currentWallpaperId : "",
+                thumbUrl: currentWallpaperId !== "wallpaper"
+                    ? Wallhaven.thumbUrlForId(currentWallpaperId) : "",
+                paused: cfg.SlideshowPaused,
+                slideshowActive: slideshowActive(),
+                nextChangeMs: nextMs,
+                attribution: attributionText,
+                syncGroup: cfg.SyncAdvanceGroup || "default",
+            }),
+        );
+    }
+
+    function persistWallpaperHistory(wallpaper) {
+        if (!wallpaper || !wallpaper.id || !root.configuration) {
+            return;
+        }
+        var history = Wallhaven.parseWallpaperHistory(root.configuration.WallpaperHistoryJson || "[]");
+        history = Wallhaven.appendWallpaperHistory(history, {
+            id: String(wallpaper.id),
+            thumbUrl: Wallhaven.thumbUrlForId(String(wallpaper.id)),
+            ts: Date.now(),
+        }, 30);
+        root.configuration.WallpaperHistoryJson = Wallhaven.serializeWallpaperHistory(history, 30);
+        scheduleConfigWrite();
+    }
+
+    function getWallpaperHistory() {
+        return Wallhaven.parseWallpaperHistory(cfg.WallpaperHistoryJson || "[]");
+    }
+
+    function showHistoryWallpaper(id) {
+        id = String(id || "").trim();
+        if (!id) {
+            return;
+        }
+        var wp = Wallhaven.makeCachedWallpaper(id);
+        var remote = Wallhaven.thumbUrlForId(id);
+        var source = resolveImageSource(wp, remote);
+        engine.displayWallpaper(wp, source.indexOf("file:") === 0 ? source : remote, true);
+        engine.showStatus(i18n("Showing wallpaper #%1 from history.", id), "info");
+    }
+
+    function clearWallpaperHistory() {
+        if (!root.configuration) {
+            return;
+        }
+        root.configuration.WallpaperHistoryJson = "[]";
+        scheduleConfigWrite();
+        engine.showStatus(i18n("Wallpaper history cleared."), "info");
+    }
+
+    function syncLockScreenImage(localPath) {
+        if (!cfg.SyncLockScreen || !localPath) {
+            return;
+        }
+        lockScreenProcess.command = [
+            "bash", "-lc",
+            "kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image && "
+                + "kwriteconfig6 --file kscreenlockerrc --group Greeter --key Wallpaper \""
+                + localPath.replace(/"/g, '\\"') + "\"",
+        ];
+        lockScreenProcess.start();
+    }
+
+    function updateVarietySymlink(localPath) {
+        if (!cfg.VarietySymlinkEnabled || !cfg.VarietyFolderPath || !localPath) {
+            return;
+        }
+        var folder = String(cfg.VarietyFolderPath).replace(/"/g, '\\"');
+        var source = localPath.replace(/"/g, '\\"');
+        varietyLinkProcess.command = [
+            "bash", "-lc",
+            "mkdir -p '" + folder + "' && ln -sf '" + source + "' '"
+                + folder + "/" + Wallhaven.varietySymlinkName() + "'",
+        ];
+        varietyLinkProcess.start();
+    }
+
+    function writePanelTint(hexColor, wallpaperId) {
+        if (!cfg.PanelTintEnabled || !hexColor) {
+            return;
+        }
+        settingsFileWriter.writeFile(
+            panelTintFile,
+            Wallhaven.buildPanelTintMetadata(hexColor, wallpaperId),
+        );
+    }
+
+    function effectiveTransitionMode() {
+        return Wallhaven.pickTransitionMode(cfg);
     }
 
     function writeControlCommand(cmd) {
@@ -556,13 +685,15 @@ WallpaperItem {
         scheduleConfigWrite();
         if (paused) {
             intervalTimer.stop();
+            _nextSlideshowAt = 0;
             engine.showStatus(i18n("Slideshow paused."), "info");
         } else {
             if (cfg.RandomInterval > 0) {
-                intervalTimer.restart();
+                restartIntervalTimer();
             }
             engine.showStatus(i18n("Slideshow resumed."), "info");
         }
+        publishStatus();
     }
 
     function checkConnectivity() {
@@ -839,6 +970,13 @@ WallpaperItem {
                 OfflineOnlyMode: cfg.OfflineOnlyMode,
                 MeteredCacheOnly: cfg.MeteredCacheOnly,
                 FileTypeFilter: cfg.FileTypeFilter,
+                TagBlocklistJson: cfg.TagBlocklistJson,
+                ScheduleEnabled: cfg.ScheduleEnabled,
+                WeekdaySearch: cfg.WeekdaySearch,
+                WeekendSearch: cfg.WeekendSearch,
+                CollectionRotationEnabled: cfg.CollectionRotationEnabled,
+                CollectionRotationJson: cfg.CollectionRotationJson,
+                CollectionRotationIndex: cfg.CollectionRotationIndex,
             };
         }
 
@@ -1053,13 +1191,29 @@ WallpaperItem {
                     return;
                 }
                 var url;
+                var collectionUser = config.CollectionUser;
+                var collectionId = config.CollectionId;
+                if (config.BrowseMode === "collection" && config.CollectionRotationEnabled) {
+                    var entries = Wallhaven.parseCollectionRotation(config.CollectionRotationJson || "[]");
+                    var pick = Wallhaven.pickCollectionRotation(
+                        entries,
+                        config.CollectionRotationIndex || 0,
+                    );
+                    if (pick) {
+                        collectionUser = pick.entry.user;
+                        collectionId = pick.entry.id;
+                    }
+                }
                 if (config.BrowseMode === "collection") {
-                    if (!config.CollectionUser || !config.CollectionId) {
+                    if (!collectionUser || !collectionId) {
                         showStatus(i18n("Collection username and ID are required."), "error");
                         endBusy();
                         return;
                     }
-                    url = Wallhaven.buildCollectionUrl(config, stateObject());
+                    var rotConfig = configObject();
+                    rotConfig.CollectionUser = collectionUser;
+                    rotConfig.CollectionId = collectionId;
+                    url = Wallhaven.buildCollectionUrl(rotConfig, stateObject());
                 } else if (config.BrowseMode === "favorites") {
                     url = Wallhaven.buildCollectionUrl(config, stateObject());
                 } else {
@@ -1175,6 +1329,10 @@ WallpaperItem {
                     root.configuration.PreviewWallpaperDetails = root.wallpaperDetailsText;
                     scheduleConfigWrite();
                 }
+                var tint = Wallhaven.dominantColorFromWallhaven(json.data.colors);
+                if (tint) {
+                    root.writePanelTint(tint, wallpaper.id);
+                }
                 var tags = Wallhaven.formatTags(json.data.tags);
                 if (tags) {
                     root.attributionText = "Wallhaven #" + wallpaper.id + "\n"
@@ -1197,6 +1355,7 @@ WallpaperItem {
             root.showImage(source, immediate);
             updateAttribution(wallpaper);
             writeVarietyMetadata(wallpaper, url);
+            root.publishStatus();
             kenBurnsAnimation.restart();
         }
 
@@ -1208,6 +1367,26 @@ WallpaperItem {
                 historyIndex--;
             }
             historyIndex = history.length - 1;
+            if (entry && entry.wallpaper) {
+                root.persistWallpaperHistory(entry.wallpaper);
+            }
+        }
+
+        function maybeAdvanceCollectionRotation() {
+            if (cfg.BrowseMode !== "collection" || !cfg.CollectionRotationEnabled || !root.configuration) {
+                return;
+            }
+            var entries = Wallhaven.parseCollectionRotation(cfg.CollectionRotationJson || "[]");
+            if (entries.length < 2) {
+                return;
+            }
+            var next = ((cfg.CollectionRotationIndex || 0) + 1) % entries.length;
+            root.configuration.CollectionRotationIndex = next;
+            root.scheduleConfigWrite();
+            apiData = null;
+            cachedApiPage = 0;
+            page = 1;
+            index = 0;
         }
 
         function tryOfflineFallback() {
@@ -1335,6 +1514,7 @@ WallpaperItem {
             retryTimer.stop();
             endBusy();
             root.broadcastSyncAdvance();
+            maybeAdvanceCollectionRotation();
             if (root.effectiveOfflineOnly()) {
                 showStatus(i18n("Loading next cached wallpaper…"), "info");
                 showOfflineWallpaper(false, false);
@@ -1520,14 +1700,37 @@ WallpaperItem {
         }
 
         _pendingImageUrl = url;
+        var transitionMode = effectiveTransitionMode();
         var useTransition = cfg.CrossfadeMs > 0 && !immediate && currentUrl !== "";
-        if (useTransition && cfg.TransitionMode === "fadeblack") {
+        if (useTransition && transitionMode === "fadeblack") {
             _pendingFadeUrl = url;
             fadeBlackOut.start();
             currentUrl = url;
             return;
         }
-        var crossfade = useTransition && cfg.TransitionMode !== "instant";
+        if (useTransition && transitionMode === "slide") {
+            if (activeIsForeground) {
+                backgroundImage.source = url;
+                slideToBackground.start();
+            } else {
+                foregroundImage.source = url;
+                slideToForeground.start();
+            }
+            currentUrl = url;
+            return;
+        }
+        if (useTransition && transitionMode === "zoom") {
+            if (activeIsForeground) {
+                backgroundImage.source = url;
+                zoomToBackground.start();
+            } else {
+                foregroundImage.source = url;
+                zoomToForeground.start();
+            }
+            currentUrl = url;
+            return;
+        }
+        var crossfade = useTransition && transitionMode !== "instant";
 
         if (crossfade) {
             if (activeIsForeground) {
@@ -1685,6 +1888,22 @@ WallpaperItem {
     }
 
     Process {
+        id: lockScreenProcess
+    }
+
+    Process {
+        id: varietyLinkProcess
+    }
+
+    Timer {
+        id: statusPublishTimer
+        interval: 5000
+        running: root._configured
+        repeat: true
+        onTriggered: root.publishStatus()
+    }
+
+    Process {
         id: kwalletReadProcess
         property string pendingTmp: ""
         onFinished: function(exitCode) {
@@ -1807,9 +2026,10 @@ WallpaperItem {
             anchors.centerIn: parent
             width: parent.width
             height: parent.height
-            scale: kenBurnsAnimation.bgScale
-            x: kenBurnsAnimation.bgX
-            y: kenBurnsAnimation.bgY
+            property real zoomScale: 1
+            scale: kenBurnsAnimation.bgScale * zoomScale
+            x: kenBurnsAnimation.bgX + root.parallaxOffsetX
+            y: kenBurnsAnimation.bgY + root.parallaxOffsetY
 
             Image {
                 id: backgroundImage
@@ -1834,9 +2054,10 @@ WallpaperItem {
             anchors.centerIn: parent
             width: parent.width
             height: parent.height
-            scale: kenBurnsAnimation.fgScale
-            x: kenBurnsAnimation.fgX
-            y: kenBurnsAnimation.fgY
+            property real zoomScale: 1
+            scale: kenBurnsAnimation.fgScale * zoomScale
+            x: kenBurnsAnimation.fgX + root.parallaxOffsetX
+            y: kenBurnsAnimation.fgY + root.parallaxOffsetY
 
             Image {
                 id: foregroundImage
@@ -1942,6 +2163,56 @@ WallpaperItem {
         NumberAnimation { target: foregroundLayer; property: "opacity"; to: 0; duration: cfg.CrossfadeMs }
         onStarted: activeIsForeground = false
         onFinished: {
+            root.releaseInactiveLayer();
+            scheduleConfigPreviewCapture();
+        }
+    }
+
+    ParallelAnimation {
+        id: slideToForeground
+        NumberAnimation { target: foregroundLayer; property: "opacity"; to: 1; duration: cfg.CrossfadeMs }
+        NumberAnimation { target: foregroundTransform; property: "x"; from: root.width * 0.08; to: root.parallaxOffsetX; duration: cfg.CrossfadeMs; easing.type: Easing.OutCubic }
+        NumberAnimation { target: backgroundLayer; property: "opacity"; to: 0; duration: cfg.CrossfadeMs }
+        onStarted: activeIsForeground = true
+        onFinished: {
+            root.releaseInactiveLayer();
+            scheduleConfigPreviewCapture();
+        }
+    }
+
+    ParallelAnimation {
+        id: slideToBackground
+        NumberAnimation { target: backgroundLayer; property: "opacity"; to: 1; duration: cfg.CrossfadeMs }
+        NumberAnimation { target: backgroundTransform; property: "x"; from: root.width * 0.08; to: root.parallaxOffsetX; duration: cfg.CrossfadeMs; easing.type: Easing.OutCubic }
+        NumberAnimation { target: foregroundLayer; property: "opacity"; to: 0; duration: cfg.CrossfadeMs }
+        onStarted: activeIsForeground = false
+        onFinished: {
+            root.releaseInactiveLayer();
+            scheduleConfigPreviewCapture();
+        }
+    }
+
+    ParallelAnimation {
+        id: zoomToForeground
+        NumberAnimation { target: foregroundLayer; property: "opacity"; to: 1; duration: cfg.CrossfadeMs }
+        NumberAnimation { target: foregroundTransform; property: "zoomScale"; from: 1.08; to: 1; duration: cfg.CrossfadeMs; easing.type: Easing.OutCubic }
+        NumberAnimation { target: backgroundLayer; property: "opacity"; to: 0; duration: cfg.CrossfadeMs }
+        onStarted: activeIsForeground = true
+        onFinished: {
+            foregroundTransform.zoomScale = 1;
+            root.releaseInactiveLayer();
+            scheduleConfigPreviewCapture();
+        }
+    }
+
+    ParallelAnimation {
+        id: zoomToBackground
+        NumberAnimation { target: backgroundLayer; property: "opacity"; to: 1; duration: cfg.CrossfadeMs }
+        NumberAnimation { target: backgroundTransform; property: "zoomScale"; from: 1.08; to: 1; duration: cfg.CrossfadeMs; easing.type: Easing.OutCubic }
+        NumberAnimation { target: foregroundLayer; property: "opacity"; to: 0; duration: cfg.CrossfadeMs }
+        onStarted: activeIsForeground = false
+        onFinished: {
+            backgroundTransform.zoomScale = 1;
             root.releaseInactiveLayer();
             scheduleConfigPreviewCapture();
         }
@@ -2244,7 +2515,30 @@ WallpaperItem {
         function onNightIntervalMinChanged() { root.restartIntervalTimer(); }
         function onIntervalJitterPercentChanged() { root.restartIntervalTimer(); }
         function onFileTypeFilterChanged() { if (root._configured) engine.resetSlideshow(); }
+        function onTagBlocklistJsonChanged() { if (root._configured) engine.resetSlideshow(); }
+        function onScheduleEnabledChanged() { if (root._configured) engine.resetSlideshow(); }
+        function onWeekdaySearchChanged() { if (root._configured) engine.resetSlideshow(); }
+        function onWeekendSearchChanged() { if (root._configured) engine.resetSlideshow(); }
+        function onCollectionRotationEnabledChanged() { if (root._configured) engine.resetSlideshow(); }
+        function onCollectionRotationJsonChanged() { if (root._configured) engine.resetSlideshow(); }
         function onUseKWalletForApiKeyChanged() { root.loadApiKeyFromKWallet(); }
+    }
+
+    Timer {
+        id: scheduleTimer
+        interval: 60000
+        running: cfg.ScheduleEnabled && !cfg.TimeOfDayEnabled
+        repeat: true
+        property bool weekend: Wallhaven.isWeekend()
+        onTriggered: {
+            var nowWeekend = Wallhaven.isWeekend();
+            if (nowWeekend !== weekend) {
+                weekend = nowWeekend;
+                if (root._configured) {
+                    engine.resetSlideshow();
+                }
+            }
+        }
     }
 
     Component.onCompleted: {
@@ -2257,6 +2551,7 @@ WallpaperItem {
         root._configured = true;
         scheduleConfigPreviewCapture();
         root.restartIntervalTimer();
+        root.publishStatus();
         Qt.callLater(function() { root.checkConnectivity(); });
     }
 

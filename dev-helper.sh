@@ -44,6 +44,10 @@ install_plugin() {
     cp "${SCRIPT_DIR}/plasmoid/metadata.json" "${PLASMOID_DIR}/"
 
     chmod +x "${SCRIPT_DIR}/tools/wallhaven-ctl.sh" 2>/dev/null || true
+    chmod +x "${SCRIPT_DIR}/tools/register-shortcuts.sh" 2>/dev/null || true
+    chmod +x "${SCRIPT_DIR}/tools/variety-sync.sh" 2>/dev/null || true
+    chmod +x "${SCRIPT_DIR}/tools/apply-panel-tint.sh" 2>/dev/null || true
+    chmod +x "${SCRIPT_DIR}/tools/wallhaven-dbus.py" 2>/dev/null || true
 
     echo "Installed wallpaper to ${INSTALL_DIR}"
     echo "Installed plasmoid to ${PLASMOID_DIR}"

@@ -19,6 +19,8 @@ modules:
       - mkdir -p ${FLATPAK_DEST}/share/plasma/plasmoids/org.robertsm.wallhaven.control
       - cp -r plasmoid/contents ${FLATPAK_DEST}/share/plasma/plasmoids/org.robertsm.wallhaven.control/
       - cp plasmoid/metadata.json ${FLATPAK_DEST}/share/plasma/plasmoids/org.robertsm.wallhaven.control/
+      - install -Dm755 tools/wallhaven-ctl.sh ${FLATPAK_DEST}/bin/wallhaven-ctl
+      - install -Dm755 tools/wallhaven-dbus.py ${FLATPAK_DEST}/bin/wallhaven-dbus
     sources:
       - type: dir
         path: ..

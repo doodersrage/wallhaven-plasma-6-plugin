@@ -124,6 +124,70 @@ ColumnLayout {
     property alias cfg_TimeOfDayEnabled: timeOfDayCheck.checked
     property alias cfg_DaySearch: daySearchField.text
     property alias cfg_NightSearch: nightSearchField.text
+    property alias cfg_ScheduleEnabled: scheduleCheck.checked
+    property alias cfg_WeekdaySearch: weekdaySearchField.text
+    property alias cfg_WeekendSearch: weekendSearchField.text
+    property alias cfg_CollectionRotationEnabled: collectionRotationCheck.checked
+    property alias cfg_SyncLockScreen: lockScreenCheck.checked
+    property alias cfg_PanelTintEnabled: panelTintCheck.checked
+    property alias cfg_ParallaxEnabled: parallaxCheck.checked
+    property alias cfg_ParallaxStrength: parallaxStrengthSpin.value
+    property alias cfg_VarietyFolderPath: varietyFolderField.text
+    property alias cfg_VarietySymlinkEnabled: varietySymlinkCheck.checked
+
+    function tagBlocklistText() {
+        if (!wallpaperConfiguration) {
+            return "";
+        }
+        return Wallhaven.parseTagBlocklist(wallpaperConfiguration.TagBlocklistJson || "[]").join(", ");
+    }
+
+    function persistTagBlocklist(text) {
+        if (!wallpaperConfiguration) {
+            return;
+        }
+        var tags = String(text || "").split(",").map(function(tag) {
+            return tag.trim();
+        }).filter(function(tag) { return tag.length > 0; });
+        wallpaperConfiguration.TagBlocklistJson = Wallhaven.serializeTagBlocklist(tags);
+        if (wallpaperConfiguration.writeConfig) {
+            wallpaperConfiguration.writeConfig();
+        }
+    }
+
+    function collectionRotationText() {
+        if (!wallpaperConfiguration) {
+            return "";
+        }
+        return Wallhaven.formatCollectionRotationLines(
+            Wallhaven.parseCollectionRotation(wallpaperConfiguration.CollectionRotationJson || "[]"),
+        );
+    }
+
+    function persistCollectionRotation(text) {
+        if (!wallpaperConfiguration) {
+            return;
+        }
+        var entries = Wallhaven.parseCollectionRotationLines(text);
+        wallpaperConfiguration.CollectionRotationJson = Wallhaven.serializeCollectionRotation(entries);
+        if (wallpaperConfiguration.writeConfig) {
+            wallpaperConfiguration.writeConfig();
+        }
+    }
+
+    function refreshHistoryModel() {
+        if (!wallpaperConfiguration) {
+            historyModel.clear();
+            return;
+        }
+        var entries = Wallhaven.parseWallpaperHistory(wallpaperConfiguration.WallpaperHistoryJson || "[]");
+        historyModel.clear();
+        for (var i = entries.length - 1; i >= 0; i--) {
+            historyModel.append(entries[i]);
+        }
+    }
+
+    ListModel { id: historyModel }
 
     function saveConfig() {
         // Keep PreviewImage / attribution keys; they are runtime state for the settings preview.
@@ -619,6 +683,23 @@ ColumnLayout {
                     text: collectionsLoader.errorText
                 }
 
+                QtControls2.CheckBox {
+                    id: collectionRotationCheck
+                    Kirigami.FormData.label: i18n("Rotate collections:")
+                    text: i18n("Cycle through multiple collections on each advance")
+                    visible: browseModeCombo.currentValue === "collection"
+                }
+
+                QtControls2.TextArea {
+                    id: collectionRotationField
+                    Kirigami.FormData.label: i18n("Collection list:")
+                    placeholderText: i18n("username/id per line (optional # label)")
+                    visible: browseModeCombo.currentValue === "collection"
+                    enabled: collectionRotationCheck.checked
+                    text: root.collectionRotationText()
+                    onEditingFinished: root.persistCollectionRotation(text)
+                }
+
                 QtControls2.ComboBox {
                     id: sortingsCombo
                     Kirigami.FormData.label: i18n("API sorting:")
@@ -829,6 +910,15 @@ ColumnLayout {
                     text: i18n("Avoid recent duplicates (saved across restarts)")
                 }
 
+                QtControls2.TextField {
+                    id: tagBlocklistField
+                    Kirigami.FormData.label: i18n("Tag blocklist:")
+                    placeholderText: i18n("Comma-separated tags to exclude, e.g. nsfw, text")
+                    visible: parent.searchFilters
+                    text: root.tagBlocklistText()
+                    onEditingFinished: root.persistTagBlocklist(text)
+                }
+
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Search Presets")
                     Kirigami.FormData.isSection: true
@@ -1012,8 +1102,37 @@ ColumnLayout {
                     model: [
                         { label: i18n("Crossfade"), value: "crossfade" },
                         { label: i18n("Fade through black"), value: "fadeblack" },
+                        { label: i18n("Slide"), value: "slide" },
+                        { label: i18n("Zoom"), value: "zoom" },
+                        { label: i18n("Random"), value: "random" },
                         { label: i18n("Instant"), value: "instant" },
                     ]
+                }
+
+                QtControls2.CheckBox {
+                    id: parallaxCheck
+                    Kirigami.FormData.label: i18n("Parallax:")
+                    text: i18n("Subtle per-screen wallpaper offset")
+                }
+
+                QtControls2.SpinBox {
+                    id: parallaxStrengthSpin
+                    Kirigami.FormData.label: i18n("Parallax strength:")
+                    from: 0
+                    to: 100
+                    enabled: parallaxCheck.checked
+                }
+
+                QtControls2.CheckBox {
+                    id: lockScreenCheck
+                    Kirigami.FormData.label: i18n("Lock screen:")
+                    text: i18n("Sync lock screen wallpaper when cached")
+                }
+
+                QtControls2.CheckBox {
+                    id: panelTintCheck
+                    Kirigami.FormData.label: i18n("Panel tint hint:")
+                    text: i18n("Write dominant color JSON for external theming tools")
                 }
 
                 QtControls2.CheckBox {
@@ -1179,6 +1298,19 @@ ColumnLayout {
                     text: i18n("Write current wallpaper JSON for external tools")
                 }
 
+                QtControls2.TextField {
+                    id: varietyFolderField
+                    Kirigami.FormData.label: i18n("Variety folder:")
+                    placeholderText: i18n("Optional path for Variety integration")
+                }
+
+                QtControls2.CheckBox {
+                    id: varietySymlinkCheck
+                    Kirigami.FormData.label: i18n("Variety symlink:")
+                    text: i18n("Symlink cached wallpaper as wallhaven-current.jpg")
+                    enabled: varietyFolderField.text !== ""
+                }
+
                 QtControls2.Label {
                     Kirigami.FormData.label: i18n("Cache status:")
                     wrapMode: Text.WordWrap
@@ -1266,7 +1398,68 @@ ColumnLayout {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     opacity: 0.7
-                    text: i18n("Use tools/wallhaven-ctl.sh or the Wallhaven Control plasmoid.")
+                    text: i18n("Per-monitor profiles: set a different sync group and search on each screen, or the same group to advance together.")
+                }
+
+                QtControls2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: i18n("Use tools/wallhaven-ctl.sh, D-Bus (tools/wallhaven-dbus.py), or the Wallhaven Control plasmoid.")
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Wallpaper History")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Refresh history:")
+                    text: i18n("Refresh history gallery")
+                    onClicked: root.refreshHistoryModel()
+                }
+
+                GridView {
+                    id: historyGrid
+                    Kirigami.FormData.label: i18n("Recent:")
+                    Layout.preferredWidth: parent.width
+                    Layout.preferredHeight: Math.min(220, Math.ceil(count / 4) * 72)
+                    cellWidth: 96
+                    cellHeight: 72
+                    clip: true
+                    model: historyModel
+                    delegate: Item {
+                        width: historyGrid.cellWidth
+                        height: historyGrid.cellHeight
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                if (liveWallpaper && liveWallpaper.showHistoryWallpaper) {
+                                    liveWallpaper.showHistoryWallpaper(model.id);
+                                }
+                            }
+                        }
+                        Image {
+                            anchors.centerIn: parent
+                            width: 88
+                            height: 56
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                            source: model.thumbUrl
+                        }
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Clear history:")
+                    text: i18n("Clear wallpaper history")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.clearWallpaperHistory) {
+                            liveWallpaper.clearWallpaperHistory();
+                            root.refreshHistoryModel();
+                        }
+                    }
                 }
 
                 Kirigami.Separator {
@@ -1324,6 +1517,39 @@ ColumnLayout {
                     placeholderText: i18n("8pm–6am")
                     enabled: timeOfDayCheck.checked
                 }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Weekday Schedule")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: i18n("Weekday/weekend searches apply in Search mode when time-of-day is disabled.")
+                }
+
+                QtControls2.CheckBox {
+                    id: scheduleCheck
+                    Kirigami.FormData.label: i18n("Week schedule:")
+                    text: i18n("Use separate weekday/weekend searches")
+                    enabled: !timeOfDayCheck.checked
+                }
+
+                QtControls2.TextField {
+                    id: weekdaySearchField
+                    Kirigami.FormData.label: i18n("Weekday search:")
+                    placeholderText: i18n("Mon–Fri")
+                    enabled: scheduleCheck.checked && !timeOfDayCheck.checked
+                }
+
+                QtControls2.TextField {
+                    id: weekendSearchField
+                    Kirigami.FormData.label: i18n("Weekend search:")
+                    placeholderText: i18n("Sat–Sun")
+                    enabled: scheduleCheck.checked && !timeOfDayCheck.checked
+                }
             }
         }
     }
@@ -1372,6 +1598,7 @@ ColumnLayout {
     Connections {
         target: wallpaperConfiguration
         enabled: wallpaperConfiguration !== null
+        function onWallpaperHistoryJsonChanged() { root.refreshHistoryModel(); }
         function onPreviewImageChanged() {
             filePreviewImage.source = "";
             filePreviewImage.source = root.previewFileUrl;
@@ -1390,4 +1617,6 @@ ColumnLayout {
             thumbPreviewImage.source = root.previewThumbUrl;
         }
     }
+
+    Component.onCompleted: refreshHistoryModel()
 }

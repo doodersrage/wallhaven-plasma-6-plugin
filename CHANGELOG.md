@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.4.0 — 2026-08-14
+
+### Added
+- **Tag blocklist** (local `-tag` exclusions in search)
+- **Weekday/weekend schedule** searches
+- **Multi-collection rotation** (cycle collections on advance)
+- **Wallpaper history gallery** in settings
+- **Lock screen sync** when caching wallpapers
+- **Slide, zoom, random** transition modes + **parallax** offset
+- **Panel tint metadata** JSON for external theming
+- **Variety folder symlink** (`wallhaven-current.jpg`)
+- **Plasmoid v2** — thumbnail, pause state, countdown
+- **D-Bus control** (`tools/wallhaven-dbus.py`)
+- **Global shortcuts helper** (optional KGlobalAccel C++ tool)
+- **Variety sync** and **panel tint** helper scripts
+
 ## 1.3.0 — 2026-08-14
 
 ### Added

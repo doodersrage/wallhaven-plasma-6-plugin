@@ -71,5 +71,19 @@
         <entry name="PreviewAttribution" type="String"><default></default></entry>
         <entry name="PreviewWallpaperDetails" type="String"><default></default></entry>
         <entry name="ApiKeyValid" type="Bool"><default>false</default></entry>
+        <entry name="TagBlocklistJson" type="String"><default>[]</default></entry>
+        <entry name="ScheduleEnabled" type="Bool"><default>false</default></entry>
+        <entry name="WeekdaySearch" type="String"><default></default></entry>
+        <entry name="WeekendSearch" type="String"><default></default></entry>
+        <entry name="CollectionRotationEnabled" type="Bool"><default>false</default></entry>
+        <entry name="CollectionRotationJson" type="String"><default>[]</default></entry>
+        <entry name="CollectionRotationIndex" type="Int"><default>0</default></entry>
+        <entry name="WallpaperHistoryJson" type="String"><default>[]</default></entry>
+        <entry name="SyncLockScreen" type="Bool"><default>false</default></entry>
+        <entry name="PanelTintEnabled" type="Bool"><default>false</default></entry>
+        <entry name="ParallaxEnabled" type="Bool"><default>false</default></entry>
+        <entry name="ParallaxStrength" type="Int"><default>50</default></entry>
+        <entry name="VarietyFolderPath" type="String"><default></default></entry>
+        <entry name="VarietySymlinkEnabled" type="Bool"><default>false</default></entry>
     </group>
 </kcfg>
