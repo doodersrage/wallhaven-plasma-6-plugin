@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -49,7 +50,7 @@ jobs:
           } > release-notes.md
 
       - name: Upload release asset
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: wallhaven-plasma-*.tar.xz
           body_path: release-notes.md
