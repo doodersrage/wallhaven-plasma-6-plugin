@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 2.3.0\n"
+"Project-Id-Version: org.robertsm.wallhaven 2.4.0\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -277,6 +277,9 @@ msgstr "Copiar etiquetas"
 
 msgid "Copy Tags"
 msgstr "Copiar etiquetas"
+
+msgid "Copy the current wallpaper to the lock screen"
+msgstr "Copiar el fondo actual a la pantalla de bloqueo"
 
 msgid "Copy Wallpaper ID"
 msgstr "Copiar identificador del fondo de escritorio"
@@ -1037,6 +1040,9 @@ msgstr "Presentación reanudada (reglas de energía/actividad eliminadas)."
 msgid "Slideshow rules"
 msgstr "Reglas de presentación"
 
+msgid "Slowly pan across the wallpaper"
+msgstr "Desplazar lentamente el fondo de escritorio"
+
 msgid "Slow pan/zoom"
 msgstr "Paneo/zoom lento"
 
@@ -1052,9 +1058,6 @@ msgstr "Origen"
 msgid "Start D-Bus service"
 msgstr "Iniciar servicio D-Bus"
 
-msgid "Subtle per-screen wallpaper offset"
-msgstr "Desplazamiento sutil del fondo de escritorio por pantalla"
-
 msgid "Symlink cached wallpaper as wallhaven-current.jpg"
 msgstr "Enlace simbólico del fondo en caché como wallhaven-current.jpg"
 
@@ -1063,9 +1066,6 @@ msgstr "Avance sincronizado:"
 
 msgid "Sync group:"
 msgstr "Grupo de sincronización:"
-
-msgid "Sync lock screen wallpaper when cached"
-msgstr "Sincronizar fondo de pantalla de bloqueo cuando esté en caché"
 
 msgid "System color scheme"
 msgstr "Esquema de colores del sistema"

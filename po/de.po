@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 2.3.0\n"
+"Project-Id-Version: org.robertsm.wallhaven 2.4.0\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -277,6 +277,9 @@ msgstr "Tags kopieren"
 
 msgid "Copy Tags"
 msgstr "Tags kopieren"
+
+msgid "Copy the current wallpaper to the lock screen"
+msgstr "Aktuelles Hintergrundbild auf den Sperrbildschirm kopieren"
 
 msgid "Copy Wallpaper ID"
 msgstr "Hintergrundbild-ID kopieren"
@@ -1037,6 +1040,9 @@ msgstr "Diashow fortgesetzt (Energie-/Aktivitätsregeln aufgehoben)."
 msgid "Slideshow rules"
 msgstr "Diashow-Regeln"
 
+msgid "Slowly pan across the wallpaper"
+msgstr "Das Hintergrundbild langsam schwenken"
+
 msgid "Slow pan/zoom"
 msgstr "Langsames Schwenken/Zoomen"
 
@@ -1052,9 +1058,6 @@ msgstr "Quelle"
 msgid "Start D-Bus service"
 msgstr "D-Bus-Dienst starten"
 
-msgid "Subtle per-screen wallpaper offset"
-msgstr "Dezenter Hintergrundbild-Versatz pro Bildschirm"
-
 msgid "Symlink cached wallpaper as wallhaven-current.jpg"
 msgstr "Zwischengespeichertes Hintergrundbild als wallhaven-current.jpg verlinken"
 
@@ -1063,9 +1066,6 @@ msgstr "Sync-Weiterschaltung:"
 
 msgid "Sync group:"
 msgstr "Sync-Gruppe:"
-
-msgid "Sync lock screen wallpaper when cached"
-msgstr "Sperrbildschirm-Hintergrund synchronisieren, wenn im Cache"
 
 msgid "System color scheme"
 msgstr "System-Farbschema"

@@ -3,18 +3,27 @@
     "name": "Community — Cozy cabin",
     "SearchText": "cabin cozy winter snow",
     "Sortings": "random",
-    "Ratio": "landscape"
+    "Ratio": "landscape",
+    "CategoryGeneral": true,
+    "CategoryAnime": false,
+    "CategoryPeople": false
   },
   {
     "name": "Community — Retro synth",
     "SearchText": "retrowave synthwave 80s",
     "Sortings": "toplist",
-    "TopRange": "1M"
+    "TopRange": "1M",
+    "CategoryGeneral": true,
+    "CategoryAnime": false,
+    "CategoryPeople": false
   },
   {
     "name": "Community — Ocean calm",
     "SearchText": "ocean waves beach sunset",
     "Sortings": "random",
-    "ColorFilter": "0066cc"
+    "ColorFilter": "0066cc",
+    "CategoryGeneral": true,
+    "CategoryAnime": false,
+    "CategoryPeople": false
   }
 ]

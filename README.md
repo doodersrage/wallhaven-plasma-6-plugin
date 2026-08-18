@@ -18,6 +18,20 @@ Enable **Wallhaven** in System Settings → Search → Plasma Search (KRunner).
 
 **KDE Store listing:** [opendesktop.org/p/2368647](https://www.opendesktop.org/p/2368647/) — see [docs/KDE_STORE.md](docs/KDE_STORE.md) for maintainer notes.
 
+## v2.4.0 — bugfix
+
+| Area | Highlights |
+|------|------------|
+| **Presets** | Curated/community import works; Apply reloads search and turns People off when omitted |
+| **Cache** | Per-monitor files; skip cached people/NSFW when those filters are off |
+| **Effects** | Parallax slowly pans; Ken Burns pan works |
+| **Lock screen** | Copies current wallpaper into kscreenlocker’s Image keys |
+
+```bash
+./dev-helper.sh deploy
+./dev-helper.sh release              # tag v2.4.0
+```
+
 ## v2.3.0 — store ready
 
 | Area | Highlights |

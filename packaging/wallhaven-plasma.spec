@@ -1,5 +1,5 @@
 Name:           wallhaven-plasma
-Version:        2.0.0
+Version:        2.4.0
 Release:        1%{?dist}
 Summary:        Wallhaven wallpaper plugin for KDE Plasma 6
 License:        GPL-2.0-or-later

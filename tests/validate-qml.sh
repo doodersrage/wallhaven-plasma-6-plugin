@@ -34,8 +34,8 @@ if rg -q 'xhr\.open\("GET", "file://' "${ROOT}/contents/ui/main.qml" "${ROOT}/pl
     exit 1
 fi
 
-if rg -q 'xhr\.open\("GET", fileUrl\)|xhr\.open\("GET", "file://' "${ROOT}/contents/ui/config.qml" 2>/dev/null; then
-    echo "FAIL: config.qml must not read local files via XMLHttpRequest; use liveWallpaper D-Bus helpers" >&2
+if rg -q 'xhr\.open\("GET", fileUrl\)|xhr\.open\("GET", "file://|xhr\.open\("GET", Qt\.resolvedUrl' "${ROOT}/contents/ui/config.qml" 2>/dev/null; then
+    echo "FAIL: config.qml must not read local files via XMLHttpRequest; use bundled JS or liveWallpaper D-Bus helpers" >&2
     exit 1
 fi
 
@@ -45,7 +45,7 @@ path = "${ROOT}/contents/config/main.xml"
 tree = ET.parse(path)
 entries = [e.attrib["name"] for e in tree.findall(".//{http://www.kde.org/standards/kcfg/1.0}entry")]
 required = ["SetupWizardCompleted", "WallpaperOfDayEnabled", "PinnedCacheIdsJson", "DebugLogEnabled",
-            "AutoPanelAccentEnabled", "PauseOnBatteryLow", "TagFavoritesJson"]
+            "AutoPanelAccentEnabled", "PauseOnBatteryLow", "TagFavoritesJson", "CacheNamespace"]
 missing = [k for k in required if k not in entries]
 if missing:
     raise SystemExit("main.xml missing: " + ", ".join(missing))

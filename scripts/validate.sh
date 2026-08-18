@@ -19,6 +19,7 @@ required=(
     metainfo/org.robertsm.wallhaven.metainfo.xml
     krunner/org.robertsm.wallhaven.desktop
     contents/presets/curated.json
+    contents/presets/community.json
 )
 
 for path in "${required[@]}"; do

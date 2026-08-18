@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Dialogs
+import QtQuick.Window
 import QtCore
 import QtNetwork
 import org.kde.plasma.core as PlasmaCore
@@ -14,8 +15,22 @@ WallpaperItem {
     id: root
 
     readonly property var cfg: root.configuration
+    readonly property string diskCacheNamespace: {
+        var screen = "";
+        try {
+            screen = String(Screen.name || "");
+        } catch (e) {
+            screen = "";
+        }
+        var ns = Wallhaven.sanitizeCacheNamespace(screen);
+        if (ns) {
+            return ns;
+        }
+        ns = Wallhaven.sanitizeCacheNamespace(cfg && cfg.CacheNamespace);
+        return ns || "default";
+    }
     readonly property string previewCacheFile: StandardPaths.writableLocation(StandardPaths.CacheLocation)
-        + "/wallhaven-preview.png"
+        + "/wallhaven-preview-" + diskCacheNamespace + ".png"
     readonly property string diskCacheDir: StandardPaths.writableLocation(StandardPaths.CacheLocation)
     readonly property string controlBusFile: diskCacheDir + "/wallhaven-control.json"
     readonly property string varietyMetadataFile: diskCacheDir + "/wallhaven-variety.json"
@@ -51,6 +66,11 @@ WallpaperItem {
         if (cfg.KenBurnsEnabled) {
             w = Math.round(w * 1.25);
             h = Math.round(h * 1.25);
+        }
+        if (cfg.ParallaxEnabled) {
+            var extra = Wallhaven.parallaxScaleForStrength(true, cfg.ParallaxStrength);
+            w = Math.round(w * extra);
+            h = Math.round(h * extra);
         }
         var maxEdge = 3840;
         var edge = Math.max(w, h);
@@ -96,7 +116,7 @@ WallpaperItem {
     property string _pendingWallpaperId: ""
     property bool _pendingUsedCache: false
     property bool _configWritePending: false
-    property var _diskCacheIndex: ({ ids: [], next: 0 })
+    property var _diskCacheIndex: ({ ids: [], next: 0, categories: {}, purities: {} })
     property var _diskCacheSaveRequest: null
     property int _fetchRetryCount: 0
     property bool _connectivityOnline: true
@@ -114,23 +134,21 @@ WallpaperItem {
     property bool _rulesPausedSlideshow: false
     property bool _pausedByRules: false
 
-    readonly property real parallaxOffsetX: {
-        if (!cfg.ParallaxEnabled) {
-            return 0;
+    property real parallaxPhase: 0
+    readonly property real parallaxScreenPhase: {
+        var virtualX = 0;
+        try {
+            virtualX = Screen.virtualX || 0;
+        } catch (e) {
+            virtualX = 0;
         }
-        var strength = Math.max(0, Math.min(100, cfg.ParallaxStrength || 50)) / 100;
-        var seed = parseInt(String(_instanceId).slice(0, 4), 36) || 0;
-        return ((seed % 50) - 25) / 25 * (root.width || 1920) * 0.02 * strength;
+        return Wallhaven.parallaxScreenPhase(virtualX);
     }
-
-    readonly property real parallaxOffsetY: {
-        if (!cfg.ParallaxEnabled) {
-            return 0;
-        }
-        var strength = Math.max(0, Math.min(100, cfg.ParallaxStrength || 50)) / 100;
-        var seed = parseInt(String(_instanceId).slice(4, 8), 36) || 0;
-        return ((seed % 50) - 25) / 25 * (root.height || 1080) * 0.015 * strength;
-    }
+    readonly property real parallaxScale: Wallhaven.parallaxScaleForStrength(cfg.ParallaxEnabled, cfg.ParallaxStrength)
+    readonly property real parallaxOffsetX: Wallhaven.parallaxOffsetX(
+        cfg.ParallaxEnabled, cfg.ParallaxStrength, root.width, parallaxPhase, parallaxScreenPhase)
+    readonly property real parallaxOffsetY: Wallhaven.parallaxOffsetY(
+        cfg.ParallaxEnabled, cfg.ParallaxStrength, root.height, parallaxPhase, parallaxScreenPhase)
 
     readonly property bool meteredConnection: cfg.MeteredCacheOnly
         && NetworkInformation.transportMedium === NetworkInformation.Cellular
@@ -328,10 +346,25 @@ WallpaperItem {
 
     function loadDiskCacheIndex() {
         if (!root.configuration) {
-            _diskCacheIndex = { ids: [], next: 0 };
+            _diskCacheIndex = { ids: [], next: 0, categories: {}, purities: {} };
             return;
         }
         _diskCacheIndex = Wallhaven.parseDiskCacheIndex(root.configuration.DiskCacheIndexJson || "");
+    }
+
+    function ensureCacheNamespace() {
+        if (!root.configuration) {
+            return;
+        }
+        if (Wallhaven.sanitizeCacheNamespace(cfg.CacheNamespace)) {
+            return;
+        }
+        var ns = diskCacheNamespace;
+        if (!ns || ns === "default") {
+            ns = "m" + Math.random().toString(36).slice(2, 10);
+        }
+        root.configuration.CacheNamespace = ns;
+        scheduleConfigWrite();
     }
 
     function persistDiskCacheIndex() {
@@ -343,7 +376,7 @@ WallpaperItem {
     }
 
     function diskCacheLocalPath(slot) {
-        return diskCacheDir + "/" + Wallhaven.diskCacheFileName(slot);
+        return diskCacheDir + "/" + Wallhaven.diskCacheFileName(slot, diskCacheNamespace);
     }
 
     function diskCacheLocalUrl(slot) {
@@ -401,6 +434,10 @@ WallpaperItem {
             req.id,
             diskCacheMaxSlots(),
             pinnedCacheIds(),
+            root.currentWallpaper && root.currentWallpaper.category
+                ? root.currentWallpaper.category : "",
+            root.currentWallpaper && root.currentWallpaper.purity
+                ? root.currentWallpaper.purity : "",
         );
         if (slot < 0) {
             return;
@@ -428,7 +465,7 @@ WallpaperItem {
             paths.push(diskCacheLocalPath(i));
         }
         cacheFileDeleter.deletePaths(paths);
-        _diskCacheIndex = { ids: [], next: 0 };
+        _diskCacheIndex = { ids: [], next: 0, categories: {}, purities: {} };
         persistDiskCacheIndex();
         preloadImage.source = "";
         preloadImage2.source = "";
@@ -605,16 +642,50 @@ WallpaperItem {
         engine.showStatus(i18n("Wallpaper history cleared."), "info");
     }
 
+    function lockScreenImagePath() {
+        return diskCacheDir + "/" + Wallhaven.lockScreenImageFileName();
+    }
+
     function syncLockScreenImage(localPath) {
         if (!cfg.SyncLockScreen || !localPath) {
             return;
         }
-        dbusHelper.runArgv([
-            "bash", "-lc",
-            "kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image && "
-                + "kwriteconfig6 --file kscreenlockerrc --group Greeter --key Wallpaper \""
-                + localPath.replace(/"/g, '\\"') + "\"",
-        ]);
+        var source = urlToLocalPath(localPath);
+        if (!source) {
+            return;
+        }
+        var dest = lockScreenImagePath();
+        var command = Wallhaven.buildLockScreenSyncCommand(source, dest);
+        if (!command) {
+            return;
+        }
+        dbusHelper.runArgv(["bash", "-lc", command]);
+    }
+
+    function maybeSyncSidecars(img) {
+        if (!img) {
+            return;
+        }
+        if (String(img.source) !== String(_pendingImageUrl)) {
+            return;
+        }
+        var source = String(img.source || "");
+        if (source.indexOf("file:") === 0) {
+            var path = urlToLocalPath(source);
+            syncLockScreenImage(path);
+            updateVarietySymlink(path);
+            return;
+        }
+        if (!cfg.SyncLockScreen || cfg.DiskCacheEnabled) {
+            return;
+        }
+        var dest = lockScreenImagePath();
+        var size = wallpaperSourceSize;
+        img.grabToImage(function(result) {
+            if (result && result.saveToFile(dest)) {
+                syncLockScreenImage(dest);
+            }
+        }, size);
     }
 
     function updateVarietySymlink(localPath) {
@@ -1537,6 +1608,13 @@ WallpaperItem {
                         onDone(null);
                         return;
                     }
+                    json.data = Wallhaven.filterWallpapersByCategories(json.data, config);
+                    if (!json.data.length) {
+                        showStatus(i18n("No wallpapers match your current filters."), "warn");
+                        endBusy();
+                        onDone(null);
+                        return;
+                    }
                     root._fetchRetryCount = 0;
                     apiData = json;
                     lastPage = json.meta.last_page;
@@ -1705,7 +1783,7 @@ WallpaperItem {
         }
 
         function showNextCachedWallpaper(immediate, fromHistory) {
-            var ids = Wallhaven.listCachedIds(root._diskCacheIndex);
+            var ids = Wallhaven.listCachedIds(root._diskCacheIndex, configObject());
             if (!ids.length) {
                 return false;
             }
@@ -2072,6 +2150,7 @@ WallpaperItem {
             _imageErrorCount = 0;
             scheduleConfigPreviewCapture();
             scheduleDiskCacheSave(img);
+            maybeSyncSidecars(img);
             return;
         }
         if (img.status !== Image.Error) {
@@ -2428,12 +2507,13 @@ WallpaperItem {
 
         Item {
             id: backgroundTransform
-            anchors.centerIn: parent
             width: parent.width
             height: parent.height
             property real zoomScale: 1
-            scale: kenBurnsAnimation.bgScale * zoomScale
-            x: kenBurnsAnimation.bgX + root.parallaxOffsetX
+            property real slideX: 0
+            transformOrigin: Item.Center
+            scale: kenBurnsAnimation.bgScale * zoomScale * root.parallaxScale
+            x: kenBurnsAnimation.bgX + root.parallaxOffsetX + slideX
             y: kenBurnsAnimation.bgY + root.parallaxOffsetY
 
             Image {
@@ -2456,12 +2536,13 @@ WallpaperItem {
 
         Item {
             id: foregroundTransform
-            anchors.centerIn: parent
             width: parent.width
             height: parent.height
             property real zoomScale: 1
-            scale: kenBurnsAnimation.fgScale * zoomScale
-            x: kenBurnsAnimation.fgX + root.parallaxOffsetX
+            property real slideX: 0
+            transformOrigin: Item.Center
+            scale: kenBurnsAnimation.fgScale * zoomScale * root.parallaxScale
+            x: kenBurnsAnimation.fgX + root.parallaxOffsetX + slideX
             y: kenBurnsAnimation.fgY + root.parallaxOffsetY
 
             Image {
@@ -2576,7 +2657,7 @@ WallpaperItem {
     ParallelAnimation {
         id: slideToForeground
         NumberAnimation { target: foregroundLayer; property: "opacity"; to: 1; duration: cfg.CrossfadeMs }
-        NumberAnimation { target: foregroundTransform; property: "x"; from: root.width * 0.08; to: root.parallaxOffsetX; duration: cfg.CrossfadeMs; easing.type: Easing.OutCubic }
+        NumberAnimation { target: foregroundTransform; property: "slideX"; from: root.width * 0.08; to: 0; duration: cfg.CrossfadeMs; easing.type: Easing.OutCubic }
         NumberAnimation { target: backgroundLayer; property: "opacity"; to: 0; duration: cfg.CrossfadeMs }
         onStarted: activeIsForeground = true
         onFinished: {
@@ -2588,7 +2669,7 @@ WallpaperItem {
     ParallelAnimation {
         id: slideToBackground
         NumberAnimation { target: backgroundLayer; property: "opacity"; to: 1; duration: cfg.CrossfadeMs }
-        NumberAnimation { target: backgroundTransform; property: "x"; from: root.width * 0.08; to: root.parallaxOffsetX; duration: cfg.CrossfadeMs; easing.type: Easing.OutCubic }
+        NumberAnimation { target: backgroundTransform; property: "slideX"; from: root.width * 0.08; to: 0; duration: cfg.CrossfadeMs; easing.type: Easing.OutCubic }
         NumberAnimation { target: foregroundLayer; property: "opacity"; to: 0; duration: cfg.CrossfadeMs }
         onStarted: activeIsForeground = false
         onFinished: {
@@ -2694,6 +2775,18 @@ WallpaperItem {
     NumberAnimation { id: fgPanX; target: kenBurnsAnimation; property: "fgX"; duration: root.kenBurnsDuration; easing.type: Easing.InOutSine }
     NumberAnimation { id: bgPanY; target: kenBurnsAnimation; property: "bgY"; duration: root.kenBurnsDuration; easing.type: Easing.InOutSine }
     NumberAnimation { id: fgPanY; target: kenBurnsAnimation; property: "fgY"; duration: root.kenBurnsDuration; easing.type: Easing.InOutSine }
+
+    NumberAnimation {
+        id: parallaxPhaseAnim
+        target: root
+        property: "parallaxPhase"
+        from: 0
+        to: 1
+        duration: Wallhaven.parallaxCycleMs(cfg.ParallaxStrength)
+        loops: Animation.Infinite
+        running: root._configured && cfg.ParallaxEnabled
+        easing.type: Easing.Linear
+    }
 
     Timer {
         id: previewCaptureTimer
@@ -2890,6 +2983,19 @@ WallpaperItem {
         function onImageQualityChanged() { if (root._configured) engine.resetSlideshow(); }
         function onKenBurnsEnabledChanged() { kenBurnsAnimation.restart(); }
         function onKenBurnsSpeedChanged() { if (cfg.KenBurnsEnabled) kenBurnsAnimation.restart(); }
+        function onParallaxEnabledChanged() {
+            if (cfg.ParallaxEnabled) {
+                parallaxPhaseAnim.restart();
+            } else {
+                parallaxPhaseAnim.stop();
+                root.parallaxPhase = 0;
+            }
+        }
+        function onParallaxStrengthChanged() {
+            if (cfg.ParallaxEnabled) {
+                parallaxPhaseAnim.restart();
+            }
+        }
         function onSlideshowPausedChanged() {
             root.restartIntervalTimer();
         }
@@ -2940,6 +3046,7 @@ WallpaperItem {
         root.loading = true;
         engine.loadSeenIds();
         engine.loadBlockedIds();
+        root.ensureCacheNamespace();
         root.loadDiskCacheIndex();
         root.loadApiKeyFromKWallet();
         engine.fetchFreshWallpaper(false);

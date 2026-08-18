@@ -41,7 +41,12 @@
       <caption>Desktop wallpaper actions menu</caption>
     </screenshot>
   </screenshots>
-  <releases>
+    <releases>
+    <release version="2.4.0" date="2026-08-18">
+      <description>
+        <p>Preset import and apply actually work, per-screen disk cache, working parallax pan, lock-screen sync via Plasma Image keys, and client-side category/purity filtering.</p>
+      </description>
+    </release>
     <release version="2.3.0" date="2026-08-14">
       <description>
         <p>Italian i18n, shortcuts CMake fix, control and KDE Store docs, settings filter hint, PKGBUILD global shortcuts, and real desktop screenshot.</p>

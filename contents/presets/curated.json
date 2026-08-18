@@ -21,19 +21,26 @@
     "SearchText": "minimal dark abstract",
     "Sortings": "toplist",
     "TopRange": "1M",
-    "ColorFilter": "000000"
+    "ColorFilter": "000000",
+    "CategoryGeneral": true,
+    "CategoryAnime": false,
+    "CategoryPeople": false
   },
   {
     "name": "Cyberpunk",
     "SearchText": "cyberpunk neon",
     "Sortings": "random",
     "CategoryGeneral": true,
-    "CategoryAnime": true
+    "CategoryAnime": true,
+    "CategoryPeople": false
   },
   {
     "name": "Space",
     "SearchText": "space nebula stars",
     "Sortings": "random",
-    "Ratio": "landscape"
+    "Ratio": "landscape",
+    "CategoryGeneral": true,
+    "CategoryAnime": false,
+    "CategoryPeople": false
   }
 ]

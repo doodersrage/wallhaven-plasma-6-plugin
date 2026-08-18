@@ -279,6 +279,9 @@ msgstr ""
 msgid "Copy Tags"
 msgstr ""
 
+msgid "Copy the current wallpaper to the lock screen"
+msgstr ""
+
 msgid "Copy Wallpaper ID"
 msgstr ""
 
@@ -1038,6 +1041,9 @@ msgstr ""
 msgid "Slideshow rules"
 msgstr ""
 
+msgid "Slowly pan across the wallpaper"
+msgstr ""
+
 msgid "Slow pan/zoom"
 msgstr ""
 
@@ -1053,9 +1059,6 @@ msgstr ""
 msgid "Start D-Bus service"
 msgstr ""
 
-msgid "Subtle per-screen wallpaper offset"
-msgstr ""
-
 msgid "Symlink cached wallpaper as wallhaven-current.jpg"
 msgstr ""
 
@@ -1063,9 +1066,6 @@ msgid "Sync advance:"
 msgstr ""
 
 msgid "Sync group:"
-msgstr ""
-
-msgid "Sync lock screen wallpaper when cached"
 msgstr ""
 
 msgid "System color scheme"

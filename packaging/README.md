@@ -40,7 +40,7 @@ Optional automation: `.github/workflows/aur-publish.yml` (requires `AUR_SSH_PRIV
 
 ### Stable release (tarball)
 
-Use `packaging/PKGBUILD.release` for versioned GitHub releases (`wallhaven-plasma-2.3.0.tar.xz`).
+Use `packaging/PKGBUILD.release` for versioned GitHub releases (`wallhaven-plasma-2.4.0.tar.xz`).
 
 Optional global shortcuts (requires KDE dev packages to build):
 

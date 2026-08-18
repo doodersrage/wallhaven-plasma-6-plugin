@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.4.0 — 2026-08-18
+
+Bugfix release: settings actions that looked like no-ops, plus cache and filter correctness.
+
+### Fixed
+- **Import curated/community presets** — load bundled packs from JS instead of blocked local XHR
+- **Apply selected preset** — updates form fields, fills omitted category flags, and reloads the wallpaper
+- **Per-screen disk cache** — cache files are namespaced by monitor so People-off screens cannot show another screen’s people wallpaper
+- **Parallax** — slow pan actually moves (no longer cancelled by `anchors.centerIn`); Ken Burns pan works too
+- **Lock screen sync** — writes Plasma 6 `org.kde.image` Image keys and a stable copy, including cache hits
+- **Variety symlink** — updates on cache hits, not only first download
+- **Client-side filters** — drop people/sketchy/NSFW results that miss the API or cache metadata
+
+### Changed
+- Bundled curated/community presets now set category flags explicitly (People off)
+
 ## 2.3.0 — 2026-08-14
 
 Store-ready release: shortcuts build fix, Italian i18n, control docs, and distribution polish.

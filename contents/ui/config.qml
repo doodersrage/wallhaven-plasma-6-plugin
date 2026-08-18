@@ -176,42 +176,35 @@ ColumnLayout {
         return false;
     }
 
-    function importCuratedPresets() {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", Qt.resolvedUrl("../presets/curated.json"));
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState !== XMLHttpRequest.DONE)
-                return ;
+    function importBundledPresets(presets, emptyMessage, successMessage) {
+        if (!presets || !presets.length) {
+            importExportStatus.text = emptyMessage;
+            return;
+        }
 
-            if (xhr.status !== 0 && xhr.status !== 200) {
-                importExportStatus.text = i18n("Could not load curated presets.");
-                return ;
+        var merged = Wallhaven.mergePresetLists(currentPresets(), presets);
+        persistPresets(merged);
+        if (presets[0] && presets[0].name) {
+            for (var i = 0; i < merged.length; i++) {
+                if (merged[i].name === presets[0].name) {
+                    presetCombo.currentIndex = i;
+                    break;
+                }
             }
-            var curated = Wallhaven.parseCuratedPresets(xhr.responseText);
-            var merged = Wallhaven.mergePresetLists(currentPresets(), curated);
-            persistPresets(merged);
-            importExportStatus.text = i18n("Imported %1 curated preset(s).", curated.length);
-        };
-        xhr.send();
+        }
+        importExportStatus.text = successMessage;
+    }
+
+    function importCuratedPresets() {
+        var curated = Wallhaven.bundledCuratedPresets();
+        importBundledPresets(curated, i18n("Could not load curated presets."),
+            i18n("Imported %1 curated preset(s).", curated.length));
     }
 
     function importCommunityPresets() {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", Qt.resolvedUrl("../presets/community.json"));
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState !== XMLHttpRequest.DONE)
-                return ;
-
-            if (xhr.status !== 0 && xhr.status !== 200) {
-                importExportStatus.text = i18n("Could not load community presets.");
-                return ;
-            }
-            var curated = Wallhaven.parseCuratedPresets(xhr.responseText);
-            var merged = Wallhaven.mergePresetLists(currentPresets(), curated);
-            persistPresets(merged);
-            importExportStatus.text = i18n("Imported %1 community preset(s).", curated.length);
-        };
-        xhr.send();
+        var community = Wallhaven.bundledCommunityPresets();
+        importBundledPresets(community, i18n("Could not load community presets."),
+            i18n("Imported %1 community preset(s).", community.length));
     }
 
     function importPresetFromUrlField() {
@@ -329,6 +322,83 @@ ColumnLayout {
             return [];
 
         return Wallhaven.parseSearchPresets(wallpaperConfiguration.SearchPresetsJson || "[]");
+    }
+
+    function setComboValue(combo, value) {
+        if (!combo || value === undefined || value === null)
+            return;
+
+        var model = combo.model;
+        if (!model)
+            return;
+
+        for (var i = 0; i < model.length; i++) {
+            if (model[i] && model[i].value === value) {
+                combo.currentIndex = i;
+                return;
+            }
+        }
+    }
+
+    function applySearchPreset(preset) {
+        if (!preset || !wallpaperConfiguration)
+            return;
+
+        var normalized = Wallhaven.normalizeSearchPreset(preset);
+        Wallhaven.applyPresetToConfig(preset, wallpaperConfiguration);
+        if (normalized.SearchText !== undefined)
+            searchTextField.text = normalized.SearchText;
+
+        root.setComboValue(sortingsCombo, normalized.Sortings);
+        root.setComboValue(orderCombo, normalized.Order);
+        root.setComboValue(topRangeCombo, normalized.TopRange);
+        root.setComboValue(ratioCombo, normalized.Ratio);
+        root.setComboValue(colorCombo, normalized.ColorFilter);
+        if (normalized.CategoryGeneral !== undefined)
+            generalCheck.checked = normalized.CategoryGeneral;
+
+        if (normalized.CategoryAnime !== undefined)
+            animeCheck.checked = normalized.CategoryAnime;
+
+        if (normalized.CategoryPeople !== undefined)
+            peopleCheck.checked = normalized.CategoryPeople;
+
+        if (normalized.PuritySfw !== undefined)
+            sfwCheck.checked = normalized.PuritySfw;
+
+        if (normalized.PuritySketchy !== undefined)
+            sketchyCheck.checked = normalized.PuritySketchy;
+
+        if (normalized.PurityNsfw !== undefined)
+            nsfwCheck.checked = normalized.PurityNsfw;
+
+        if (normalized.MinWidth !== undefined)
+            minWidthField.text = normalized.MinWidth;
+
+        if (normalized.MinHeight !== undefined)
+            minHeightField.text = normalized.MinHeight;
+
+        if (normalized.ExactResolutions !== undefined)
+            resolutionsField.text = normalized.ExactResolutions;
+
+        if (normalized.UseBlacklist !== undefined)
+            blacklistCheck.checked = normalized.UseBlacklist;
+
+        if (normalized.TimeOfDayEnabled !== undefined)
+            timeOfDayCheck.checked = normalized.TimeOfDayEnabled;
+
+        if (normalized.DaySearch !== undefined)
+            daySearchField.text = normalized.DaySearch;
+
+        if (normalized.NightSearch !== undefined)
+            nightSearchField.text = normalized.NightSearch;
+
+        if (wallpaperConfiguration.writeConfig)
+            wallpaperConfiguration.writeConfig();
+
+        if (liveWallpaper && liveWallpaper.reloadWallpaper)
+            liveWallpaper.reloadWallpaper();
+
     }
 
     function persistPresets(presets) {
@@ -1478,16 +1548,7 @@ ColumnLayout {
                     text: i18n("Apply selected preset")
                     visible: parent.searchFilters
                     enabled: presetCombo.currentIndex >= 0
-                    onClicked: {
-                        var presets = root.currentPresets();
-                        var preset = presets[presetCombo.currentIndex];
-                        if (preset && wallpaperConfiguration) {
-                            Wallhaven.applyPresetToConfig(preset, wallpaperConfiguration);
-                            if (wallpaperConfiguration.writeConfig)
-                                wallpaperConfiguration.writeConfig();
-
-                        }
-                    }
+                    onClicked: root.applySearchPreset(root.currentPresets()[presetCombo.currentIndex])
                 }
 
                 QtControls2.Button {
@@ -1502,6 +1563,15 @@ ColumnLayout {
                     text: i18n("Import community presets")
                     visible: parent.searchFilters
                     onClicked: root.importCommunityPresets()
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: parent.searchFilters && importExportStatus.text !== ""
+                    text: importExportStatus.text
                 }
 
                 QtControls2.TextField {
@@ -1700,7 +1770,7 @@ ColumnLayout {
                     id: parallaxCheck
 
                     Kirigami.FormData.label: i18n("Parallax:")
-                    text: i18n("Subtle per-screen wallpaper offset")
+                    text: i18n("Slowly pan across the wallpaper")
                 }
 
                 QtControls2.SpinBox {
@@ -1716,7 +1786,7 @@ ColumnLayout {
                     id: lockScreenCheck
 
                     Kirigami.FormData.label: i18n("Lock screen:")
-                    text: i18n("Sync lock screen wallpaper when cached")
+                    text: i18n("Copy the current wallpaper to the lock screen")
                 }
 
                 QtControls2.CheckBox {

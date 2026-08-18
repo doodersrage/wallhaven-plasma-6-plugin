@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 2.3.0\n"
+"Project-Id-Version: org.robertsm.wallhaven 2.4.0\n"
 "Language: en\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -277,6 +277,9 @@ msgstr "Copy tags"
 
 msgid "Copy Tags"
 msgstr "Copy Tags"
+
+msgid "Copy the current wallpaper to the lock screen"
+msgstr "Copy the current wallpaper to the lock screen"
 
 msgid "Copy Wallpaper ID"
 msgstr "Copy Wallpaper ID"
@@ -1037,6 +1040,9 @@ msgstr "Slideshow resumed (power/activity rules cleared)."
 msgid "Slideshow rules"
 msgstr "Slideshow rules"
 
+msgid "Slowly pan across the wallpaper"
+msgstr "Slowly pan across the wallpaper"
+
 msgid "Slow pan/zoom"
 msgstr "Slow pan/zoom"
 
@@ -1052,9 +1058,6 @@ msgstr "Source"
 msgid "Start D-Bus service"
 msgstr "Start D-Bus service"
 
-msgid "Subtle per-screen wallpaper offset"
-msgstr "Subtle per-screen wallpaper offset"
-
 msgid "Symlink cached wallpaper as wallhaven-current.jpg"
 msgstr "Symlink cached wallpaper as wallhaven-current.jpg"
 
@@ -1063,9 +1066,6 @@ msgstr "Sync advance:"
 
 msgid "Sync group:"
 msgstr "Sync group:"
-
-msgid "Sync lock screen wallpaper when cached"
-msgstr "Sync lock screen wallpaper when cached"
 
 msgid "System color scheme"
 msgstr "System color scheme"

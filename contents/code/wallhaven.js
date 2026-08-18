@@ -246,15 +246,52 @@ function applyPresetToConfig(preset, configuration) {
     if (!preset || !configuration) {
         return false;
     }
-    var keys = Object.keys(preset);
+    var normalized = normalizeSearchPreset(preset);
+    var keys = Object.keys(normalized);
     for (var i = 0; i < keys.length; i++) {
-        var key = keys[i];
-        if (key === "name") {
-            continue;
-        }
-        configuration[key] = preset[key];
+        configuration[keys[i]] = normalized[keys[i]];
     }
     return true;
+}
+
+function normalizeSearchPreset(preset) {
+    if (!preset) {
+        return {};
+    }
+    var out = {};
+    var keys = Object.keys(preset);
+    var i;
+    for (i = 0; i < keys.length; i++) {
+        if (keys[i] === "name") {
+            continue;
+        }
+        out[keys[i]] = preset[keys[i]];
+    }
+    var catKeys = ["CategoryGeneral", "CategoryAnime", "CategoryPeople"];
+    var hasCat = false;
+    for (i = 0; i < catKeys.length; i++) {
+        if (Object.prototype.hasOwnProperty.call(preset, catKeys[i])) {
+            hasCat = true;
+        }
+    }
+    if (hasCat) {
+        for (i = 0; i < catKeys.length; i++) {
+            out[catKeys[i]] = !!preset[catKeys[i]];
+        }
+    }
+    var purKeys = ["PuritySfw", "PuritySketchy", "PurityNsfw"];
+    var hasPur = false;
+    for (i = 0; i < purKeys.length; i++) {
+        if (Object.prototype.hasOwnProperty.call(preset, purKeys[i])) {
+            hasPur = true;
+        }
+    }
+    if (hasPur) {
+        for (i = 0; i < purKeys.length; i++) {
+            out[purKeys[i]] = !!preset[purKeys[i]];
+        }
+    }
+    return out;
 }
 
 function parseRateLimitDelayMs(xhr, statusCode) {
@@ -363,21 +400,33 @@ function diskCacheSlotCount() {
 }
 
 function parseDiskCacheIndex(raw) {
-    var empty = { ids: [], next: 0 };
+    var empty = { ids: [], next: 0, categories: {}, purities: {} };
     if (!raw) {
         return empty;
     }
     try {
         var parsed = JSON.parse(raw);
+        var categories = {};
+        var purities = {};
+        if (parsed && parsed.categories && typeof parsed.categories === "object") {
+            categories = parsed.categories;
+        }
+        if (parsed && parsed.purities && typeof parsed.purities === "object") {
+            purities = parsed.purities;
+        }
         if (!parsed || !parsed.ids || !parsed.ids.length) {
             return {
                 ids: [],
                 next: Math.max(0, parseInt(parsed && parsed.next, 10) || 0),
+                categories: categories,
+                purities: purities,
             };
         }
         return {
             ids: parsed.ids.map(function(id) { return id === null || id === undefined ? "" : String(id); }),
             next: Math.max(0, parseInt(parsed.next, 10) || 0),
+            categories: categories,
+            purities: purities,
         };
     } catch (e) {
         return empty;
@@ -386,11 +435,13 @@ function parseDiskCacheIndex(raw) {
 
 function serializeDiskCacheIndex(index) {
     if (!index) {
-        return "{\"ids\":[],\"next\":0}";
+        return "{\"ids\":[],\"next\":0,\"categories\":{},\"purities\":{}}";
     }
     return JSON.stringify({
         ids: index.ids || [],
         next: index.next || 0,
+        categories: index.categories || {},
+        purities: index.purities || {},
     });
 }
 
@@ -401,7 +452,27 @@ function diskCacheSlotForId(index, id) {
     return index.ids.indexOf(String(id));
 }
 
-function allocateDiskCacheSlot(index, id, maxSlots, pinnedIds) {
+function setDiskCacheCategory(index, id, category, purity) {
+    if (!index || !id) {
+        return;
+    }
+    if (!index.categories) {
+        index.categories = {};
+    }
+    if (!index.purities) {
+        index.purities = {};
+    }
+    var cat = String(category || "").trim().toLowerCase();
+    if (cat && cat !== "cached") {
+        index.categories[String(id)] = cat;
+    }
+    var pur = String(purity || "").trim().toLowerCase();
+    if (pur && pur !== "cached") {
+        index.purities[String(id)] = pur;
+    }
+}
+
+function allocateDiskCacheSlot(index, id, maxSlots, pinnedIds, category, purity) {
     maxSlots = maxSlots || DISK_CACHE_SLOTS;
     id = String(id || "");
     if (!id) {
@@ -413,6 +484,7 @@ function allocateDiskCacheSlot(index, id, maxSlots, pinnedIds) {
     pinnedIds = pinnedIds || [];
     var existing = index.ids.indexOf(id);
     if (existing !== -1) {
+        setDiskCacheCategory(index, id, category, purity);
         return existing;
     }
     while (index.ids.length < maxSlots) {
@@ -420,33 +492,122 @@ function allocateDiskCacheSlot(index, id, maxSlots, pinnedIds) {
     }
     var slot = (index.next || 0) % maxSlots;
     var attempts = 0;
+    var occupant = "";
     while (attempts < maxSlots) {
-        var occupant = String(index.ids[slot] || "");
+        occupant = String(index.ids[slot] || "");
         if (!occupant || pinnedIds.indexOf(occupant) === -1) {
             break;
         }
         slot = (slot + 1) % maxSlots;
         attempts++;
     }
+    occupant = String(index.ids[slot] || "");
+    if (occupant && index.categories) {
+        delete index.categories[occupant];
+    }
+    if (occupant && index.purities) {
+        delete index.purities[occupant];
+    }
     index.ids[slot] = id;
+    setDiskCacheCategory(index, id, category, purity);
     index.next = (slot + 1) % maxSlots;
     return slot;
 }
 
-function diskCacheFileName(slot) {
+function sanitizeCacheNamespace(raw) {
+    var ns = String(raw || "").replace(/[^a-zA-Z0-9._-]/g, "_");
+    ns = ns.replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+    if (ns.length > 64) {
+        ns = ns.substring(0, 64);
+    }
+    return ns;
+}
+
+function diskCacheFileName(slot, namespace) {
     var n = Math.max(0, parseInt(slot, 10) || 0);
     var padded = n < 10 ? ("0" + n) : String(n);
+    var ns = sanitizeCacheNamespace(namespace);
+    if (ns) {
+        return "wallhaven-cache-" + ns + "-" + padded + ".jpg";
+    }
     return "wallhaven-cache-" + padded + ".jpg";
 }
 
-function listCachedIds(index) {
+function wallpaperMatchesCategories(wallpaper, cfg) {
+    if (!wallpaper || !cfg) {
+        return true;
+    }
+    var cat = String(wallpaper.category || "").toLowerCase();
+    if (!cat || cat === "cached") {
+        return true;
+    }
+    if (cat === "people") {
+        return !!cfg.CategoryPeople;
+    }
+    if (cat === "anime") {
+        return !!cfg.CategoryAnime;
+    }
+    if (cat === "general") {
+        return !!cfg.CategoryGeneral;
+    }
+    return true;
+}
+
+function shouldFilterByCategories(cfg) {
+    if (!cfg) {
+        return false;
+    }
+    var mode = cfg.BrowseMode || "search";
+    return mode !== "collection" && mode !== "favorites";
+}
+
+function wallpaperMatchesPurity(wallpaper, cfg) {
+    if (!wallpaper || !cfg) {
+        return true;
+    }
+    var purity = String(wallpaper.purity || "").toLowerCase();
+    if (!purity || purity === "cached") {
+        return true;
+    }
+    if (purity === "sfw") {
+        return !!cfg.PuritySfw;
+    }
+    if (purity === "sketchy") {
+        return !!cfg.PuritySketchy;
+    }
+    if (purity === "nsfw") {
+        return !!cfg.PurityNsfw && !!cfg.ApiKey;
+    }
+    return true;
+}
+
+function filterWallpapersByCategories(wallpapers, cfg) {
+    if (!wallpapers || !wallpapers.length || !shouldFilterByCategories(cfg)) {
+        return wallpapers || [];
+    }
+    return wallpapers.filter(function(wallpaper) {
+        return wallpaperMatchesCategories(wallpaper, cfg) && wallpaperMatchesPurity(wallpaper, cfg);
+    });
+}
+
+function cachedIdMatchesCategories(index, id, cfg) {
+    if (!shouldFilterByCategories(cfg) || !index || !id) {
+        return true;
+    }
+    var cat = index.categories ? String(index.categories[id] || "") : "";
+    var purity = index.purities ? String(index.purities[id] || "") : "";
+    return wallpaperMatchesCategories({ category: cat }, cfg)
+        && wallpaperMatchesPurity({ purity: purity }, cfg);
+}
+
+function listCachedIds(index, cfg) {
     if (!index || !index.ids) {
         return [];
     }
     var ids = [];
     for (var i = 0; i < index.ids.length; i++) {
         var id = String(index.ids[i] || "").trim();
-        if (id && ids.indexOf(id) === -1) {
+        if (id && ids.indexOf(id) === -1 && cachedIdMatchesCategories(index, id, cfg)) {
             ids.push(id);
         }
     }
@@ -459,6 +620,42 @@ function pickRandomCachedId(index) {
         return "";
     }
     return ids[(Math.random() * ids.length) | 0];
+}
+
+function parallaxStrengthNorm(strength) {
+    return Math.max(0, Math.min(100, strength || 50)) / 100;
+}
+
+function parallaxScaleForStrength(enabled, strength) {
+    if (!enabled) {
+        return 1;
+    }
+    return 1.06 + parallaxStrengthNorm(strength) * 0.10;
+}
+
+function parallaxOffsetX(enabled, strength, width, phase, screenPhase) {
+    if (!enabled) {
+        return 0;
+    }
+    var t = (Number(phase) || 0) + (Number(screenPhase) || 0);
+    return Math.sin(t * Math.PI * 2) * (width || 1920) * 0.07 * parallaxStrengthNorm(strength);
+}
+
+function parallaxOffsetY(enabled, strength, height, phase, screenPhase) {
+    if (!enabled) {
+        return 0;
+    }
+    var t = (Number(phase) || 0) + (Number(screenPhase) || 0);
+    return Math.cos(t * Math.PI * 2 * 0.65) * (height || 1080) * 0.05 * parallaxStrengthNorm(strength);
+}
+
+function parallaxCycleMs(strength) {
+    var s = Math.max(1, Math.min(100, strength || 50));
+    return Math.round(80000 - ((s - 1) / 99) * 40000);
+}
+
+function parallaxScreenPhase(virtualX) {
+    return (Math.max(0, Number(virtualX) || 0) / 3840) % 1;
 }
 
 function makeCachedWallpaper(id) {
@@ -941,6 +1138,43 @@ function varietySymlinkName() {
     return "wallhaven-current.jpg";
 }
 
+function lockScreenImageFileName() {
+    return "wallhaven-lockscreen.jpg";
+}
+
+function lockScreenImageUrl(path) {
+    var dest = String(path || "");
+    if (!dest) {
+        return "";
+    }
+    if (dest.indexOf("file://") === 0) {
+        return dest;
+    }
+    return "file://" + dest;
+}
+
+function shellSingleQuote(value) {
+    return "'" + String(value || "").replace(/'/g, "'\\''") + "'";
+}
+
+function buildLockScreenSyncCommand(sourcePath, destPath) {
+    var source = String(sourcePath || "");
+    var dest = String(destPath || "");
+    if (!source || !dest) {
+        return "";
+    }
+    var url = lockScreenImageUrl(dest);
+    var parts = [];
+    if (source !== dest) {
+        parts.push("cp -f " + shellSingleQuote(source) + " " + shellSingleQuote(dest));
+    }
+    parts.push("kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image");
+    parts.push("kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image " + shellSingleQuote(url));
+    parts.push("kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key PreviewImage " + shellSingleQuote(url));
+    parts.push("kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key FillMode 2");
+    return parts.join(" && ");
+}
+
 function parsePinnedCacheIds(raw) {
     return parseIdList(raw);
 }
@@ -958,6 +1192,95 @@ function computePreloadCount(cfg, networkOnline, metered) {
         return Math.max(0, base - 1);
     }
     return base;
+}
+
+var BUNDLED_CURATED_PRESETS = [
+    {
+        name: "Nature landscapes",
+        SearchText: "nature landscape mountains",
+        Sortings: "random",
+        Ratio: "landscape",
+        CategoryGeneral: true,
+        CategoryAnime: false,
+        CategoryPeople: false,
+    },
+    {
+        name: "Anime night city",
+        SearchText: "anime city night rain",
+        Sortings: "random",
+        CategoryAnime: true,
+        CategoryGeneral: false,
+        CategoryPeople: false,
+    },
+    {
+        name: "Minimal dark",
+        SearchText: "minimal dark abstract",
+        Sortings: "toplist",
+        TopRange: "1M",
+        ColorFilter: "000000",
+        CategoryGeneral: true,
+        CategoryAnime: false,
+        CategoryPeople: false,
+    },
+    {
+        name: "Cyberpunk",
+        SearchText: "cyberpunk neon",
+        Sortings: "random",
+        CategoryGeneral: true,
+        CategoryAnime: true,
+        CategoryPeople: false,
+    },
+    {
+        name: "Space",
+        SearchText: "space nebula stars",
+        Sortings: "random",
+        Ratio: "landscape",
+        CategoryGeneral: true,
+        CategoryAnime: false,
+        CategoryPeople: false,
+    },
+];
+
+var BUNDLED_COMMUNITY_PRESETS = [
+    {
+        name: "Community — Cozy cabin",
+        SearchText: "cabin cozy winter snow",
+        Sortings: "random",
+        Ratio: "landscape",
+        CategoryGeneral: true,
+        CategoryAnime: false,
+        CategoryPeople: false,
+    },
+    {
+        name: "Community — Retro synth",
+        SearchText: "retrowave synthwave 80s",
+        Sortings: "toplist",
+        TopRange: "1M",
+        CategoryGeneral: true,
+        CategoryAnime: false,
+        CategoryPeople: false,
+    },
+    {
+        name: "Community — Ocean calm",
+        SearchText: "ocean waves beach sunset",
+        Sortings: "random",
+        ColorFilter: "0066cc",
+        CategoryGeneral: true,
+        CategoryAnime: false,
+        CategoryPeople: false,
+    },
+];
+
+function cloneBundledPresets(presets) {
+    return parseCuratedPresets(JSON.stringify(presets || []));
+}
+
+function bundledCuratedPresets() {
+    return cloneBundledPresets(BUNDLED_CURATED_PRESETS);
+}
+
+function bundledCommunityPresets() {
+    return cloneBundledPresets(BUNDLED_COMMUNITY_PRESETS);
 }
 
 function parseCuratedPresets(raw) {
@@ -1035,7 +1358,7 @@ function buildPresetShareUrl(preset) {
 }
 
 function pluginVersion() {
-    return "2.3.0";
+    return "2.4.0";
 }
 
 function appendDebugLogLine(existing, line, maxLines) {
