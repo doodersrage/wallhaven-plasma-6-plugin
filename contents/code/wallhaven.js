@@ -191,6 +191,8 @@ var EXPORTABLE_SETTINGS_KEYS = [
     "PinnedCacheIdsJson", "AdaptivePreloadEnabled", "PreloadCount",
     "AutoPanelAccentEnabled", "PauseOnBatteryLow", "BatteryLowThreshold",
     "PauseWhenInactive", "SmartColorFromWallpaper", "TagFavoritesJson",
+    "MusicReactiveEnabled", "MusicReactiveIntensity", "WeatherReactiveEnabled",
+    "WeatherLocation", "TimeCapsulesJson", "SystemThemeSyncEnabled", "AchievementsEnabled",
 ];
 
 function exportSettingsSnapshot(cfg) {

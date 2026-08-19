@@ -722,8 +722,27 @@ WallpaperItem {
         var wp = Wallhaven.makeCachedWallpaper(id);
         var remote = Wallhaven.thumbUrlForId(id);
         var source = resolveImageSource(wp, remote);
-        engine.displayWallpaper(wp, source.indexOf("file:") === 0 ? source : remote, true);
-        engine.showStatus(i18n("Showing wallpaper #%1 from history.", id), "info");
+        if (source.indexOf("file:") === 0) {
+            // Still in the local disk cache: show the full-resolution cached file directly.
+            engine.displayWallpaper(wp, source, true);
+            engine.showStatus(i18n("Showing wallpaper #%1 from history.", id), "info");
+            return;
+        }
+        // Not cached locally anymore (LRU evicted it, or disk cache is off): fetch the
+        // full wallpaper record so we can display the real image, not just its thumbnail.
+        engine.showStatus(i18n("Loading wallpaper #%1 from history…", id), "info");
+        engine.requestJson(Wallhaven.buildWallpaperUrl(id, cfg.ApiKey), function(json) {
+            if (!json.data) {
+                engine.showStatus(i18n("Could not load wallpaper #%1.", id), "error");
+                return;
+            }
+            var full = Wallhaven.wallpaperUrl(json.data, cfg.ImageQuality);
+            engine.displayWallpaper(json.data, full || remote, true);
+            engine.showStatus(i18n("Showing wallpaper #%1 from history.", id), "info");
+        }, function() {
+            engine.showStatus(i18n("Could not load wallpaper #%1 — showing preview instead.", id), "warn");
+            engine.displayWallpaper(wp, remote, true);
+        });
     }
 
     function clearWallpaperHistory() {

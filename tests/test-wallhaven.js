@@ -225,6 +225,22 @@ function testNormalizeSearchPreset() {
     assert(space.CategoryPeople === false, "space pack disables people");
 }
 
+function testExportIncludesV250Settings() {
+    var newKeys = [
+        "MusicReactiveEnabled", "MusicReactiveIntensity", "WeatherReactiveEnabled",
+        "WeatherLocation", "TimeCapsulesJson", "SystemThemeSyncEnabled", "AchievementsEnabled",
+    ];
+    var cfg = {};
+    newKeys.forEach(function(key) { cfg[key] = key === "MusicReactiveIntensity" ? 55 : "test-value"; });
+    cfg.MusicReactiveEnabled = true;
+    var snapshot = JSON.parse(Wallhaven.exportSettingsSnapshot(cfg));
+    newKeys.forEach(function(key) {
+        assert(snapshot.settings[key] !== undefined, "v2.5.0 setting exported: " + key);
+    });
+    var imported = Wallhaven.importSettingsSnapshot(Wallhaven.exportSettingsSnapshot(cfg));
+    assert(imported.WeatherLocation === "test-value", "v2.5.0 setting roundtrips through import");
+}
+
 function testSwipeToRate() {
     var tags = Wallhaven.tagsStringToBlocklistTags("sky, city lights, sunset", 5);
     assert(tags.length === 3 && tags[1] === "city_lights", "tags normalized for lists");
@@ -308,6 +324,7 @@ function testAchievements() {
     testLockScreenSyncCommand,
     testDiskCacheNamespaceAndCategories,
     testNormalizeSearchPreset,
+    testExportIncludesV250Settings,
     testSwipeToRate,
     testMusicReactiveSpeed,
     testWeatherMapping,

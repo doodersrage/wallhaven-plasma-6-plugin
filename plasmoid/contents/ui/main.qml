@@ -297,8 +297,10 @@ PlasmoidItem {
                         plasmoidMenu.open();
                         return;
                     }
-                    if (dragged && Math.abs(offset) > 40 && !root.dbusOffline) {
-                        root.sendCommand(offset > 0 ? "like" : "dislike");
+                    if (dragged && Math.abs(offset) > 40) {
+                        if (!root.dbusOffline) {
+                            root.sendCommand(offset > 0 ? "like" : "dislike");
+                        }
                         dragged = false;
                         return;
                     }

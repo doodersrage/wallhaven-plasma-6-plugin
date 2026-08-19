@@ -515,7 +515,9 @@ class WallhavenRunner(dbus.service.Object):
 
 def main() -> int:
     group = os.environ.get("WALLHAVEN_SYNC_GROUP", "default")
-    if len(sys.argv) > 1 and sys.argv[1] in {"next", "prev", "reload", "pause", "resume", "open", "block", "copytags"}:
+    if len(sys.argv) > 1 and sys.argv[1] in {
+        "next", "prev", "reload", "pause", "resume", "open", "block", "copytags", "like", "dislike",
+    }:
         write_command(sys.argv[1], group)
         print(f"Sent '{sys.argv[1]}' via control bus")
         return 0
