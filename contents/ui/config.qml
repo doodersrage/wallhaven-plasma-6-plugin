@@ -138,6 +138,12 @@ ColumnLayout {
     property alias cfg_BatteryLowThreshold: batteryThresholdSpin.value
     property alias cfg_PauseWhenInactive: pauseInactiveCheck.checked
     property alias cfg_SmartColorFromWallpaper: smartColorCheck.checked
+    property alias cfg_MusicReactiveEnabled: musicReactiveCheck.checked
+    property alias cfg_MusicReactiveIntensity: musicReactiveIntensitySpin.value
+    property alias cfg_WeatherReactiveEnabled: weatherReactiveCheck.checked
+    property alias cfg_WeatherLocation: weatherLocationField.text
+    property alias cfg_AchievementsEnabled: achievementsCheck.checked
+    property alias cfg_SystemThemeSyncEnabled: systemThemeSyncCheck.checked
     property string settingsFilter: ""
     readonly property var settingsFilterKeywords: [
         "search", "filter", "settings", "source", "tags", "query", "cache", "variety",
@@ -145,6 +151,8 @@ ColumnLayout {
         "debug", "import", "export", "favorites", "collection", "interval", "transition",
         "attribution", "ken", "parallax", "panel", "battery", "offline", "kwallet",
         "toplist", "wotd", "refresh", "playback", "advanced", "similar", "quality",
+        "music", "weather", "achievement", "streak", "milestone", "theme", "capsule",
+        "swipe", "like", "dislike",
     ]
     property bool showSetupWizard: wallpaperConfiguration && !wallpaperConfiguration.SetupWizardCompleted
     readonly property bool dbusServiceOnline: liveWallpaper && liveWallpaper.isDbusServiceAvailable
@@ -297,6 +305,24 @@ ColumnLayout {
 
         var entries = Wallhaven.parseCollectionRotationLines(text);
         wallpaperConfiguration.CollectionRotationJson = Wallhaven.serializeCollectionRotation(entries);
+        if (wallpaperConfiguration.writeConfig)
+            wallpaperConfiguration.writeConfig();
+
+    }
+
+    function timeCapsuleText() {
+        if (!wallpaperConfiguration)
+            return "";
+
+        return Wallhaven.formatTimeCapsuleLines(Wallhaven.parseTimeCapsules(wallpaperConfiguration.TimeCapsulesJson || "[]"));
+    }
+
+    function persistTimeCapsules(text) {
+        if (!wallpaperConfiguration)
+            return ;
+
+        var entries = Wallhaven.parseTimeCapsuleLines(text);
+        wallpaperConfiguration.TimeCapsulesJson = Wallhaven.serializeTimeCapsules(entries);
         if (wallpaperConfiguration.writeConfig)
             wallpaperConfiguration.writeConfig();
 
@@ -1917,6 +1943,73 @@ ColumnLayout {
                     enabled: attributionCheck.checked
                 }
 
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Fun & Discovery")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.CheckBox {
+                    id: musicReactiveCheck
+
+                    Kirigami.FormData.label: i18n("Music-reactive pacing:")
+                    text: i18n("Speed up Ken Burns panning while music is playing (via MPRIS)")
+                }
+
+                QtControls2.SpinBox {
+                    id: musicReactiveIntensitySpin
+
+                    Kirigami.FormData.label: i18n("Music reactivity (%):")
+                    from: 0
+                    to: 100
+                    enabled: musicReactiveCheck.checked
+                }
+
+                QtControls2.CheckBox {
+                    id: weatherReactiveCheck
+
+                    Kirigami.FormData.label: i18n("Weather-reactive search:")
+                    text: i18n("Bias search toward rain/snow/storm tags matching local weather")
+                }
+
+                QtControls2.TextField {
+                    id: weatherLocationField
+
+                    Kirigami.FormData.label: i18n("Weather location:")
+                    placeholderText: i18n("City name, or \"lat,lon\"")
+                    enabled: weatherReactiveCheck.checked
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: weatherReactiveCheck.checked
+                    text: i18n("Uses the free Open-Meteo API (no key required); location is geocoded once and cached.")
+                }
+
+                QtControls2.CheckBox {
+                    id: achievementsCheck
+
+                    Kirigami.FormData.label: i18n("Milestone toasts:")
+                    text: i18n("Notify on view-count milestones and daily streaks")
+                }
+
+                QtControls2.CheckBox {
+                    id: systemThemeSyncCheck
+
+                    Kirigami.FormData.label: i18n("System theme sync:")
+                    text: i18n("Also push the wallpaper accent to GTK apps and kdeglobals")
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: i18n("Swipe the panel widget thumbnail left/right (or use its menu) to like/dislike the current wallpaper's tags.")
+                }
+
             }
 
         }
@@ -2479,6 +2572,27 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Weekend search:")
                     placeholderText: i18n("Sat–Sun")
                     enabled: scheduleCheck.checked && !timeOfDayCheck.checked
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Time Capsule")
+                    Kirigami.FormData.isSection: true
+                }
+
+                QtControls2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: i18n("Auto-switch the search on a specific date. One per line: date|search query|optional label. MM-DD repeats every year (birthdays, holidays); YYYY-MM-DD fires once.")
+                }
+
+                QtControls2.TextArea {
+                    id: timeCapsuleField
+
+                    Kirigami.FormData.label: i18n("Time capsules:")
+                    placeholderText: i18n("12-25|christmas snow|Holiday surprise\n2026-09-01|back to school city")
+                    text: root.timeCapsuleText()
+                    onEditingFinished: root.persistTimeCapsules(text)
                 }
 
             }

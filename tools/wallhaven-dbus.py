@@ -261,6 +261,10 @@ class WallhavenControl(dbus.service.Object):
     def Search(self, query: str, group: str = "") -> None:
         write_command("search", group or self.group, query)
 
+    @dbus.service.method(INTERFACE, in_signature="sss")
+    def CommandWithQuery(self, cmd: str, query: str, group: str = "") -> None:
+        write_command(cmd, group or self.group, query)
+
     @dbus.service.method(INTERFACE, in_signature="ss")
     def WriteTextFile(self, path: str, content: str) -> None:
         target = validate_cache_path(path)
@@ -471,6 +475,10 @@ class WallhavenRunner(dbus.service.Object):
             add("wh-open", "Open current wallpaper in browser", "Wallhaven page", 0.9)
         if re.match(r"^(wh|wallhaven)\s*block$", lowered):
             add("wh-block", "Block current wallpaper", "Skip in future searches", 0.9)
+        if re.match(r"^(wh|wallhaven)\s*like$", lowered):
+            add("wh-like", "Like current wallpaper", "Boost its tags", 0.88)
+        if re.match(r"^(wh|wallhaven)\s*dislike$", lowered):
+            add("wh-dislike", "Dislike current wallpaper", "Mute its tags", 0.88)
         if re.match(r"^(wh|wallhaven)\s*(tags|copy tags)$", lowered):
             add("wh-copytags", "Copy current wallpaper tags", "Clipboard", 0.88)
         search = re.match(r"^(?:wh|wallhaven)\s+search\s+(.+)$", lowered)
@@ -494,6 +502,10 @@ class WallhavenRunner(dbus.service.Object):
             write_command("open", self.group)
         elif match_id == "wh-block":
             write_command("block", self.group)
+        elif match_id == "wh-like":
+            write_command("like", self.group)
+        elif match_id == "wh-dislike":
+            write_command("dislike", self.group)
         elif match_id == "wh-copytags":
             write_command("copytags", self.group)
         elif match_id.startswith("wh-search:"):

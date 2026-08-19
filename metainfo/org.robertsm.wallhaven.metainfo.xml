@@ -42,6 +42,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="2.5.0" date="2026-08-19">
+      <description>
+        <p>Fun release: swipe-to-rate on the panel widget, music- and weather-reactive slideshow, time-capsule scheduled searches, wider accent theme sync, and opt-in milestone/streak notifications.</p>
+      </description>
+    </release>
     <release version="2.4.0" date="2026-08-18">
       <description>
         <p>Preset import and apply actually work, per-screen disk cache, working parallax pan, lock-screen sync via Plasma Image keys, and client-side category/purity filtering.</p>

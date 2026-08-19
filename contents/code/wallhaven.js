@@ -752,7 +752,11 @@ function getEffectiveSearchText(cfg) {
     } else {
         base = cfg.SearchText || "";
     }
-    return appendTagFavorites(base, parseTagFavorites(cfg.TagFavoritesJson));
+    base = appendTagFavorites(base, parseTagFavorites(cfg.TagFavoritesJson));
+    if (cfg.WeatherReactiveEnabled && cfg.WeatherTagCache) {
+        base = appendWeatherModifier(base, cfg.WeatherTagCache);
+    }
+    return base;
 }
 
 function parseTagFavorites(raw) {
@@ -1358,7 +1362,7 @@ function buildPresetShareUrl(preset) {
 }
 
 function pluginVersion() {
-    return "2.4.0";
+    return "2.5.0";
 }
 
 function appendDebugLogLine(existing, line, maxLines) {
@@ -1873,4 +1877,235 @@ function allWallpapersSeen(wallpapers, seenIds) {
         }
     }
     return true;
+}
+
+// ---------------------------------------------------------------------
+// v2.5.0 additions: swipe-to-rate, music/weather reactivity, time
+// capsules, milestone toasts.
+// ---------------------------------------------------------------------
+
+function tagsStringToBlocklistTags(tagsString, maxTags) {
+    maxTags = maxTags || 5;
+    if (!tagsString) {
+        return [];
+    }
+    return String(tagsString).split(",").map(function(tag) {
+        return tag.trim().replace(/\s+/g, "_");
+    }).filter(function(tag) {
+        return tag.length > 0;
+    }).slice(0, maxTags);
+}
+
+function addTagsToJsonList(raw, tagsToAdd, maxEntries) {
+    maxEntries = maxEntries || 30;
+    var list = parseTagBlocklist(raw);
+    for (var i = 0; i < tagsToAdd.length; i++) {
+        if (list.indexOf(tagsToAdd[i]) === -1) {
+            list.push(tagsToAdd[i]);
+        }
+    }
+    if (list.length > maxEntries) {
+        list = list.slice(list.length - maxEntries);
+    }
+    return serializeTagBlocklist(list);
+}
+
+function removeTagsFromJsonList(raw, tagsToRemove) {
+    var list = parseTagBlocklist(raw);
+    if (!tagsToRemove || !tagsToRemove.length) {
+        return serializeTagBlocklist(list);
+    }
+    list = list.filter(function(tag) {
+        return tagsToRemove.indexOf(tag) === -1;
+    });
+    return serializeTagBlocklist(list);
+}
+
+function musicReactiveSpeedMultiplier(intensityPercent, isPlaying) {
+    if (!isPlaying) {
+        return 1;
+    }
+    var pct = Math.max(0, Math.min(100, intensityPercent || 0));
+    return 1 + (pct / 100) * 0.6;
+}
+
+function mapWeatherCodeToTag(code) {
+    code = parseInt(code, 10);
+    if (isNaN(code)) {
+        return "";
+    }
+    if (code === 0) {
+        return "clear sky";
+    }
+    if (code >= 1 && code <= 3) {
+        return "clouds";
+    }
+    if (code === 45 || code === 48) {
+        return "fog";
+    }
+    if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
+        return "rain";
+    }
+    if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) {
+        return "snow";
+    }
+    if (code >= 95 && code <= 99) {
+        return "storm";
+    }
+    return "";
+}
+
+function appendWeatherModifier(query, tag) {
+    query = String(query || "").trim();
+    tag = String(tag || "").trim();
+    if (!tag) {
+        return query;
+    }
+    return (query ? query + " " : "") + tag;
+}
+
+function parseLatLon(text) {
+    var match = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/.exec(String(text || ""));
+    if (!match) {
+        return null;
+    }
+    return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
+}
+
+function parseGeocodeResponse(json) {
+    try {
+        var data = typeof json === "string" ? JSON.parse(json) : json;
+        var results = data && data.results;
+        if (!results || !results.length) {
+            return null;
+        }
+        var first = results[0];
+        return { lat: first.latitude, lon: first.longitude, name: first.name || "" };
+    } catch (e) {
+        return null;
+    }
+}
+
+function parseCurrentWeatherResponse(json) {
+    try {
+        var data = typeof json === "string" ? JSON.parse(json) : json;
+        var current = data && data.current_weather;
+        if (!current) {
+            return null;
+        }
+        return { code: current.weathercode, temperature: current.temperature };
+    } catch (e) {
+        return null;
+    }
+}
+
+function pad2(value) {
+    value = parseInt(value, 10) || 0;
+    return value < 10 ? "0" + value : String(value);
+}
+
+function isoDateFromParts(year, month, day) {
+    return year + "-" + pad2(month) + "-" + pad2(day);
+}
+
+function monthDayFromParts(month, day) {
+    return pad2(month) + "-" + pad2(day);
+}
+
+function parseTimeCapsuleLines(text) {
+    if (!text) {
+        return [];
+    }
+    var lines = String(text).split("\n");
+    var entries = [];
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line || line.charAt(0) === "#") {
+            continue;
+        }
+        var parts = line.split("|");
+        var date = (parts[0] || "").trim();
+        var query = (parts[1] || "").trim();
+        var label = (parts[2] || "").trim();
+        if (!/^\d{2}-\d{2}$/.test(date) && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            continue;
+        }
+        if (!query) {
+            continue;
+        }
+        entries.push({ date: date, query: query, label: label });
+    }
+    return entries;
+}
+
+function formatTimeCapsuleLines(entries) {
+    if (!entries || !entries.length) {
+        return "";
+    }
+    return entries.map(function(entry) {
+        var line = entry.date + "|" + entry.query;
+        if (entry.label) {
+            line += "|" + entry.label;
+        }
+        return line;
+    }).join("\n");
+}
+
+function parseTimeCapsules(raw) {
+    if (!raw) {
+        return [];
+    }
+    try {
+        var parsed = JSON.parse(raw);
+        if (!parsed || !parsed.length) {
+            return [];
+        }
+        return parsed.filter(function(entry) {
+            return entry && entry.date && entry.query;
+        });
+    } catch (e) {
+        return [];
+    }
+}
+
+function serializeTimeCapsules(entries) {
+    return JSON.stringify(entries || []);
+}
+
+function findDueTimeCapsule(entries, todayFull, todayMonthDay) {
+    if (!entries || !entries.length) {
+        return null;
+    }
+    for (var i = 0; i < entries.length; i++) {
+        var date = entries[i].date;
+        if (date === todayFull || date === todayMonthDay) {
+            return entries[i];
+        }
+    }
+    return null;
+}
+
+function computeStreak(lastDateStr, todayStr, currentStreak) {
+    if (!lastDateStr) {
+        return 1;
+    }
+    if (lastDateStr === todayStr) {
+        return currentStreak || 1;
+    }
+    var last = new Date(lastDateStr + "T00:00:00");
+    var today = new Date(todayStr + "T00:00:00");
+    var diffDays = Math.round((today.getTime() - last.getTime()) / 86400000);
+    if (diffDays === 1) {
+        return (currentStreak || 0) + 1;
+    }
+    return 1;
+}
+
+function findNewMilestone(previousCount, newCount, milestones) {
+    for (var i = 0; i < milestones.length; i++) {
+        if (previousCount < milestones[i] && newCount >= milestones[i]) {
+            return milestones[i];
+        }
+    }
+    return 0;
 }

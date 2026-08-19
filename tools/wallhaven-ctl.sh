@@ -12,7 +12,7 @@ usage() {
     cat <<EOF
 Send commands to the Wallhaven wallpaper plugin.
 
-Usage: $(basename "$0") <next|prev|reload|pause|resume|search query...|importpreset url>
+Usage: $(basename "$0") <next|prev|reload|pause|resume|like|dislike|search query...|importpreset url|history id>
 
 Environment:
   WALLHAVEN_SYNC_GROUP   Control/sync group name (default: default)
@@ -66,8 +66,27 @@ if [[ "${CMD}" == "importpreset" ]]; then
     exit 0
 fi
 
+if [[ "${CMD}" == "history" ]]; then
+    shift
+    WALLPAPER_ID="${1:-}"
+    if [[ -z "${WALLPAPER_ID}" ]]; then
+        echo "Usage: $(basename "$0") history <wallpaper id>" >&2
+        exit 1
+    fi
+    if command -v qdbus6 >/dev/null 2>&1; then
+        if qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.CommandWithQuery \
+            history "${WALLPAPER_ID}" "${GROUP}" 2>/dev/null; then
+            echo "Sent history via D-Bus"
+            exit 0
+        fi
+    fi
+    write_control_file history "${WALLPAPER_ID}"
+    echo "Sent history to ${CONTROL_FILE}"
+    exit 0
+fi
+
 case "${CMD}" in
-    next|prev|reload|pause|resume) ;;
+    next|prev|reload|pause|resume|like|dislike) ;;
     -h|--help|help) usage; exit 0 ;;
     *) echo "Unknown command: ${CMD}"; usage; exit 1 ;;
 esac

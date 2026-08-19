@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.5.0 — 2026-08-19
+
+Fun release: seven playful additions layered on the existing search, tagging, and control-bus infrastructure. All opt-in and off by default.
+
+### Added
+- **Swipe-to-rate** — drag the panel widget thumbnail right/left (or use its menu) to like/dislike the current wallpaper; like boosts its tags into your favorites, dislike mutes them into the blocklist
+- **Music-reactive pacing** — Ken Burns panning speeds up while any MPRIS media player on the session bus is playing (`Effects → Music-reactive pacing`)
+- **Weather-reactive search** — biases the search query toward rain/snow/storm/clear-sky tags using free, keyless Open-Meteo geocoding + forecast for a city or `lat,lon` (`Effects → Weather-reactive search`)
+- **History scrubber** — the panel widget gets a "Recent wallpapers" popup to jump back to any of the last dozen wallpapers, backed by a new `wallhaven-history.json` status file
+- **Time capsules** — schedule a search to kick in automatically on a date; `MM-DD` repeats yearly (birthdays, holidays), `YYYY-MM-DD` fires once (`Schedule → Time Capsule`)
+- **System theme sync** — auto panel accent now optionally also pushes the wallpaper's accent color to GTK apps (`gsettings`) and `kdeglobals` directly (`Effects → System theme sync`)
+- **Milestone toasts** — optional notifications for wallpaper view-count milestones (10, 50, 100, …) and daily viewing streaks (`Effects → Milestone toasts`)
+- **D-Bus `CommandWithQuery`** — generic control-bus method backing the history scrubber; `wallhaven-ctl.sh history <id>`, `wh like`, and `wh dislike` also added
+- 8 new pure-function unit tests covering the above (`tests/test-wallhaven.js`)
+
 ## 2.4.0 — 2026-08-18
 
 Bugfix release: settings actions that looked like no-ops, plus cache and filter correctness.

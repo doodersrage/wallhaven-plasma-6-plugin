@@ -36,6 +36,7 @@ WallpaperItem {
     readonly property string varietyMetadataFile: diskCacheDir + "/wallhaven-variety.json"
     readonly property string settingsExportFile: diskCacheDir + "/wallhaven-settings-export.json"
     readonly property string statusBusFile: diskCacheDir + "/wallhaven-status.json"
+    readonly property string historyBusFile: diskCacheDir + "/wallhaven-history.json"
     readonly property string dbusConfigFile: diskCacheDir + "/wallhaven-dbus-config.json"
     readonly property string panelTintFile: diskCacheDir + "/wallhaven-panel-tint.json"
     readonly property string debugLogFile: diskCacheDir + "/wallhaven-debug.log"
@@ -133,6 +134,8 @@ WallpaperItem {
     property int _batteryPercent: 100
     property bool _rulesPausedSlideshow: false
     property bool _pausedByRules: false
+    property bool _musicPlaying: false
+    property string _weatherLastLocation: ""
 
     property real parallaxPhase: 0
     readonly property real parallaxScreenPhase: {
@@ -540,6 +543,95 @@ WallpaperItem {
         engine.showStatus(i18n("Blocklist cleared."), "info");
     }
 
+    function rateCurrentWallpaper(liked) {
+        if (!_currentTags || !root.configuration) {
+            engine.showStatus(i18n("No tags to rate yet."), "info");
+            return;
+        }
+        var tags = Wallhaven.tagsStringToBlocklistTags(_currentTags, 5);
+        if (!tags.length) {
+            return;
+        }
+        if (liked) {
+            root.configuration.TagFavoritesJson = Wallhaven.addTagsToJsonList(cfg.TagFavoritesJson, tags, 30);
+            root.configuration.TagBlocklistJson = Wallhaven.removeTagsFromJsonList(cfg.TagBlocklistJson, tags);
+            engine.showStatus(i18n("Boosted tags: %1", tags.join(", ")), "info");
+        } else {
+            root.configuration.TagBlocklistJson = Wallhaven.addTagsToJsonList(cfg.TagBlocklistJson, tags, 60);
+            root.configuration.TagFavoritesJson = Wallhaven.removeTagsFromJsonList(cfg.TagFavoritesJson, tags);
+            engine.showStatus(i18n("Muted tags: %1", tags.join(", ")), "info");
+        }
+        scheduleConfigWrite();
+        if (!liked) {
+            Qt.callLater(function() {
+                engine.skipForward();
+            });
+        }
+    }
+
+    function checkTimeCapsules() {
+        if (!root.configuration) {
+            return;
+        }
+        var entries = Wallhaven.parseTimeCapsules(cfg.TimeCapsulesJson || "[]");
+        if (!entries.length) {
+            return;
+        }
+        var now = new Date();
+        var full = Wallhaven.isoDateFromParts(now.getFullYear(), now.getMonth() + 1, now.getDate());
+        if ((cfg.TimeCapsuleLastAppliedDate || "") === full) {
+            return;
+        }
+        var monthDay = Wallhaven.monthDayFromParts(now.getMonth() + 1, now.getDate());
+        var due = Wallhaven.findDueTimeCapsule(entries, full, monthDay);
+        if (!due) {
+            return;
+        }
+        root.configuration.BrowseMode = "search";
+        root.configuration.SearchText = due.query;
+        root.configuration.WallpaperOfDayEnabled = false;
+        root.configuration.TimeCapsuleLastAppliedDate = full;
+        scheduleConfigWrite();
+        engine.resetSlideshow();
+        root.sendSystemNotification(
+            i18n("Wallhaven time capsule"),
+            due.label
+                ? i18n("🎉 %1 — now searching \"%2\"", due.label, due.query)
+                : i18n("🎉 Scheduled wallpaper switch — now searching \"%1\"", due.query),
+            false,
+        );
+    }
+
+    function recordWallpaperViewed() {
+        if (!root.configuration || !cfg.AchievementsEnabled) {
+            return;
+        }
+        var now = new Date();
+        var today = Wallhaven.isoDateFromParts(now.getFullYear(), now.getMonth() + 1, now.getDate());
+        var previousTotal = cfg.TotalWallpapersViewed || 0;
+        var newTotal = previousTotal + 1;
+        var isNewDay = (cfg.LastViewDateStr || "") !== today;
+        var newStreak = Wallhaven.computeStreak(cfg.LastViewDateStr || "", today, cfg.CurrentStreakDays || 0);
+        root.configuration.TotalWallpapersViewed = newTotal;
+        root.configuration.CurrentStreakDays = newStreak;
+        root.configuration.LastViewDateStr = today;
+        scheduleConfigWrite();
+
+        var milestone = Wallhaven.findNewMilestone(
+            previousTotal, newTotal, [10, 50, 100, 250, 500, 1000, 2500, 5000, 10000]);
+        if (milestone > 0) {
+            root.sendSystemNotification(
+                i18n("Wallhaven milestone"), i18n("🎉 %1 wallpapers viewed!", milestone), false);
+        }
+        if (isNewDay && newStreak >= 3) {
+            var streakMilestone = Wallhaven.findNewMilestone(newStreak - 1, newStreak, [3, 7, 14, 30, 60, 100, 365]);
+            if (streakMilestone > 0) {
+                root.sendSystemNotification(
+                    i18n("Wallhaven streak"), i18n("🔥 %1-day wallpaper streak!", streakMilestone), false);
+            }
+        }
+    }
+
     function loadSimilarWallpapers() {
         var id = currentWallpaperId;
         if (!id || id === "wallpaper" || !root.configuration) {
@@ -615,6 +707,7 @@ WallpaperItem {
         }, 30);
         root.configuration.WallpaperHistoryJson = Wallhaven.serializeWallpaperHistory(history, 30);
         scheduleConfigWrite();
+        settingsFileWriter.writeFile(historyBusFile, Wallhaven.serializeWallpaperHistory(history, 12));
     }
 
     function getWallpaperHistory() {
@@ -705,16 +798,22 @@ WallpaperItem {
         if (!hexColor) {
             return;
         }
+        function applyAccents() {
+            if (cfg.AutoPanelAccentEnabled) {
+                applyPanelAccent(hexColor);
+            }
+            if (cfg.SystemThemeSyncEnabled) {
+                applySystemThemeSync(hexColor);
+            }
+        }
         if (cfg.PanelTintEnabled) {
             settingsFileWriter.writeFile(
                 panelTintFile,
                 Wallhaven.buildPanelTintMetadata(hexColor, wallpaperId),
-                cfg.AutoPanelAccentEnabled ? function() {
-                    applyPanelAccent(hexColor);
-                } : null,
+                (cfg.AutoPanelAccentEnabled || cfg.SystemThemeSyncEnabled) ? applyAccents : null,
             );
-        } else if (cfg.AutoPanelAccentEnabled) {
-            applyPanelAccent(hexColor);
+        } else {
+            applyAccents();
         }
     }
 
@@ -727,6 +826,20 @@ WallpaperItem {
             "command -v plasma-apply-colors >/dev/null && plasma-apply-colors --accent-color '#"
                 + hexColor.replace(/'/g, "") + "' || true",
         ]);
+    }
+
+    function applySystemThemeSync(hexColor) {
+        if (!cfg.SystemThemeSyncEnabled || !hexColor) {
+            return;
+        }
+        var color = String(hexColor).replace(/[^0-9a-fA-F]/g, "").slice(0, 6);
+        if (color.length !== 6) {
+            return;
+        }
+        var script = "kwriteconfig6 --file kdeglobals --group General --key AccentColor '#" + color + "'; "
+            + "command -v gsettings >/dev/null 2>&1 && gsettings set org.gnome.desktop.interface accent-color "
+            + "'#" + color + "' 2>/dev/null; true";
+        dbusHelper.runArgv(["bash", "-lc", script]);
     }
 
     function applySmartColorFilter(hexColor) {
@@ -1386,6 +1499,9 @@ WallpaperItem {
         }
 
         function notifyRefresh(wallpaper) {
+            if (wallpaper) {
+                root.recordWallpaperViewed();
+            }
             if (!cfg.NotifyOnRefresh || !wallpaper) {
                 return;
             }
@@ -2318,6 +2434,166 @@ WallpaperItem {
     }
 
     QtObject {
+        id: musicReactiveLoader
+
+        function poll() {
+            if (!cfg.MusicReactiveEnabled) {
+                root._musicPlaying = false;
+                return;
+            }
+            var msg = new PDBus.dbusMessage({
+                service: "org.freedesktop.DBus",
+                path: "/org/freedesktop/DBus",
+                iface: "org.freedesktop.DBus",
+                member: "ListNames",
+                signature: "",
+                arguments: [],
+            });
+            PDBus.SessionBus.asyncCall(msg, function(names) {
+                var found = "";
+                for (var i = 0; names && i < names.length; i++) {
+                    var name = String(names[i]);
+                    if (name.indexOf("org.mpris.MediaPlayer2.") === 0 && name !== "org.mpris.MediaPlayer2.wallhaven") {
+                        found = name;
+                        break;
+                    }
+                }
+                if (!found) {
+                    root._musicPlaying = false;
+                    return;
+                }
+                queryPlayback(found);
+            }, function() {
+                root._musicPlaying = false;
+            });
+        }
+
+        function queryPlayback(service) {
+            var msg = new PDBus.dbusMessage({
+                service: service,
+                path: "/org/mpris/MediaPlayer2",
+                iface: "org.freedesktop.DBus.Properties",
+                member: "Get",
+                signature: "ss",
+                arguments: ["org.mpris.MediaPlayer2.Player", "PlaybackStatus"],
+            });
+            PDBus.SessionBus.asyncCall(msg, function(status) {
+                root._musicPlaying = String(status) === "Playing";
+            }, function() {
+                root._musicPlaying = false;
+            });
+        }
+    }
+
+    Timer {
+        id: musicReactiveTimer
+        interval: 4000
+        running: root._configured && cfg.MusicReactiveEnabled
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: musicReactiveLoader.poll()
+    }
+
+    QtObject {
+        id: weatherLoader
+
+        function fetchJson(url, onSuccess, onError) {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", url);
+            xhr.setRequestHeader("Accept", "application/json");
+            xhr.timeout = 10000;
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== XMLHttpRequest.DONE) {
+                    return;
+                }
+                if (xhr.status === 200) {
+                    try {
+                        onSuccess(JSON.parse(xhr.responseText));
+                    } catch (e) {
+                        onError();
+                    }
+                } else {
+                    onError();
+                }
+            };
+            xhr.onerror = function() { onError(); };
+            xhr.ontimeout = function() { onError(); };
+            xhr.send();
+        }
+
+        function refresh() {
+            if (!cfg.WeatherReactiveEnabled || !root.configuration) {
+                return;
+            }
+            var location = String(cfg.WeatherLocation || "").trim();
+            if (!location) {
+                return;
+            }
+            if (location === root._weatherLastLocation && cfg.WeatherResolvedLat) {
+                fetchWeather(cfg.WeatherResolvedLat, cfg.WeatherResolvedLon);
+                return;
+            }
+            var direct = Wallhaven.parseLatLon(location);
+            if (direct) {
+                root._weatherLastLocation = location;
+                root.configuration.WeatherResolvedLat = String(direct.lat);
+                root.configuration.WeatherResolvedLon = String(direct.lon);
+                scheduleConfigWrite();
+                fetchWeather(direct.lat, direct.lon);
+                return;
+            }
+            var geocodeUrl = "https://geocoding-api.open-meteo.com/v1/search?count=1&name="
+                + encodeURIComponent(location);
+            fetchJson(geocodeUrl, function(json) {
+                var place = Wallhaven.parseGeocodeResponse(json);
+                if (!place) {
+                    return;
+                }
+                root._weatherLastLocation = location;
+                root.configuration.WeatherResolvedLat = String(place.lat);
+                root.configuration.WeatherResolvedLon = String(place.lon);
+                scheduleConfigWrite();
+                fetchWeather(place.lat, place.lon);
+            }, function() {});
+        }
+
+        function fetchWeather(lat, lon) {
+            var url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat
+                + "&longitude=" + lon + "&current_weather=true";
+            fetchJson(url, function(json) {
+                var current = Wallhaven.parseCurrentWeatherResponse(json);
+                if (!current || !root.configuration) {
+                    return;
+                }
+                var tag = Wallhaven.mapWeatherCodeToTag(current.code);
+                if (tag && tag !== cfg.WeatherTagCache) {
+                    root.configuration.WeatherTagCache = tag;
+                    scheduleConfigWrite();
+                    logDebug("Weather-reactive tag set to " + tag);
+                }
+            }, function() {});
+        }
+    }
+
+    Timer {
+        id: weatherReactiveTimer
+        interval: 1800000
+        running: root._configured && cfg.WeatherReactiveEnabled
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: weatherLoader.refresh()
+    }
+
+    Timer {
+        id: timeCapsuleTimer
+        interval: 3600000
+        running: root._configured
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.checkTimeCapsules()
+    }
+
+    QtObject {
         id: batteryPollLoader
         property var paths: [
             "/sys/class/power_supply/BAT0/capacity",
@@ -2443,6 +2719,17 @@ WallpaperItem {
                 case "importpreset":
                     if (cmd.query) {
                         root.importPresetFromUrl(cmd.query);
+                    }
+                    break;
+                case "like":
+                    root.rateCurrentWallpaper(true);
+                    break;
+                case "dislike":
+                    root.rateCurrentWallpaper(false);
+                    break;
+                case "history":
+                    if (cmd.query) {
+                        root.showHistoryWallpaper(cmd.query);
                     }
                     break;
                 default: break;
@@ -2762,11 +3049,16 @@ WallpaperItem {
     }
 
     property int kenBurnsDuration: {
+        var duration;
         if (cfg.RandomInterval > 0) {
-            return cfg.RandomInterval * 60 * 1000 * 0.9;
+            duration = cfg.RandomInterval * 60 * 1000 * 0.9;
+        } else {
+            var speed = Math.max(1, Math.min(cfg.KenBurnsSpeed, 100));
+            duration = 120000 - ((speed - 1) / 99) * 90000;
         }
-        var speed = Math.max(1, Math.min(cfg.KenBurnsSpeed, 100));
-        return 120000 - ((speed - 1) / 99) * 90000;
+        var multiplier = Wallhaven.musicReactiveSpeedMultiplier(
+            cfg.MusicReactiveIntensity, cfg.MusicReactiveEnabled && root._musicPlaying);
+        return Math.round(duration / multiplier);
     }
 
     NumberAnimation { id: bgKenBurns; target: kenBurnsAnimation; property: "bgScale"; duration: root.kenBurnsDuration; easing.type: Easing.InOutSine }

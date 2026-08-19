@@ -6,10 +6,11 @@ Three ways to drive the wallpaper without opening System Settings.
 
 Add **Wallhaven Control** to the panel:
 
-- Thumbnail (local cache when available) — **click** to open the Wallhaven page
+- Thumbnail (local cache when available) — **click** to open the Wallhaven page, **drag right/left** to like/dislike its tags
+- **History** button — popup scrubber of the last dozen wallpapers, click one to bring it back
 - Countdown + pause state
 - Previous / next / pause / reload buttons
-- Menu: similar wallpapers, copy tags, block, D-Bus offline help
+- Menu: like/dislike, similar wallpapers, copy tags, block, D-Bus offline help
 
 ## Global keyboard shortcuts
 
@@ -40,6 +41,7 @@ Examples:
 - `wh next` — next wallpaper
 - `wallhaven search anime city` — apply search
 - `wallhaven block` — block current wallpaper
+- `wh like` / `wh dislike` — boost or mute the current wallpaper's tags
 
 ## D-Bus (automation)
 
@@ -48,6 +50,9 @@ With `wallhaven-dbus.service` running:
 ```bash
 qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.CommandInGroup next default
 qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.Search "nature" default
+qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.CommandWithQuery history abc123 default
+./tools/wallhaven-ctl.sh like
+./tools/wallhaven-ctl.sh history abc123
 ```
 
-MPRIS media keys work via `org.mpris.MediaPlayer2.wallhaven`.
+MPRIS media keys work via `org.mpris.MediaPlayer2.wallhaven`. Wallhaven also *reads* any other running MPRIS player (Spotify, VLC, …) when **Music-reactive pacing** is enabled, to speed up the Ken Burns pan while music is playing.

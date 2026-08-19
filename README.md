@@ -18,6 +18,23 @@ Enable **Wallhaven** in System Settings → Search → Plasma Search (KRunner).
 
 **KDE Store listing:** [opendesktop.org/p/2368647](https://www.opendesktop.org/p/2368647/) — see [docs/KDE_STORE.md](docs/KDE_STORE.md) for maintainer notes.
 
+## v2.5.0 — fun release
+
+| Area | Highlights |
+|------|------------|
+| **Panel widget** | Swipe the thumbnail (or use its menu) to like/dislike tags; new "Recent wallpapers" history scrubber |
+| **Reactivity** | Ken Burns speeds up with playing music (MPRIS); search leans toward rain/snow/storm tags via local weather |
+| **Scheduling** | Time capsules — auto-switch search on a date, recurring (`MM-DD`) or one-off (`YYYY-MM-DD`) |
+| **Theming** | Auto panel accent can also sync to GTK apps and `kdeglobals` |
+| **Fun** | Opt-in milestone/streak toast notifications |
+
+All seven are opt-in and off by default — enable them in **Effects** and **Schedule** settings tabs.
+
+```bash
+./dev-helper.sh deploy
+./dev-helper.sh release              # tag v2.5.0
+```
+
 ## v2.4.0 — bugfix
 
 | Area | Highlights |

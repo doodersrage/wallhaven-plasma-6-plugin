@@ -101,5 +101,19 @@
         <entry name="PauseWhenInactive" type="Bool"><default>false</default></entry>
         <entry name="SmartColorFromWallpaper" type="Bool"><default>false</default></entry>
         <entry name="TagFavoritesJson" type="String"><default>[]</default></entry>
+        <entry name="MusicReactiveEnabled" type="Bool"><default>false</default></entry>
+        <entry name="MusicReactiveIntensity" type="Int"><default>40</default></entry>
+        <entry name="WeatherReactiveEnabled" type="Bool"><default>false</default></entry>
+        <entry name="WeatherLocation" type="String"><default></default></entry>
+        <entry name="WeatherResolvedLat" type="String"><default></default></entry>
+        <entry name="WeatherResolvedLon" type="String"><default></default></entry>
+        <entry name="WeatherTagCache" type="String"><default></default></entry>
+        <entry name="TimeCapsulesJson" type="String"><default>[]</default></entry>
+        <entry name="TimeCapsuleLastAppliedDate" type="String"><default></default></entry>
+        <entry name="SystemThemeSyncEnabled" type="Bool"><default>false</default></entry>
+        <entry name="AchievementsEnabled" type="Bool"><default>false</default></entry>
+        <entry name="TotalWallpapersViewed" type="Int"><default>0</default></entry>
+        <entry name="CurrentStreakDays" type="Int"><default>0</default></entry>
+        <entry name="LastViewDateStr" type="String"><default></default></entry>
     </group>
 </kcfg>

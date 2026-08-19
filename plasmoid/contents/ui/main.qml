@@ -19,12 +19,17 @@ PlasmoidItem {
         thumbUrl: "",
         localThumbUrl: "",
         pageUrl: "",
+        tags: "",
         paused: false,
         slideshowActive: false,
         nextChangeMs: 0,
     })
     property bool dbusOffline: false
     property int countdownMs: 0
+    property real swipeOffset: 0
+    property bool swiping: false
+    readonly property string historyFile: cacheDir + "/wallhaven-history.json"
+    property var historyEntries: []
 
     function sendCommand(cmd, query) {
         var group = Plasmoid.configuration.syncGroup || "default";
@@ -53,6 +58,44 @@ PlasmoidItem {
         });
     }
 
+    function sendHistoryCommand(id) {
+        var group = Plasmoid.configuration.syncGroup || "default";
+        var msg = new PDBus.dbusMessage({
+            service: "org.robertsm.Wallhaven",
+            path: "/Wallhaven",
+            iface: "org.robertsm.Wallhaven",
+            member: "CommandWithQuery",
+            signature: "sss",
+            arguments: ["history", id, group],
+        });
+        PDBus.SessionBus.asyncCall(msg, function() {}, function(err) {
+            console.warn("Wallhaven plasmoid D-Bus call failed:", err);
+        });
+    }
+
+    function loadHistory() {
+        var msg = new PDBus.dbusMessage({
+            service: "org.robertsm.Wallhaven",
+            path: "/Wallhaven",
+            iface: "org.robertsm.Wallhaven",
+            member: "ReadTextFile",
+            signature: "s",
+            arguments: [historyFile],
+        });
+        PDBus.SessionBus.asyncCall(msg, function(text) {
+            if (!text) {
+                historyEntries = [];
+                return;
+            }
+            try {
+                var parsed = JSON.parse(text);
+                historyEntries = (parsed || []).slice().reverse();
+            } catch (e) {
+                historyEntries = [];
+            }
+        }, function() {});
+    }
+
     function loadStatus() {
         var msg = new PDBus.dbusMessage({
             service: "org.robertsm.Wallhaven",
@@ -77,6 +120,7 @@ PlasmoidItem {
                     thumbUrl: parsed.thumbUrl || "",
                     localThumbUrl: parsed.localThumbUrl || "",
                     pageUrl: parsed.pageUrl || "",
+                    tags: parsed.tags || "",
                     paused: !!parsed.paused,
                     slideshowActive: !!parsed.slideshowActive,
                     nextChangeMs: Math.max(0, parseInt(parsed.nextChangeMs, 10) || 0),
@@ -129,7 +173,18 @@ PlasmoidItem {
         }
     }
 
-    Component.onCompleted: loadStatus()
+    Timer {
+        interval: 6000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.loadHistory()
+    }
+
+    Component.onCompleted: {
+        loadStatus();
+        loadHistory();
+    }
 
     preferredRepresentation: fullRepresentation
 
@@ -137,55 +192,124 @@ PlasmoidItem {
         spacing: Kirigami.Units.smallSpacing
 
         Item {
+            id: thumbFrame
             Layout.preferredWidth: Kirigami.Units.iconSizes.large
             Layout.preferredHeight: Kirigami.Units.iconSizes.large
+            clip: false
 
-            MouseArea {
+            Item {
+                id: swipeContent
                 anchors.fill: parent
-                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: function(mouse) {
-                    if (mouse.button === Qt.RightButton) {
-                        plasmoidMenu.open();
-                    } else if (mouse.button === Qt.LeftButton) {
-                        root.openCurrentPage();
+                x: root.swipeOffset
+                rotation: root.swipeOffset / 8
+
+                Behavior on x {
+                    enabled: !root.swiping
+                    NumberAnimation { duration: 180; easing.type: Easing.OutBack }
+                }
+                Behavior on rotation {
+                    enabled: !root.swiping
+                    NumberAnimation { duration: 180; easing.type: Easing.OutBack }
+                }
+
+                Image {
+                    anchors.fill: parent
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    visible: root.plasmoidThumbSource() !== ""
+                    source: root.plasmoidThumbSource()
+                }
+
+                PlasmaCore.IconItem {
+                    anchors.centerIn: parent
+                    visible: root.plasmoidThumbSource() === ""
+                    source: root.dbusOffline ? "network-disconnect" : "preferences-desktop-wallpaper"
+                    width: Kirigami.Units.iconSizes.medium
+                    height: width
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: root.swipeOffset > 0 ? "#2ecc71" : "#e74c3c"
+                    opacity: Math.min(0.55, Math.abs(root.swipeOffset) / 90)
+                }
+
+                PlasmaCore.IconItem {
+                    anchors.centerIn: parent
+                    width: Kirigami.Units.iconSizes.small
+                    height: width
+                    opacity: Math.min(1, Math.abs(root.swipeOffset) / 40)
+                    source: root.swipeOffset > 0 ? "emblem-favorite" : "emblem-remove"
+                }
+
+                Rectangle {
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    radius: 3
+                    color: "#000000"
+                    opacity: 0.65
+                    visible: statusData.id !== ""
+                    width: idLabel.implicitWidth + 6
+                    height: idLabel.implicitHeight + 2
+
+                    QtControls2.Label {
+                        id: idLabel
+                        anchors.centerIn: parent
+                        color: "#ffffff"
+                        font.pointSize: 7
+                        text: statusData.id ? ("#" + statusData.id) : ""
                     }
                 }
             }
 
-            Image {
+            MouseArea {
+                id: swipeArea
                 anchors.fill: parent
-                fillMode: Image.PreserveAspectCrop
-                asynchronous: true
-                visible: root.plasmoidThumbSource() !== ""
-                source: root.plasmoidThumbSource()
-            }
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                property real pressX: 0
+                property bool dragged: false
 
-            PlasmaCore.IconItem {
-                anchors.centerIn: parent
-                visible: root.plasmoidThumbSource() === ""
-                source: root.dbusOffline ? "network-disconnect" : "preferences-desktop-wallpaper"
-                width: Kirigami.Units.iconSizes.medium
-                height: width
-            }
+                ToolTip.visible: containsMouse && !root.swiping
+                ToolTip.text: i18n("Click to open · drag right to like, left to mute tags")
 
-            Rectangle {
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                radius: 3
-                color: "#000000"
-                opacity: 0.65
-                visible: statusData.id !== ""
-                width: idLabel.implicitWidth + 6
-                height: idLabel.implicitHeight + 2
-
-                QtControls2.Label {
-                    id: idLabel
-                    anchors.centerIn: parent
-                    color: "#ffffff"
-                    font.pointSize: 7
-                    text: statusData.id ? ("#" + statusData.id) : ""
+                onPressed: function(mouse) {
+                    pressX = mouse.x;
+                    dragged = false;
+                    root.swiping = true;
+                }
+                onPositionChanged: function(mouse) {
+                    if (!pressed || !(mouse.buttons & Qt.LeftButton)) {
+                        return;
+                    }
+                    var delta = mouse.x - pressX;
+                    if (Math.abs(delta) > 6) {
+                        dragged = true;
+                    }
+                    root.swipeOffset = Math.max(-70, Math.min(70, delta));
+                }
+                onReleased: function(mouse) {
+                    root.swiping = false;
+                    var offset = root.swipeOffset;
+                    root.swipeOffset = 0;
+                    if (mouse.button === Qt.RightButton) {
+                        plasmoidMenu.open();
+                        return;
+                    }
+                    if (dragged && Math.abs(offset) > 40 && !root.dbusOffline) {
+                        root.sendCommand(offset > 0 ? "like" : "dislike");
+                        dragged = false;
+                        return;
+                    }
+                    dragged = false;
+                    if (mouse.button === Qt.LeftButton) {
+                        root.openCurrentPage();
+                    }
+                }
+                onCanceled: {
+                    root.swiping = false;
+                    root.swipeOffset = 0;
                 }
             }
         }
@@ -236,10 +360,71 @@ PlasmoidItem {
             onClicked: root.sendCommand("reload")
         }
         QtControls2.ToolButton {
+            id: historyButton
+            display: QtControls2.AbstractButton.IconOnly
+            icon.name: "view-history"
+            ToolTip.text: i18n("Recent wallpapers")
+            enabled: !root.dbusOffline && root.historyEntries.length > 0
+            onClicked: {
+                root.loadHistory();
+                historyPopup.open();
+            }
+        }
+        QtControls2.ToolButton {
             display: QtControls2.AbstractButton.IconOnly
             icon.name: "open-menu-symbolic"
             ToolTip.text: i18n("More actions")
             onClicked: plasmoidMenu.open()
+        }
+    }
+
+    QtControls2.Popup {
+        id: historyPopup
+        x: Math.max(0, historyButton.x - width + historyButton.width)
+        y: historyButton.height
+        width: Math.min(420, Math.max(220, historyRow.implicitWidth + 24))
+        height: 96
+        padding: 8
+        modal: false
+        focus: true
+        closePolicy: QtControls2.Popup.CloseOnEscape | QtControls2.Popup.CloseOnPressOutsideParent
+
+        QtControls2.ScrollView {
+            anchors.fill: parent
+            contentHeight: height
+            QtControls2.ScrollBar.vertical.policy: QtControls2.ScrollBar.AlwaysOff
+
+            RowLayout {
+                id: historyRow
+                spacing: Kirigami.Units.smallSpacing
+                height: parent.height
+
+                Repeater {
+                    model: root.historyEntries
+                    delegate: QtControls2.AbstractButton {
+                        Layout.preferredWidth: 64
+                        Layout.preferredHeight: 64
+                        ToolTip.visible: hovered
+                        ToolTip.text: i18n("Show wallpaper #%1", modelData.id)
+                        onClicked: {
+                            root.sendHistoryCommand(String(modelData.id));
+                            historyPopup.close();
+                        }
+
+                        contentItem: Image {
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                            source: modelData.thumbUrl || ""
+                        }
+                    }
+                }
+
+                QtControls2.Label {
+                    visible: root.historyEntries.length === 0
+                    text: i18n("No history yet.")
+                    opacity: 0.7
+                }
+            }
         }
     }
 
@@ -254,6 +439,19 @@ PlasmoidItem {
             text: i18n("Similar wallpapers")
             enabled: statusData.id !== "" && !root.dbusOffline
             onTriggered: root.sendCommand("similar")
+        }
+        QtControls2.MenuSeparator {}
+        QtControls2.MenuItem {
+            icon.name: "emblem-favorite"
+            text: i18n("Like (boost these tags)")
+            enabled: statusData.tags !== "" && !root.dbusOffline
+            onTriggered: root.sendCommand("like")
+        }
+        QtControls2.MenuItem {
+            icon.name: "emblem-remove"
+            text: i18n("Dislike (mute these tags)")
+            enabled: statusData.tags !== "" && !root.dbusOffline
+            onTriggered: root.sendCommand("dislike")
         }
         QtControls2.MenuSeparator {}
         QtControls2.MenuItem {

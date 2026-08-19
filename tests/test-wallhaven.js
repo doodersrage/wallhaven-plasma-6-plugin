@@ -225,6 +225,64 @@ function testNormalizeSearchPreset() {
     assert(space.CategoryPeople === false, "space pack disables people");
 }
 
+function testSwipeToRate() {
+    var tags = Wallhaven.tagsStringToBlocklistTags("sky, city lights, sunset", 5);
+    assert(tags.length === 3 && tags[1] === "city_lights", "tags normalized for lists");
+    var boosted = Wallhaven.addTagsToJsonList("[]", tags, 30);
+    assert(JSON.parse(boosted).length === 3, "boost adds tags");
+    var removed = Wallhaven.removeTagsFromJsonList(boosted, ["sky"]);
+    assert(JSON.parse(removed).indexOf("sky") === -1, "dislike/like removes contradicting tag");
+}
+
+function testMusicReactiveSpeed() {
+    assert(Wallhaven.musicReactiveSpeedMultiplier(50, false) === 1, "no boost when not playing");
+    assert(Wallhaven.musicReactiveSpeedMultiplier(100, true) === 1.6, "max boost at 100%");
+    assert(Wallhaven.musicReactiveSpeedMultiplier(0, true) === 1, "no boost at 0% intensity");
+}
+
+function testWeatherMapping() {
+    assert(Wallhaven.mapWeatherCodeToTag(0) === "clear sky", "clear code");
+    assert(Wallhaven.mapWeatherCodeToTag(61) === "rain", "rain code");
+    assert(Wallhaven.mapWeatherCodeToTag(75) === "snow", "snow code");
+    assert(Wallhaven.mapWeatherCodeToTag(95) === "storm", "storm code");
+    assert(Wallhaven.appendWeatherModifier("nature", "rain") === "nature rain", "weather modifier appended");
+    assert(Wallhaven.appendWeatherModifier("nature", "") === "nature", "empty tag is no-op");
+    var parsed = Wallhaven.parseLatLon("41.8, -87.6");
+    assert(parsed && parsed.lat === 41.8 && parsed.lon === -87.6, "lat/lon parse");
+    var geocode = Wallhaven.parseGeocodeResponse({ results: [{ latitude: 1, longitude: 2, name: "X" }] });
+    assert(geocode.lat === 1 && geocode.lon === 2, "geocode parse");
+    var weather = Wallhaven.parseCurrentWeatherResponse({ current_weather: { weathercode: 61, temperature: 12 } });
+    assert(weather.code === 61, "current weather parse");
+}
+
+function testTimeCapsules() {
+    var text = "12-25|christmas snow|Holiday\n2026-09-01|back to school";
+    var entries = Wallhaven.parseTimeCapsuleLines(text);
+    assert(entries.length === 2 && entries[0].date === "12-25" && entries[0].label === "Holiday", "capsule line parse");
+    assert(entries[1].label === "", "optional label defaults empty");
+    var roundtrip = Wallhaven.formatTimeCapsuleLines(entries);
+    assert(roundtrip.indexOf("12-25|christmas snow|Holiday") !== -1, "capsule line format");
+    var stored = Wallhaven.parseTimeCapsules(Wallhaven.serializeTimeCapsules(entries));
+    assert(stored.length === 2, "capsule json roundtrip");
+    var due = Wallhaven.findDueTimeCapsule(entries, "2027-12-25", "12-25");
+    assert(due && due.query === "christmas snow", "recurring MM-DD capsule matches");
+    var dueOnce = Wallhaven.findDueTimeCapsule(entries, "2026-09-01", "09-01");
+    assert(dueOnce && dueOnce.query === "back to school", "one-off YYYY-MM-DD capsule matches");
+    assert(Wallhaven.findDueTimeCapsule(entries, "2026-01-01", "01-01") === null, "no match on other days");
+    assert(Wallhaven.isoDateFromParts(2026, 3, 5) === "2026-03-05", "iso date format");
+    assert(Wallhaven.monthDayFromParts(3, 5) === "03-05", "month-day format");
+}
+
+function testAchievements() {
+    assert(Wallhaven.computeStreak("", "2026-01-01", 0) === 1, "first ever view starts streak at 1");
+    assert(Wallhaven.computeStreak("2026-01-01", "2026-01-01", 4) === 4, "same day keeps streak");
+    assert(Wallhaven.computeStreak("2026-01-01", "2026-01-02", 4) === 5, "consecutive day increments streak");
+    assert(Wallhaven.computeStreak("2026-01-01", "2026-01-05", 4) === 1, "gap resets streak");
+    assert(Wallhaven.findNewMilestone(8, 10, [10, 50, 100]) === 10, "crossing milestone fires once");
+    assert(Wallhaven.findNewMilestone(10, 10, [10, 50, 100]) === 0, "already-hit milestone does not refire");
+    assert(Wallhaven.findNewMilestone(48, 60, [10, 50, 100]) === 50, "skips ahead to the crossed milestone");
+}
+
 [    testFileTypeFilter,
     testSimilarSearch,
     testIntervalJitter,
@@ -250,6 +308,11 @@ function testNormalizeSearchPreset() {
     testLockScreenSyncCommand,
     testDiskCacheNamespaceAndCategories,
     testNormalizeSearchPreset,
+    testSwipeToRate,
+    testMusicReactiveSpeed,
+    testWeatherMapping,
+    testTimeCapsules,
+    testAchievements,
 ].forEach(function(run) {
     run();
 });
