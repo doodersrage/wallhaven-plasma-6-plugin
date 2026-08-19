@@ -13,7 +13,13 @@ Fun release: seven playful additions layered on the existing search, tagging, an
 - **System theme sync** — auto panel accent now optionally also pushes the wallpaper's accent color to GTK apps (`gsettings`) and `kdeglobals` directly (`Effects → System theme sync`)
 - **Milestone toasts** — optional notifications for wallpaper view-count milestones (10, 50, 100, …) and daily viewing streaks (`Effects → Milestone toasts`)
 - **D-Bus `CommandWithQuery`** — generic control-bus method backing the history scrubber; `wallhaven-ctl.sh history <id>`, `wh like`, and `wh dislike` also added
-- 8 new pure-function unit tests covering the above (`tests/test-wallhaven.js`)
+- 6 new pure-function unit tests covering the above (`tests/test-wallhaven.js`)
+
+### Fixed
+- **History scrubber image quality** — recalling a wallpaper that had aged out of the disk-cache LRU now fetches the full-resolution image instead of silently falling back to a small thumbnail
+- **Settings export/import** — the six new v2.5.0 toggles/fields were missing from the export snapshot and are now included
+- **`wallhaven-ctl.sh like`/`dislike`** — could hang or error when falling back to the Python D-Bus helper directly (missing from its CLI allow-list); fixed
+- **Plasmoid swipe gesture** — no longer opens the wallpaper's browser page as a side effect when swiping while the D-Bus service is offline
 
 ## 2.4.0 — 2026-08-18
 
