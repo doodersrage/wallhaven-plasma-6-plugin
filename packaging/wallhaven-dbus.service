@@ -1,9 +1,11 @@
 [Unit]
 Description=Wallhaven wallpaper D-Bus control service
-After=graphical-session.target
+After=graphical-session.target dbus.socket
+Wants=dbus.socket
 
 [Service]
-Type=simple
+Type=dbus
+BusName=org.robertsm.Wallhaven
 ExecStart=/usr/bin/python3 /usr/share/wallhaven-plasma/tools/wallhaven-dbus.py
 Restart=on-failure
 Environment=WALLHAVEN_SYNC_GROUP=default

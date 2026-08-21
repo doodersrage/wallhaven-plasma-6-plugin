@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.6.1 — 2026-08-21
+
+### Fixed
+- **Settings D-Bus banner stayed up while the service was running** — two stacked bugs. The settings page called `isDbusServiceAvailable()` once (QML does not re-run that). Worse, `wallhaven-dbus.py` constructed `dbus.service.BusName(...)` as temporaries; dbus-python releases a well-known name when that object is garbage-collected, so systemd showed the unit `active` while `org.robertsm.Wallhaven` was gone from the session bus. Names are now held for the process lifetime, the unit is `Type=dbus`, and settings pings the service directly.
+- **Disk cache is rolling again** — the slot count is a ceiling, not a permanent set of N images. Once full, the least-recently-used unpinned wallpaper is aged out so new downloads keep replacing old ones. Revisiting a cached wallpaper (or writing it again) marks it recently used so it stays. Pinned slots are still never evicted.
+- **Upscaler status stuck on "Checking…"** — settings called `isUpscalerStatusKnown()` once (QML does not re-run that after the async D-Bus reply). It now binds live wallpaper properties and polls `UpscalerAvailable` itself, same pattern as the D-Bus banner ping.
+- **Wallpaper history gallery empty** — the settings "Recent" row used a zero-height `GridView` and read `WallpaperHistoryJson` from a config object the dialog often never loads. It now pulls history from the live wallpaper (same pattern as the cache list), keeps a `cfg_WallpaperHistoryJson` binding, and shows an empty-state message instead of a blank label.
+
 ## 2.6.0 — 2026-08-21
 
 Sharper wallpapers and a more honest D-Bus layer: three opt-in image-quality features on top of the existing search/render/cache pipeline, plus six correctness fixes found in a follow-up bug-hunting pass over 2.5.0.

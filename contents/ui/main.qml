@@ -137,9 +137,12 @@ WallpaperItem {
     property bool _pausedByRules: false
     property bool _musicPlaying: false
     property string _weatherLastLocation: ""
-    property bool _dbusServiceAvailable: false
-    property string _upscalerBinaryPath: ""
-    property bool _upscalerChecked: false
+    // Public so config.qml can bind (function getters do not re-evaluate).
+    property bool dbusServiceAvailable: false
+    property string upscalerBinaryPath: ""
+    property bool upscalerStatusKnown: false
+    readonly property bool upscalerAvailable: upscalerStatusKnown && upscalerBinaryPath !== ""
+    property var wallpaperHistoryEntries: []
     property bool _screenLocked: false
 
     property real parallaxPhase: 0
@@ -402,6 +405,7 @@ WallpaperItem {
         if (slot < 0) {
             return remoteUrl;
         }
+        Wallhaven.touchDiskCacheId(_diskCacheIndex, wallpaper.id);
         return diskCacheLocalUrl(slot);
     }
 
@@ -818,11 +822,21 @@ WallpaperItem {
             ts: Date.now(),
         }, 30);
         root.configuration.WallpaperHistoryJson = Wallhaven.serializeWallpaperHistory(history, 30);
+        wallpaperHistoryEntries = history;
         scheduleConfigWrite();
         settingsFileWriter.writeFile(historyBusFile, Wallhaven.serializeWallpaperHistory(history, 12));
     }
 
+    function loadWallpaperHistory() {
+        wallpaperHistoryEntries = Wallhaven.parseWallpaperHistory(
+            (root.configuration && root.configuration.WallpaperHistoryJson) || "[]",
+        );
+    }
+
     function getWallpaperHistory() {
+        if (wallpaperHistoryEntries && wallpaperHistoryEntries.length) {
+            return wallpaperHistoryEntries;
+        }
         return Wallhaven.parseWallpaperHistory(cfg.WallpaperHistoryJson || "[]");
     }
 
@@ -862,7 +876,9 @@ WallpaperItem {
             return;
         }
         root.configuration.WallpaperHistoryJson = "[]";
+        wallpaperHistoryEntries = [];
         scheduleConfigWrite();
+        settingsFileWriter.writeFile(historyBusFile, "[]");
         engine.showStatus(i18n("Wallpaper history cleared."), "info");
     }
 
@@ -1020,22 +1036,18 @@ WallpaperItem {
         // running" banner and the Variety buttons stayed stuck in the offline
         // state even with `systemctl --user status wallhaven-dbus.service`
         // showing it active. Read the periodically-refreshed cached result instead.
-        return root._dbusServiceAvailable;
+        return root.dbusServiceAvailable;
     }
 
-    // Same cached-getter pattern as isDbusServiceAvailable(): the actual check
-    // (dbusHelper.checkUpscalerAvailable()) is async and piggybacks on the same
-    // 5s poll as the D-Bus availability check (see dbusAvailabilityLoader.poll()),
-    // so config.qml's settings page can just read this synchronously.
+    // Bindable properties (upscalerStatusKnown / upscalerAvailable) are the
+    // source of truth. QML does not re-run these getters when the async poll
+    // finishes, so settings must bind the properties rather than call these.
     function isUpscalerAvailable() {
-        return root._upscalerChecked && root._upscalerBinaryPath !== "";
+        return root.upscalerAvailable;
     }
 
-    // Whether an upscaler-availability check has completed at least once, so
-    // the settings UI can distinguish "checked, not found" from "haven't
-    // checked yet" (e.g. D-Bus service still offline).
     function isUpscalerStatusKnown() {
-        return root._upscalerChecked;
+        return root.upscalerStatusKnown;
     }
 
     function varietyConfigPath() {
@@ -1182,6 +1194,7 @@ WallpaperItem {
         }
         var slot = Wallhaven.diskCacheSlotForId(_diskCacheIndex, id);
         if (slot >= 0) {
+            Wallhaven.evictDiskCacheOccupant(_diskCacheIndex, id);
             _diskCacheIndex.ids[slot] = "";
             persistDiskCacheIndex();
             dbusHelper.runArgv(["rm", "-f", diskCacheLocalPath(slot)]);
@@ -2452,6 +2465,7 @@ WallpaperItem {
             _pendingUsedCache = false;
             var slot = Wallhaven.diskCacheSlotForId(_diskCacheIndex, _pendingWallpaperId);
             if (slot >= 0 && _diskCacheIndex.ids) {
+                Wallhaven.evictDiskCacheOccupant(_diskCacheIndex, _pendingWallpaperId);
                 _diskCacheIndex.ids[slot] = "";
                 persistDiskCacheIndex();
             }
@@ -2568,9 +2582,25 @@ WallpaperItem {
             wallhavenMessage("RunArgv", "s", [JSON.stringify(argv)], callback);
         }
 
-        // callback(binaryPath) -- binaryPath is "" when no upscaler is installed.
+        // callback(binaryPath) -- binaryPath is "" when no upscaler is installed
+        // or the D-Bus method fails (old service, missing binary, etc.).
         function checkUpscalerAvailable(callback) {
-            wallhavenMessage("UpscalerAvailable", "", [], callback);
+            var done = function(reply) {
+                if (callback) {
+                    callback(Wallhaven.dbusReplyAsString(reply));
+                }
+            };
+            var msg = new PDBus.dbusMessage({
+                service: "org.robertsm.Wallhaven",
+                path: "/Wallhaven",
+                iface: "org.robertsm.Wallhaven",
+                member: "UpscalerAvailable",
+                signature: "",
+                arguments: [],
+            });
+            PDBus.SessionBus.asyncCall(msg, done, function() {
+                done("");
+            });
         }
 
         // callback(ok) -- ok is false on any failure (not installed, timed out,
@@ -2623,29 +2653,24 @@ WallpaperItem {
 
         function poll() {
             if (typeof PDBus === "undefined" || !PDBus.SessionBus) {
-                root._dbusServiceAvailable = false;
+                root.dbusServiceAvailable = false;
                 return;
             }
             var msg = new PDBus.dbusMessage({
-                service: "org.freedesktop.DBus",
-                path: "/org/freedesktop/DBus",
-                iface: "org.freedesktop.DBus",
-                member: "NameHasOwner",
-                signature: "s",
-                arguments: ["org.robertsm.Wallhaven"],
+                service: "org.robertsm.Wallhaven",
+                path: "/Wallhaven",
+                iface: "org.robertsm.Wallhaven",
+                member: "Ping",
+                signature: "",
+                arguments: [],
             });
-            PDBus.SessionBus.asyncCall(msg, function(hasOwner) {
-                root._dbusServiceAvailable = !!hasOwner;
-                if (hasOwner) {
-                    pollUpscaler();
-                } else {
-                    root._upscalerBinaryPath = "";
-                    root._upscalerChecked = true;
-                }
+            PDBus.SessionBus.asyncCall(msg, function() {
+                root.dbusServiceAvailable = true;
+                pollUpscaler();
             }, function() {
-                root._dbusServiceAvailable = false;
-                root._upscalerBinaryPath = "";
-                root._upscalerChecked = true;
+                root.dbusServiceAvailable = false;
+                root.upscalerBinaryPath = "";
+                root.upscalerStatusKnown = true;
             });
         }
 
@@ -2656,8 +2681,8 @@ WallpaperItem {
         // this often is plenty responsive without being wasteful.
         function pollUpscaler() {
             dbusHelper.checkUpscalerAvailable(function(binaryPath) {
-                root._upscalerBinaryPath = binaryPath || "";
-                root._upscalerChecked = true;
+                root.upscalerBinaryPath = binaryPath || "";
+                root.upscalerStatusKnown = true;
             });
         }
     }
@@ -3630,6 +3655,7 @@ WallpaperItem {
         engine.loadBlockedIds();
         root.ensureCacheNamespace();
         root.loadDiskCacheIndex();
+        root.loadWallpaperHistory();
         root.loadApiKeyFromKWallet();
         engine.fetchFreshWallpaper(false);
         root._configured = true;

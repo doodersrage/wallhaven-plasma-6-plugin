@@ -129,6 +129,18 @@ function testStatusSnapshotLocalThumb() {
     assert(snap.varietyWatchEnabled === true, "variety watch flag in status bus");
 }
 
+function testDbusReplyIsTrue() {
+    assert(Wallhaven.dbusReplyIsTrue(true) === true, "dbus bool true");
+    assert(Wallhaven.dbusReplyIsTrue(false) === false, "dbus bool false");
+    assert(Wallhaven.dbusReplyIsTrue([true]) === true, "dbus array true");
+    assert(Wallhaven.dbusReplyIsTrue({ value: 1 }) === true, "dbus variant true");
+    assert(Wallhaven.dbusReplyIsTrue("false") === false, "dbus string false");
+    assert(Wallhaven.dbusReplyAsString("/usr/bin/realesrgan-ncnn-vulkan") === "/usr/bin/realesrgan-ncnn-vulkan", "dbus string path");
+    assert(Wallhaven.dbusReplyAsString(["/usr/bin/realesrgan-ncnn-vulkan"]) === "/usr/bin/realesrgan-ncnn-vulkan", "dbus array path");
+    assert(Wallhaven.dbusReplyAsString({ value: "/usr/bin/realesrgan-ncnn-vulkan" }) === "/usr/bin/realesrgan-ncnn-vulkan", "dbus variant path");
+    assert(Wallhaven.dbusReplyAsString(null) === "", "dbus missing path");
+}
+
 function testPluginVersion() {
     assert(/^\d+\.\d+\.\d+$/.test(Wallhaven.pluginVersion()), "plugin version semver");
 }
@@ -233,6 +245,28 @@ function testDiskCachePinnedSlotsNeverEvicted() {
     var slot2 = Wallhaven.allocateDiskCacheSlot(index, "new", 3, ["p0", "p1"], "general", "sfw");
     assert(slot2 !== -1, "allocation succeeds once a slot is no longer pinned");
     assert(index.ids.indexOf("new") !== -1, "newcomer took the freed slot");
+}
+
+function testDiskCacheRollsOldestUnused() {
+    var index = { ids: [], next: 0, categories: {}, purities: {}, dimensions: {}, usedAt: {} };
+    Wallhaven.allocateDiskCacheSlot(index, "old", 3, [], "general", "sfw");
+    index.usedAt.old = 100;
+    Wallhaven.allocateDiskCacheSlot(index, "mid", 3, [], "general", "sfw");
+    index.usedAt.mid = 200;
+    Wallhaven.allocateDiskCacheSlot(index, "new", 3, [], "general", "sfw");
+    index.usedAt.new = 300;
+
+    var slot = Wallhaven.allocateDiskCacheSlot(index, "fresh", 3, [], "general", "sfw");
+    assert(slot !== -1, "fourth wallpaper takes a rolling slot");
+    assert(index.ids.indexOf("old") === -1, "oldest unused wallpaper is aged out");
+    assert(index.ids.indexOf("mid") !== -1 && index.ids.indexOf("new") !== -1, "newer unused wallpapers stay");
+    assert(index.ids.indexOf("fresh") !== -1, "new wallpaper is cached");
+    assert(!index.usedAt.old && !index.dimensions.old, "evicted occupant metadata is dropped");
+
+    Wallhaven.touchDiskCacheId(index, "mid", 500);
+    Wallhaven.allocateDiskCacheSlot(index, "newer", 3, [], "general", "sfw");
+    assert(index.ids.indexOf("mid") !== -1, "recently used wallpaper is not the eviction pick");
+    assert(index.ids.indexOf("new") === -1, "least-recent remaining wallpaper is aged out after a touch");
 }
 
 function testDiskCacheDimensionTracking() {
@@ -463,6 +497,7 @@ function testPickRandomIndexWeighting() {
     testImportPresetUrl,
     testVarietyParse,
     testStatusSnapshotLocalThumb,
+    testDbusReplyIsTrue,
     testPluginVersion,
     testAppendDebugLogLine,
     testBundledPresetsMatchJson,
@@ -470,6 +505,7 @@ function testPickRandomIndexWeighting() {
     testLockScreenSyncCommand,
     testDiskCacheNamespaceAndCategories,
     testDiskCachePinnedSlotsNeverEvicted,
+    testDiskCacheRollsOldestUnused,
     testDiskCacheDimensionTracking,
     testNormalizeSearchPreset,
     testExportIncludesV250Settings,

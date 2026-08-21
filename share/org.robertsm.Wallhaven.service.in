@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.robertsm.Wallhaven
+Exec=/usr/bin/python3 @INSTALL_DIR@/tools/wallhaven-dbus.py
+SystemdService=wallhaven-dbus.service

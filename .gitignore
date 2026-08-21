@@ -3,6 +3,7 @@ wallhaven-plasma-*.tar.xz
 build-shortcuts/
 build/
 tools/__pycache__/
+.vscode/
 
 # Editor / OS
 *.swp

@@ -5,6 +5,7 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.plasmoid
+import org.kde.plasma.workspace.dbus as PDBus
 
 ColumnLayout {
     // Keep PreviewImage / attribution keys; they are runtime state for the settings preview.
@@ -114,6 +115,7 @@ ColumnLayout {
     property alias cfg_OfflineOnlyMode: offlineOnlyCheck.checked
     property alias cfg_MeteredCacheOnly: meteredCacheCheck.checked
     property alias cfg_UpscaleEnabled: upscaleCheck.checked
+    property string cfg_WallpaperHistoryJson
     property alias cfg_UseKWalletForApiKey: kwalletCheck.checked
     property alias cfg_ControlBusEnabled: controlBusCheck.checked
     property alias cfg_SyncAdvanceEnabled: syncAdvanceCheck.checked
@@ -161,12 +163,16 @@ ColumnLayout {
         "swipe", "like", "dislike",
     ]
     property bool showSetupWizard: wallpaperConfiguration && !wallpaperConfiguration.SetupWizardCompleted
-    readonly property bool dbusServiceOnline: liveWallpaper && liveWallpaper.isDbusServiceAvailable
-        ? liveWallpaper.isDbusServiceAvailable() : false
-    readonly property bool upscalerStatusKnown: liveWallpaper && liveWallpaper.isUpscalerStatusKnown
-        ? liveWallpaper.isUpscalerStatusKnown() : false
-    readonly property bool upscalerAvailable: liveWallpaper && liveWallpaper.isUpscalerAvailable
-        ? liveWallpaper.isUpscalerAvailable() : false
+    property bool dbusPollCompleted: false
+    property bool dbusPolledOnline: false
+    property bool upscalerPollCompleted: false
+    property string upscalerPolledPath: ""
+    readonly property bool dbusServiceOnline: dbusPolledOnline
+        || !!(liveWallpaper && liveWallpaper.dbusServiceAvailable)
+    readonly property bool upscalerStatusKnown: upscalerPollCompleted
+        || !!(liveWallpaper && liveWallpaper.upscalerStatusKnown)
+    readonly property bool upscalerAvailable: (upscalerPollCompleted && upscalerPolledPath !== "")
+        || !!(liveWallpaper && liveWallpaper.upscalerAvailable)
     property string varietyPreviewSearch: ""
 
     function fieldVisible(keywords) {
@@ -338,15 +344,32 @@ ColumnLayout {
 
     }
 
-    function refreshHistoryModel() {
-        if (!wallpaperConfiguration) {
-            historyModel.clear();
-            return ;
+    function currentHistoryEntries() {
+        if (liveWallpaper && liveWallpaper.wallpaperHistoryEntries && liveWallpaper.wallpaperHistoryEntries.length)
+            return liveWallpaper.wallpaperHistoryEntries;
+
+        if (liveWallpaper && liveWallpaper.getWallpaperHistory) {
+            var live = liveWallpaper.getWallpaperHistory();
+            if (live && live.length)
+                return live;
+
         }
-        var entries = Wallhaven.parseWallpaperHistory(wallpaperConfiguration.WallpaperHistoryJson || "[]");
+        var raw = cfg_WallpaperHistoryJson || "";
+        if (!raw && wallpaperConfiguration)
+            raw = wallpaperConfiguration.WallpaperHistoryJson || "";
+
+        return Wallhaven.parseWallpaperHistory(raw || "[]");
+    }
+
+    function refreshHistoryModel() {
+        var entries = currentHistoryEntries();
         historyModel.clear();
         for (var i = entries.length - 1; i >= 0; i--) {
-            historyModel.append(entries[i]);
+            historyModel.append({
+                id: String(entries[i].id || ""),
+                thumbUrl: String(entries[i].thumbUrl || Wallhaven.thumbUrlForId(entries[i].id)),
+                ts: Number(entries[i].ts) || 0,
+            });
         }
     }
 
@@ -548,9 +571,56 @@ ColumnLayout {
         visible: text !== ""
     }
 
+    Timer {
+        interval: 4000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: {
+            root.refreshHistoryModel();
+            if (typeof PDBus === "undefined" || !PDBus.SessionBus) {
+                root.dbusPollCompleted = true;
+                root.dbusPolledOnline = !!(liveWallpaper && liveWallpaper.dbusServiceAvailable);
+                return;
+            }
+            var msg = new PDBus.dbusMessage({
+                service: "org.robertsm.Wallhaven",
+                path: "/Wallhaven",
+                iface: "org.robertsm.Wallhaven",
+                member: "Ping",
+                signature: "",
+                arguments: [],
+            });
+            PDBus.SessionBus.asyncCall(msg, function() {
+                root.dbusPolledOnline = true;
+                root.dbusPollCompleted = true;
+                var upscaleMsg = new PDBus.dbusMessage({
+                    service: "org.robertsm.Wallhaven",
+                    path: "/Wallhaven",
+                    iface: "org.robertsm.Wallhaven",
+                    member: "UpscalerAvailable",
+                    signature: "",
+                    arguments: [],
+                });
+                PDBus.SessionBus.asyncCall(upscaleMsg, function(reply) {
+                    root.upscalerPolledPath = Wallhaven.dbusReplyAsString(reply);
+                    root.upscalerPollCompleted = true;
+                }, function() {
+                    root.upscalerPolledPath = "";
+                    root.upscalerPollCompleted = true;
+                });
+            }, function() {
+                root.dbusPolledOnline = false;
+                root.dbusPollCompleted = true;
+                root.upscalerPolledPath = "";
+                root.upscalerPollCompleted = true;
+            });
+        }
+    }
+
     Kirigami.InlineMessage {
         Layout.fillWidth: true
-        visible: liveWallpaper !== null && !root.dbusServiceOnline
+        visible: root.dbusPollCompleted && !root.dbusServiceOnline
         type: Kirigami.InlineMessage.Warning
         text: i18n("Wallhaven D-Bus service is not running. Run: systemctl --user enable --now wallhaven-dbus.service")
     }
@@ -2164,13 +2234,13 @@ ColumnLayout {
                     id: diskCacheCheck
 
                     Kirigami.FormData.label: i18n("Disk cache:")
-                    text: i18n("Cache recent wallpapers locally (faster revisits)")
+                    text: i18n("Cache recent wallpapers locally; oldest unused are replaced")
                 }
 
                 QtControls2.SpinBox {
                     id: diskCacheSlotsSpin
 
-                    Kirigami.FormData.label: i18n("Cache slots:")
+                    Kirigami.FormData.label: i18n("Max cache slots:")
                     from: 5
                     to: 200
                     enabled: diskCacheCheck.checked
@@ -2553,37 +2623,51 @@ ColumnLayout {
                     onClicked: root.refreshHistoryModel()
                 }
 
-                GridView {
-                    id: historyGrid
-
+                ColumnLayout {
                     Kirigami.FormData.label: i18n("Recent:")
-                    Layout.preferredWidth: parent.width
-                    Layout.preferredHeight: Math.min(220, Math.ceil(count / 4) * 72)
-                    cellWidth: 96
-                    cellHeight: 72
-                    clip: true
-                    model: historyModel
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.smallSpacing
 
-                    delegate: Item {
-                        width: historyGrid.cellWidth
-                        height: historyGrid.cellHeight
+                    QtControls2.Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        opacity: 0.7
+                        visible: historyModel.count === 0
+                        text: liveWallpaper === null
+                            ? i18n("Apply Wallhaven as the wallpaper type to see recent wallpapers.")
+                            : i18n("No recent wallpapers yet. They appear here as the slideshow advances.")
+                    }
 
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: {
-                                if (liveWallpaper && liveWallpaper.showHistoryWallpaper)
-                                    liveWallpaper.showHistoryWallpaper(model.id);
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: Kirigami.Units.smallSpacing
+                        visible: historyModel.count > 0
+
+                        Repeater {
+                            model: historyModel
+
+                            delegate: Item {
+                                width: 88
+                                height: 56
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        if (liveWallpaper && liveWallpaper.showHistoryWallpaper)
+                                            liveWallpaper.showHistoryWallpaper(model.id);
+
+                                    }
+                                }
+
+                                Image {
+                                    anchors.fill: parent
+                                    fillMode: Image.PreserveAspectCrop
+                                    asynchronous: true
+                                    source: model.thumbUrl
+                                }
 
                             }
-                        }
 
-                        Image {
-                            anchors.centerIn: parent
-                            width: 88
-                            height: 56
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            source: model.thumbUrl
                         }
 
                     }
@@ -2768,6 +2852,16 @@ ColumnLayout {
             importExportStatus.text = i18n("Apply Wallhaven as the wallpaper type to import settings.");
         }
 
+    }
+
+    Connections {
+        target: liveWallpaper
+        enabled: liveWallpaper !== null
+        ignoreUnknownSignals: true
+
+        function onWallpaperHistoryEntriesChanged() {
+            root.refreshHistoryModel();
+        }
     }
 
     Connections {

@@ -18,6 +18,37 @@ Enable **Wallhaven** in System Settings → Search → Plasma Search (KRunner).
 
 **KDE Store listing:** [opendesktop.org/p/2368647](https://www.opendesktop.org/p/2368647/) — see [docs/KDE_STORE.md](docs/KDE_STORE.md) for maintainer notes.
 
+## v2.6.1 — patch
+
+Settings and D-Bus correctness on top of 2.6.0.
+
+| Area | Highlights |
+|------|------------|
+| **D-Bus** | Service keeps `org.robertsm.Wallhaven` for the process lifetime (`Type=dbus` + session activation). Settings pings the service instead of a one-shot getter, so the offline banner clears when it is actually up |
+| **Cache** | Slot count is a ceiling again: oldest unused unpinned wallpapers are aged out. Pinned slots stay |
+| **Settings** | Upscaler status no longer sticks on "Checking…". Wallpaper history gallery reads from the live wallpaper and shows thumbnails or an empty-state message |
+
+```bash
+./dev-helper.sh deploy
+./dev-helper.sh release              # tag v2.6.1
+```
+
+## v2.6.0 — sharper wallpapers
+
+Opt-in image-quality tools plus several correctness fixes.
+
+| Area | Highlights |
+|------|------------|
+| **Search** | Prefer sharper matches (resolution/aspect-aware, off by default) |
+| **Effects** | Brightness / contrast / saturation enhance at render time |
+| **Upscale** | Optional `realesrgan-ncnn-vulkan` hook for low-res matches, plus re-upscale of already-cached files |
+| **Fixes** | Theme-sync color format, small-quality thumbs, overlapping transitions, pinned cache slots, D-Bus detection, pause on screen lock |
+
+```bash
+./dev-helper.sh deploy
+./dev-helper.sh release              # tag v2.6.0
+```
+
 ## v2.5.0 — fun release
 
 | Area | Highlights |

@@ -253,20 +253,27 @@ def playback_status_from(status: dict) -> str:
     return "Stopped"
 
 
-def metadata_from(status: dict) -> dict[str, dbus.Object]:
-    wall_id = str(status.get("id") or "current")
-    return {
-        "mpris:trackid": dbus.ObjectPath(f"/org/mpris/MediaPlayer2/wallhaven/track/{wall_id}"),
-        "xesam:title": dbus.String(f"Wallhaven #{wall_id}"),
-        "xesam:url": dbus.String(str(status.get("pageUrl") or "")),
-        "mpris:artUrl": dbus.String(str(status.get("thumbUrl") or "")),
-    }
+def metadata_from(status: dict) -> dbus.Dictionary:
+    wall_id = re.sub(r"[^A-Za-z0-9_]", "_", str(status.get("id") or "current")) or "current"
+    return dbus.Dictionary(
+        {
+            "mpris:trackid": dbus.ObjectPath(f"/org/mpris/MediaPlayer2/wallhaven/track/{wall_id}"),
+            "xesam:title": dbus.String(f"Wallhaven #{wall_id}"),
+            "xesam:url": dbus.String(str(status.get("pageUrl") or "")),
+            "mpris:artUrl": dbus.String(str(status.get("thumbUrl") or "")),
+        },
+        signature="sv",
+    )
 
 
 class WallhavenControl(dbus.service.Object):
     def __init__(self, bus, group: str) -> None:
         self.group = group
         super().__init__(bus, OBJECT_PATH)
+
+    @dbus.service.method(INTERFACE, out_signature="s")
+    def Ping(self) -> str:
+        return "ok"
 
     @dbus.service.method(INTERFACE, in_signature="s")
     def Command(self, cmd: str) -> None:
@@ -417,37 +424,46 @@ class MprisMediaPlayer2(dbus.service.Object):
         self._status_key = status_signature(self._status)
         super().__init__(bus, MPRIS_PATH)
 
-    def _mpris_props(self) -> dict[str, object]:
-        status = self._status
+    def _root_props(self) -> dict[str, object]:
         return {
             "CanQuit": False,
             "CanRaise": False,
             "HasTrackList": False,
             "Identity": "Wallhaven",
+            "SupportedUriSchemes": dbus.Array([], signature="s"),
+            "SupportedMimeTypes": dbus.Array([], signature="s"),
+        }
+
+    def _player_props(self) -> dict[str, object]:
+        status = self._status
+        return {
             "PlaybackStatus": playback_status_from(status),
             "Metadata": metadata_from(status),
+            "CanGoNext": True,
+            "CanGoPrevious": True,
+            "CanPlay": True,
+            "CanPause": True,
+            "CanSeek": False,
+            "CanControl": True,
         }
+
+    def _props_for(self, interface_name: str) -> dict[str, object]:
+        if interface_name == MPRIS_IFACE:
+            return self._root_props()
+        if interface_name == MPRIS_PLAYER_IFACE:
+            return self._player_props()
+        raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.UnknownInterface")
 
     @dbus.service.method(PROPERTIES_IFACE, in_signature="ss", out_signature="v")
     def Get(self, interface_name: str, property_name: str):  # noqa: N802
-        if interface_name != MPRIS_IFACE:
-            raise dbus.exceptions.DBusException(
-                f"org.freedesktop.DBus.Error.UnknownInterface: {interface_name}",
-            )
-        props = self._mpris_props()
+        props = self._props_for(interface_name)
         if property_name not in props:
-            raise dbus.exceptions.DBusException(
-                f"org.freedesktop.DBus.Error.UnknownProperty: {property_name}",
-            )
+            raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.UnknownProperty")
         return props[property_name]
 
     @dbus.service.method(PROPERTIES_IFACE, in_signature="s", out_signature="a{sv}")
     def GetAll(self, interface_name: str):  # noqa: N802
-        if interface_name != MPRIS_IFACE:
-            raise dbus.exceptions.DBusException(
-                f"org.freedesktop.DBus.Error.UnknownInterface: {interface_name}",
-            )
-        return self._mpris_props()
+        return dbus.Dictionary(self._props_for(interface_name), signature="sv")
 
     def refresh_status(self, force: bool = False) -> None:
         status = read_status()
@@ -457,12 +473,15 @@ class MprisMediaPlayer2(dbus.service.Object):
         self._status = status
         self._status_key = key
         self.PropertiesChanged(
-            MPRIS_IFACE,
-            {
-                "Metadata": metadata_from(status),
-                "PlaybackStatus": playback_status_from(status),
-            },
-            [],
+            MPRIS_PLAYER_IFACE,
+            dbus.Dictionary(
+                {
+                    "Metadata": metadata_from(status),
+                    "PlaybackStatus": playback_status_from(status),
+                },
+                signature="sv",
+            ),
+            dbus.Array([], signature="s"),
         )
 
     @dbus.service.signal(PROPERTIES_IFACE, signature="sa{sv}as")
@@ -602,17 +621,29 @@ def main() -> int:
 
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SessionBus()
-    dbus.service.BusName(SERVICE, bus)
-    dbus.service.BusName(MPRIS_SERVICE, bus)
     WallhavenControl(bus, group)
     WallhavenRunner(bus, group)
     WallhavenPlayer(bus, group)
     mpris = MprisMediaPlayer2(bus, group)
+    # BusName releases the well-known name when the object is unreferenced.
+    # Constructing them as temporaries dropped org.robertsm.Wallhaven while
+    # systemd still reported the unit active. Export objects first so clients
+    # that race the name claim do not hit a half-ready service.
+    well_known = [
+        dbus.service.BusName(SERVICE, bus, do_not_queue=True),
+        dbus.service.BusName(MPRIS_SERVICE, bus, do_not_queue=True),
+    ]
+    if not bus.name_has_owner(SERVICE):
+        print(f"Failed to claim {SERVICE} on the session bus", file=sys.stderr)
+        return 1
     watch_status_file(mpris)
     watch_variety_config(group)
     GLib.timeout_add_seconds(2, lambda: mpris.refresh_status() or True)
-    print(f"D-Bus services {SERVICE}, {MPRIS_SERVICE}")
-    GLib.MainLoop().run()
+    print(f"D-Bus services {SERVICE}, {MPRIS_SERVICE}", flush=True)
+    try:
+        GLib.MainLoop().run()
+    finally:
+        del well_known
     return 0
 
 

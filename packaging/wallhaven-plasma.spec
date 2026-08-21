@@ -1,5 +1,5 @@
 Name:           wallhaven-plasma
-Version:        2.6.0
+Version:        2.6.1
 Release:        1%{?dist}
 Summary:        Wallhaven wallpaper plugin for KDE Plasma 6
 License:        GPL-2.0-or-later
@@ -39,6 +39,10 @@ if compgen -G "contents/locale/*/LC_MESSAGES/*.mo" >/dev/null; then
 fi
 install -Dpm644 packaging/wallhaven-dbus.service \
     %{buildroot}%{_prefix}/lib/systemd/user/wallhaven-dbus.service
+install -Dpm644 share/org.robertsm.Wallhaven.service.in \
+    %{buildroot}%{_datadir}/dbus-1/services/org.robertsm.Wallhaven.service
+sed -i 's|@INSTALL_DIR@|%{_datadir}/wallhaven-plasma|g' \
+    %{buildroot}%{_datadir}/dbus-1/services/org.robertsm.Wallhaven.service
 install -Dpm644 share/wallhaven-preset.desktop.in \
     %{buildroot}%{_datadir}/applications/wallhaven-preset.desktop
 sed -i 's|/home/USER/.local/share/wallhaven-plasma/tools|%{_datadir}/wallhaven-plasma/tools|g' \
@@ -52,10 +56,14 @@ sed -i 's|/home/USER/.local/share/wallhaven-plasma/tools|%{_datadir}/wallhaven-p
 %{_datadir}/knotifications6/org.robertsm.wallhaven.notifyrc
 %{_datadir}/wallhaven-plasma/tools/
 %{_prefix}/lib/systemd/user/wallhaven-dbus.service
+%{_datadir}/dbus-1/services/org.robertsm.Wallhaven.service
 %{_datadir}/locale/*/LC_MESSAGES/org.robertsm.wallhaven.mo
 %{_datadir}/applications/wallhaven-preset.desktop
 
 %changelog
+* Fri Aug 21 2026 Wallhaven Plasma Port <wallhaven@local> - 2.6.1-1
+- D-Bus name ownership, rolling disk cache, settings upscaler/history fixes
+
 * Fri Aug 14 2026 Wallhaven Plasma Port <wallhaven@local> - 2.0.0-1
 - Stable 2.0 milestone: Variety preview, Flatpak, AppStream screenshots, stable PKGBUILD
 

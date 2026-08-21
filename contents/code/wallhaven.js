@@ -6,6 +6,48 @@ function createRandomSeed() {
     return Math.random().toString(36).slice(2, 10);
 }
 
+function dbusReplyIsTrue(value) {
+    if (value === true || value === 1 || value === "1" || value === "true") {
+        return true;
+    }
+    if (value === false || value === 0 || value === "0" || value === "false" || value == null) {
+        return false;
+    }
+    if (Array.isArray(value) && value.length) {
+        return dbusReplyIsTrue(value[0]);
+    }
+    if (typeof value === "object") {
+        if (Object.prototype.hasOwnProperty.call(value, "value")) {
+            return dbusReplyIsTrue(value.value);
+        }
+        if (typeof value.length === "number" && value.length > 0) {
+            return dbusReplyIsTrue(value[0]);
+        }
+    }
+    return false;
+}
+
+function dbusReplyAsString(value) {
+    if (value === undefined || value === null) {
+        return "";
+    }
+    if (typeof value === "string") {
+        return value;
+    }
+    if (Array.isArray(value) && value.length) {
+        return dbusReplyAsString(value[0]);
+    }
+    if (typeof value === "object") {
+        if (Object.prototype.hasOwnProperty.call(value, "value")) {
+            return dbusReplyAsString(value.value);
+        }
+        if (typeof value.length === "number" && value.length > 0) {
+            return dbusReplyAsString(value[0]);
+        }
+    }
+    return String(value);
+}
+
 function boolTriplet(values) {
     var result = "";
     for (var i = 0; i < values.length; i++) {
@@ -406,7 +448,7 @@ function diskCacheSlotCount() {
 }
 
 function parseDiskCacheIndex(raw) {
-    var empty = { ids: [], next: 0, categories: {}, purities: {}, dimensions: {} };
+    var empty = { ids: [], next: 0, categories: {}, purities: {}, dimensions: {}, usedAt: {} };
     if (!raw) {
         return empty;
     }
@@ -415,6 +457,7 @@ function parseDiskCacheIndex(raw) {
         var categories = {};
         var purities = {};
         var dimensions = {};
+        var usedAt = {};
         if (parsed && parsed.categories && typeof parsed.categories === "object") {
             categories = parsed.categories;
         }
@@ -424,6 +467,9 @@ function parseDiskCacheIndex(raw) {
         if (parsed && parsed.dimensions && typeof parsed.dimensions === "object") {
             dimensions = parsed.dimensions;
         }
+        if (parsed && parsed.usedAt && typeof parsed.usedAt === "object") {
+            usedAt = parsed.usedAt;
+        }
         if (!parsed || !parsed.ids || !parsed.ids.length) {
             return {
                 ids: [],
@@ -431,6 +477,7 @@ function parseDiskCacheIndex(raw) {
                 categories: categories,
                 purities: purities,
                 dimensions: dimensions,
+                usedAt: usedAt,
             };
         }
         return {
@@ -439,6 +486,7 @@ function parseDiskCacheIndex(raw) {
             categories: categories,
             purities: purities,
             dimensions: dimensions,
+            usedAt: usedAt,
         };
     } catch (e) {
         return empty;
@@ -455,6 +503,7 @@ function serializeDiskCacheIndex(index) {
         categories: index.categories || {},
         purities: index.purities || {},
         dimensions: index.dimensions || {},
+        usedAt: index.usedAt || {},
     });
 }
 
@@ -518,6 +567,43 @@ function diskCacheDimensionsForId(index, id) {
     return { dimension_x: entry[0], dimension_y: entry[1] };
 }
 
+function touchDiskCacheId(index, id, atMs) {
+    if (!index || !id) {
+        return;
+    }
+    if (!index.usedAt) {
+        index.usedAt = {};
+    }
+    var ts = Number(atMs);
+    index.usedAt[String(id)] = ts > 0 ? ts : Date.now();
+}
+
+function evictDiskCacheOccupant(index, occupant) {
+    occupant = String(occupant || "");
+    if (!occupant || !index) {
+        return;
+    }
+    if (index.categories) {
+        delete index.categories[occupant];
+    }
+    if (index.purities) {
+        delete index.purities[occupant];
+    }
+    if (index.dimensions) {
+        delete index.dimensions[occupant];
+    }
+    if (index.usedAt) {
+        delete index.usedAt[occupant];
+    }
+}
+
+function diskCacheUsedAt(index, id) {
+    if (!index || !index.usedAt || !id) {
+        return 0;
+    }
+    return Number(index.usedAt[String(id)]) || 0;
+}
+
 function allocateDiskCacheSlot(index, id, maxSlots, pinnedIds, category, purity) {
     maxSlots = maxSlots || DISK_CACHE_SLOTS;
     id = String(id || "");
@@ -531,37 +617,46 @@ function allocateDiskCacheSlot(index, id, maxSlots, pinnedIds, category, purity)
     var existing = index.ids.indexOf(id);
     if (existing !== -1) {
         setDiskCacheCategory(index, id, category, purity);
+        touchDiskCacheId(index, id);
         return existing;
     }
     while (index.ids.length < maxSlots) {
         index.ids.push("");
     }
-    var slot = (index.next || 0) % maxSlots;
-    var attempts = 0;
-    var occupant = "";
-    while (attempts < maxSlots) {
-        occupant = String(index.ids[slot] || "");
-        if (!occupant || pinnedIds.indexOf(occupant) === -1) {
+    var slot = -1;
+    var i;
+    var start = (index.next || 0) % maxSlots;
+    for (i = 0; i < maxSlots; i++) {
+        var emptySlot = (start + i) % maxSlots;
+        if (!String(index.ids[emptySlot] || "")) {
+            slot = emptySlot;
             break;
         }
-        slot = (slot + 1) % maxSlots;
-        attempts++;
     }
-    if (attempts >= maxSlots) {
+    if (slot < 0) {
+        var oldestTime = Infinity;
+        for (i = 0; i < maxSlots; i++) {
+            var occupantId = String(index.ids[i] || "");
+            if (!occupantId || pinnedIds.indexOf(occupantId) !== -1) {
+                continue;
+            }
+            var used = diskCacheUsedAt(index, occupantId);
+            if (used < oldestTime) {
+                oldestTime = used;
+                slot = i;
+            }
+        }
+    }
+    if (slot < 0) {
         // Every slot is pinned (or DiskCacheMaxSlots <= the pinned count) — refuse to
         // evict a pinned wallpaper rather than silently unpinning it by overwriting
         // its slot.
         return -1;
     }
-    occupant = String(index.ids[slot] || "");
-    if (occupant && index.categories) {
-        delete index.categories[occupant];
-    }
-    if (occupant && index.purities) {
-        delete index.purities[occupant];
-    }
+    evictDiskCacheOccupant(index, index.ids[slot]);
     index.ids[slot] = id;
     setDiskCacheCategory(index, id, category, purity);
+    touchDiskCacheId(index, id);
     index.next = (slot + 1) % maxSlots;
     return slot;
 }
@@ -1414,7 +1509,7 @@ function buildPresetShareUrl(preset) {
 }
 
 function pluginVersion() {
-    return "2.6.0";
+    return "2.6.1";
 }
 
 function appendDebugLogLine(existing, line, maxLines) {

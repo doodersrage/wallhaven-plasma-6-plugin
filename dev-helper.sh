@@ -148,21 +148,61 @@ package_plugin() {
     echo "Created ${archive}"
 }
 
+# The D-Bus service needs python-dbus + python-gobject (package names vary by
+# distro) on top of the interpreter; dev-helper never installs system
+# packages itself, so check for them before touching systemd rather than
+# enabling a unit that is guaranteed to crash-loop.
+check_dbus_deps() {
+    if python3 -c "import dbus, gi; from gi.repository import GLib" >/dev/null 2>&1; then
+        return 0
+    fi
+    echo "Missing D-Bus service dependencies (the python3 'dbus' and 'gi' modules)." >&2
+    echo "wallhaven-dbus.py exits immediately without them, so systemd will crash-loop the unit." >&2
+    echo "Install the system packages (not pip) for your distro, then rerun 'dev-helper.sh dbus-install':" >&2
+    echo "  Arch:   sudo pacman -S python-dbus python-gobject" >&2
+    echo "  Fedora: sudo dnf install python3-dbus python3-gobject-base" >&2
+    echo "  Debian: sudo apt install python3-dbus python3-gi" >&2
+    return 1
+}
+
 install_dbus_service() {
     install_plugin
     mkdir -p "${SYSTEMD_USER}"
     sed "s|@INSTALL_DIR@|${DATA_DIR}|g" \
         "${SCRIPT_DIR}/tools/wallhaven-dbus.service.in" \
         > "${SYSTEMD_USER}/wallhaven-dbus.service"
+    mkdir -p "${HOME}/.local/share/dbus-1/services"
+    sed "s|@INSTALL_DIR@|${DATA_DIR}|g" \
+        "${SCRIPT_DIR}/share/org.robertsm.Wallhaven.service.in" \
+        > "${HOME}/.local/share/dbus-1/services/org.robertsm.Wallhaven.service"
     systemctl --user daemon-reload
+
+    if ! check_dbus_deps; then
+        echo "Skipping service start until dependencies are installed." >&2
+        return 1
+    fi
+
+    # A unit that crash-looped past systemd's StartLimitBurst is left
+    # "failed" and ignores further 'enable --now' calls until this is
+    # cleared -- which is exactly what running deploy repeatedly against a
+    # missing dependency looks like from the outside ("still not running").
+    systemctl --user reset-failed wallhaven-dbus.service >/dev/null 2>&1 || true
     systemctl --user enable --now wallhaven-dbus.service
-    echo "D-Bus service enabled: wallhaven-dbus.service"
-    systemctl --user status wallhaven-dbus.service --no-pager || true
+
+    sleep 1
+    if systemctl --user is-active --quiet wallhaven-dbus.service; then
+        echo "D-Bus service enabled and running: wallhaven-dbus.service"
+    else
+        echo "D-Bus service failed to start. Recent log:" >&2
+        journalctl --user -u wallhaven-dbus.service -n 20 --no-pager >&2 || true
+        return 1
+    fi
 }
 
 uninstall_dbus_service() {
     systemctl --user disable --now wallhaven-dbus.service 2>/dev/null || true
     rm -f "${SYSTEMD_USER}/wallhaven-dbus.service"
+    rm -f "${HOME}/.local/share/dbus-1/services/org.robertsm.Wallhaven.service"
     systemctl --user daemon-reload
     echo "Removed wallhaven-dbus.service"
 }
