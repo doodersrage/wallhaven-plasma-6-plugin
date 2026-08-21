@@ -42,6 +42,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="2.6.0" date="2026-08-21">
+      <description>
+        <p>Three opt-in image-quality features (resolution/aspect-aware selection, brightness/contrast/saturation filters, an external AI upscaler hook for low-res matches with a retroactive re-upscale option) plus six correctness fixes: system theme sync color format, "small" image quality ordering, overlapping transitions, pinned disk-cache slot eviction, D-Bus availability detection, and screen-lock-based slideshow pausing.</p>
+      </description>
+    </release>
     <release version="2.5.0" date="2026-08-19">
       <description>
         <p>Fun release: swipe-to-rate on the panel widget, music- and weather-reactive slideshow, time-capsule scheduled searches, wider accent theme sync, and opt-in milestone/streak notifications.</p>

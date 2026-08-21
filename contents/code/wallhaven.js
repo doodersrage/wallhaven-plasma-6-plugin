@@ -26,13 +26,15 @@ function wallpaperUrl(wallpaper, quality) {
         return "";
     }
     var thumbs = thumbsObject(wallpaper);
-    // Wallhaven only serves full wallpapers at `path`. thumbs.* are previews.
-    // small = low-bandwidth preview thumb; large/original = full wallpaper file.
+    // Wallhaven only serves the full-resolution wallpaper at `path`. thumbs.small/
+    // large/original are all *thumbnails* (progressively bigger previews, never the
+    // full file), so "small" quality must prefer thumbs.small first or the
+    // low-bandwidth setting silently downloads the larger thumbs.large instead.
     if (quality === "small") {
-        return (thumbs && thumbs.large)
-            || (thumbs && thumbs.original)
+        return (thumbs && thumbs.small)
             || wallpaper.thumb
-            || (thumbs && thumbs.small)
+            || (thumbs && thumbs.large)
+            || (thumbs && thumbs.original)
             || thumbUrlForId(wallpaper.id)
             || wallpaper.path
             || "";
@@ -193,6 +195,8 @@ var EXPORTABLE_SETTINGS_KEYS = [
     "PauseWhenInactive", "SmartColorFromWallpaper", "TagFavoritesJson",
     "MusicReactiveEnabled", "MusicReactiveIntensity", "WeatherReactiveEnabled",
     "WeatherLocation", "TimeCapsulesJson", "SystemThemeSyncEnabled", "AchievementsEnabled",
+    "PreferSharpMatches", "ImageEnhanceEnabled", "EnhanceBrightness", "EnhanceContrast",
+    "EnhanceSaturation", "UpscaleEnabled",
 ];
 
 function exportSettingsSnapshot(cfg) {
@@ -402,7 +406,7 @@ function diskCacheSlotCount() {
 }
 
 function parseDiskCacheIndex(raw) {
-    var empty = { ids: [], next: 0, categories: {}, purities: {} };
+    var empty = { ids: [], next: 0, categories: {}, purities: {}, dimensions: {} };
     if (!raw) {
         return empty;
     }
@@ -410,11 +414,15 @@ function parseDiskCacheIndex(raw) {
         var parsed = JSON.parse(raw);
         var categories = {};
         var purities = {};
+        var dimensions = {};
         if (parsed && parsed.categories && typeof parsed.categories === "object") {
             categories = parsed.categories;
         }
         if (parsed && parsed.purities && typeof parsed.purities === "object") {
             purities = parsed.purities;
+        }
+        if (parsed && parsed.dimensions && typeof parsed.dimensions === "object") {
+            dimensions = parsed.dimensions;
         }
         if (!parsed || !parsed.ids || !parsed.ids.length) {
             return {
@@ -422,6 +430,7 @@ function parseDiskCacheIndex(raw) {
                 next: Math.max(0, parseInt(parsed && parsed.next, 10) || 0),
                 categories: categories,
                 purities: purities,
+                dimensions: dimensions,
             };
         }
         return {
@@ -429,6 +438,7 @@ function parseDiskCacheIndex(raw) {
             next: Math.max(0, parseInt(parsed.next, 10) || 0),
             categories: categories,
             purities: purities,
+            dimensions: dimensions,
         };
     } catch (e) {
         return empty;
@@ -437,13 +447,14 @@ function parseDiskCacheIndex(raw) {
 
 function serializeDiskCacheIndex(index) {
     if (!index) {
-        return "{\"ids\":[],\"next\":0,\"categories\":{},\"purities\":{}}";
+        return "{\"ids\":[],\"next\":0,\"categories\":{},\"purities\":{},\"dimensions\":{}}";
     }
     return JSON.stringify({
         ids: index.ids || [],
         next: index.next || 0,
         categories: index.categories || {},
         purities: index.purities || {},
+        dimensions: index.dimensions || {},
     });
 }
 
@@ -474,6 +485,39 @@ function setDiskCacheCategory(index, id, category, purity) {
     }
 }
 
+// Records the wallpaper's native resolution alongside its disk-cache entry,
+// captured once at cache-write time from the API listing (the cached file
+// itself is grabToImage'd at a target render size, not the original source
+// resolution, so it can't answer "did this need upscaling" on its own).
+// Lets a later "re-upscale cached wallpapers" pass decide which already-cached
+// entries qualify without re-querying the Wallhaven API for each one.
+function setDiskCacheDimensions(index, id, dimensionX, dimensionY) {
+    if (!index || !id) {
+        return;
+    }
+    if (!index.dimensions) {
+        index.dimensions = {};
+    }
+    var w = Number(dimensionX);
+    var h = Number(dimensionY);
+    if (w > 0 && h > 0) {
+        index.dimensions[String(id)] = [w, h];
+    }
+}
+
+// Returns { dimension_x, dimension_y } for a cached entry, or null when
+// unknown (e.g. it was cached before this tracking existed).
+function diskCacheDimensionsForId(index, id) {
+    if (!index || !index.dimensions) {
+        return null;
+    }
+    var entry = index.dimensions[String(id)];
+    if (!entry || entry.length !== 2 || !entry[0] || !entry[1]) {
+        return null;
+    }
+    return { dimension_x: entry[0], dimension_y: entry[1] };
+}
+
 function allocateDiskCacheSlot(index, id, maxSlots, pinnedIds, category, purity) {
     maxSlots = maxSlots || DISK_CACHE_SLOTS;
     id = String(id || "");
@@ -502,6 +546,12 @@ function allocateDiskCacheSlot(index, id, maxSlots, pinnedIds, category, purity)
         }
         slot = (slot + 1) % maxSlots;
         attempts++;
+    }
+    if (attempts >= maxSlots) {
+        // Every slot is pinned (or DiskCacheMaxSlots <= the pinned count) — refuse to
+        // evict a pinned wallpaper rather than silently unpinning it by overwriting
+        // its slot.
+        return -1;
     }
     occupant = String(index.ids[slot] || "");
     if (occupant && index.categories) {
@@ -1364,7 +1414,7 @@ function buildPresetShareUrl(preset) {
 }
 
 function pluginVersion() {
-    return "2.5.0";
+    return "2.6.0";
 }
 
 function appendDebugLogLine(existing, line, maxLines) {
@@ -1472,11 +1522,14 @@ function listCacheEntries(index, pinnedIds) {
         if (!id) {
             continue;
         }
+        var dims = diskCacheDimensionsForId(index, id);
         entries.push({
             id: id,
             slot: i,
             pinned: pinnedIds.indexOf(id) !== -1,
             thumbUrl: thumbUrlForId(id),
+            dimensionX: dims ? dims.dimension_x : 0,
+            dimensionY: dims ? dims.dimension_y : 0,
         });
     }
     return entries;
@@ -1524,6 +1577,53 @@ function nearestWallhavenColor(hex) {
         if (dist < bestDist) {
             bestDist = dist;
             best = WALLHAVEN_COLORS[i];
+        }
+    }
+    return best;
+}
+
+// KConfig serializes QColor entries (like kdeglobals' [General] AccentColor) as
+// "r,g,b" decimal, not a "#RRGGBB" string. Writing a raw hex string there fails to
+// parse as a QColor, so Plasma silently falls back to its default accent color.
+function hexToKdeAccentColor(hex) {
+    var color = parseHexColor(hex);
+    if (!color) {
+        return "";
+    }
+    return color.r + "," + color.g + "," + color.b;
+}
+
+// GNOME's org.gnome.desktop.interface accent-color is a fixed 9-value enum, not a
+// free-form color — gsettings rejects anything else. Map the wallpaper's accent to
+// the closest named option so the write actually takes effect.
+var GNOME_ACCENT_COLORS = [
+    { name: "blue", hex: "3584e4" },
+    { name: "teal", hex: "2190a4" },
+    { name: "green", hex: "3a944a" },
+    { name: "yellow", hex: "c88800" },
+    { name: "orange", hex: "ed5b00" },
+    { name: "red", hex: "e62d42" },
+    { name: "pink", hex: "d56199" },
+    { name: "purple", hex: "9141ac" },
+    { name: "slate", hex: "6f8396" },
+];
+
+function nearestGnomeAccentColor(hex) {
+    var color = parseHexColor(hex);
+    if (!color) {
+        return "";
+    }
+    var best = "";
+    var bestDist = Infinity;
+    for (var i = 0; i < GNOME_ACCENT_COLORS.length; i++) {
+        var candidate = parseHexColor(GNOME_ACCENT_COLORS[i].hex);
+        var dr = color.r - candidate.r;
+        var dg = color.g - candidate.g;
+        var db = color.b - candidate.b;
+        var dist = dr * dr + dg * dg + db * db;
+        if (dist < bestDist) {
+            bestDist = dist;
+            best = GNOME_ACCENT_COLORS[i].name;
         }
     }
     return best;
@@ -1646,7 +1746,75 @@ function formatTags(tags) {
     return result;
 }
 
-function pickRandomIndex(wallpapers, usedIndices, seenIds, dedupEnabled, blockedIds) {
+// Whether a wallpaper's native resolution genuinely falls short of the given
+// screen size, i.e. a PreserveAspectCrop fit would need to stretch it upward
+// by more than a small margin (minCoverScale, default 15%). Used to gate the
+// external-upscaler hook so it only fires on real low-res matches rather than
+// every wallpaper that's a few pixels shy of an exact fit.
+function needsUpscale(wallpaper, screenWidth, screenHeight, minCoverScale) {
+    var dimX = wallpaper && Number(wallpaper.dimension_x);
+    var dimY = wallpaper && Number(wallpaper.dimension_y);
+    var sw = Number(screenWidth);
+    var sh = Number(screenHeight);
+    if (!dimX || !dimY || dimX <= 0 || dimY <= 0 || !sw || !sh || sw <= 0 || sh <= 0) {
+        return false;
+    }
+    var coverScale = Math.max(sw / dimX, sh / dimY);
+    var threshold = (minCoverScale && minCoverScale > 1) ? minCoverScale : 1.15;
+    return coverScale > threshold;
+}
+
+// How much the image would need to be upscaled to cover the given screen size
+// (PreserveAspectCrop semantics: the more-constrained dimension wins), and how
+// closely its aspect ratio matches the screen's. Combined into a single weight
+// so "prefer sharp matches" mode can bias random selection toward wallpapers
+// that won't need heavy upscaling or an aggressive crop, without ever fully
+// excluding the rest (a match's weight never drops to exactly 0).
+function wallpaperResolutionScore(wallpaper, screenWidth, screenHeight) {
+    var dimX = wallpaper && Number(wallpaper.dimension_x);
+    var dimY = wallpaper && Number(wallpaper.dimension_y);
+    var sw = Number(screenWidth);
+    var sh = Number(screenHeight);
+    if (!dimX || !dimY || dimX <= 0 || dimY <= 0 || !sw || !sh || sw <= 0 || sh <= 0) {
+        return 1;
+    }
+    var coverScale = Math.max(sw / dimX, sh / dimY);
+    var upscalePenalty = coverScale > 1 ? (1 / coverScale) : 1;
+
+    var imageAspect = dimX / dimY;
+    var screenAspect = sw / sh;
+    var aspectRatioOfRatios = imageAspect > screenAspect ? (imageAspect / screenAspect) : (screenAspect / imageAspect);
+    var aspectScore = 1 / aspectRatioOfRatios;
+
+    return Math.max(0.05, upscalePenalty * aspectScore);
+}
+
+// Weighted counterpart to a plain uniform pick among `available` indices. Falls
+// back to a uniform pick if every candidate weighs zero so a bad/empty weightFn
+// can never strand the slideshow.
+function pickWeightedIndex(available, wallpapers, weightFn) {
+    var weights = [];
+    var total = 0;
+    for (var i = 0; i < available.length; i++) {
+        var w = Math.max(0, weightFn(wallpapers[available[i]]) || 0);
+        weights.push(w);
+        total += w;
+    }
+    if (total <= 0) {
+        return available[(Math.random() * available.length) | 0];
+    }
+    var target = Math.random() * total;
+    var cumulative = 0;
+    for (var j = 0; j < available.length; j++) {
+        cumulative += weights[j];
+        if (target < cumulative) {
+            return available[j];
+        }
+    }
+    return available[available.length - 1];
+}
+
+function pickRandomIndex(wallpapers, usedIndices, seenIds, dedupEnabled, blockedIds, weightFn) {
     var available = [];
     for (var i = 0; i < wallpapers.length; i++) {
         if (usedIndices.indexOf(i) !== -1) {
@@ -1677,7 +1845,23 @@ function pickRandomIndex(wallpapers, usedIndices, seenIds, dedupEnabled, blocked
         return -1;
     }
 
+    if (weightFn) {
+        return pickWeightedIndex(available, wallpapers, weightFn);
+    }
+
     return available[(Math.random() * available.length) | 0];
+}
+
+// Builds the optional weight function for pickRandomIndex from the
+// PreferSharpMatches setting. Returns undefined (plain uniform random) unless
+// the setting is enabled and the state carries known screen dimensions.
+function resolutionWeightFn(cfg, state) {
+    if (!cfg || !cfg.PreferSharpMatches) {
+        return undefined;
+    }
+    return function (wallpaper) {
+        return wallpaperResolutionScore(wallpaper, state.screenWidth, state.screenHeight);
+    };
 }
 
 function findNextWallpaper(cfg, state, wallpapers) {
@@ -1698,6 +1882,7 @@ function findNextWallpaper(cfg, state, wallpapers) {
             state.seenIds,
             cfg.DedupEnabled,
             blockedIds,
+            resolutionWeightFn(cfg, state),
         );
         if (index < 0) {
             return { wallpaper: null, exhausted: true };
@@ -1729,7 +1914,7 @@ function findNextWallpaper(cfg, state, wallpapers) {
                && ((cfg.DedupEnabled && state.seenIds.indexOf(String(wallpapers[index].id)) !== -1)
                    || isBlocked(wallpapers[index].id, blockedIds))) {
             if (cfg.LocalSortings === "random") {
-                var nextIndex = pickRandomIndex(wallpapers, usedIndices, state.seenIds, false, blockedIds);
+                var nextIndex = pickRandomIndex(wallpapers, usedIndices, state.seenIds, false, blockedIds, resolutionWeightFn(cfg, state));
                 if (nextIndex < 0) {
                     return { wallpaper: null, exhausted: true };
                 }
@@ -1773,7 +1958,7 @@ function pickWallpaper(cfg, state, wallpapers, preferRandom) {
     var blockedIds = state.blockedIds || [];
     var index = 0;
     if (preferRandom || cfg.LocalSortings === "random") {
-        index = pickRandomIndex(wallpapers, [], state.seenIds, cfg.DedupEnabled, blockedIds);
+        index = pickRandomIndex(wallpapers, [], state.seenIds, cfg.DedupEnabled, blockedIds, resolutionWeightFn(cfg, state));
     }
 
     if (cfg.DedupEnabled || blockedIds.length) {
@@ -1782,7 +1967,7 @@ function pickWallpaper(cfg, state, wallpapers, preferRandom) {
                && ((cfg.DedupEnabled && state.seenIds.indexOf(String(wallpapers[index].id)) !== -1)
                    || isBlocked(wallpapers[index].id, blockedIds))) {
             if (preferRandom || cfg.LocalSortings === "random") {
-                index = pickRandomIndex(wallpapers, [], state.seenIds, false, blockedIds);
+                index = pickRandomIndex(wallpapers, [], state.seenIds, false, blockedIds, resolutionWeightFn(cfg, state));
             } else {
                 index = (index + 1) % pageLength;
             }

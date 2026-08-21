@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Dialogs
 import QtQuick.Window
+import QtQuick.Effects
 import QtCore
 import QtNetwork
 import org.kde.plasma.core as PlasmaCore
@@ -117,7 +118,7 @@ WallpaperItem {
     property string _pendingWallpaperId: ""
     property bool _pendingUsedCache: false
     property bool _configWritePending: false
-    property var _diskCacheIndex: ({ ids: [], next: 0, categories: {}, purities: {} })
+    property var _diskCacheIndex: ({ ids: [], next: 0, categories: {}, purities: {}, dimensions: {} })
     property var _diskCacheSaveRequest: null
     property int _fetchRetryCount: 0
     property bool _connectivityOnline: true
@@ -136,6 +137,10 @@ WallpaperItem {
     property bool _pausedByRules: false
     property bool _musicPlaying: false
     property string _weatherLastLocation: ""
+    property bool _dbusServiceAvailable: false
+    property string _upscalerBinaryPath: ""
+    property bool _upscalerChecked: false
+    property bool _screenLocked: false
 
     property real parallaxPhase: 0
     readonly property real parallaxScreenPhase: {
@@ -349,7 +354,7 @@ WallpaperItem {
 
     function loadDiskCacheIndex() {
         if (!root.configuration) {
-            _diskCacheIndex = { ids: [], next: 0, categories: {}, purities: {} };
+            _diskCacheIndex = { ids: [], next: 0, categories: {}, purities: {}, dimensions: {} };
             return;
         }
         _diskCacheIndex = Wallhaven.parseDiskCacheIndex(root.configuration.DiskCacheIndexJson || "");
@@ -408,6 +413,22 @@ WallpaperItem {
         }
     }
 
+    // Crossfade/slide/zoom are plain ParallelAnimations: calling .start() while one
+    // is already running is a no-op in QtQuick, so a second wallpaper change inside
+    // the same CrossfadeMs window used to leave two animations fighting over the
+    // same opacity/transform properties, and let the first one's onFinished clear
+    // the layer the second transition was still fading in. Stopping any in-flight
+    // transition before starting a new one avoids both problems (mirrors the
+    // kenBurnsAnimation.stopAll() pattern already used before each restart()).
+    function stopTransitionAnimations() {
+        crossfadeToForeground.stop();
+        crossfadeToBackground.stop();
+        slideToForeground.stop();
+        slideToBackground.stop();
+        zoomToForeground.stop();
+        zoomToBackground.stop();
+    }
+
     function scheduleDiskCacheSave(img) {
         if (!cfg.DiskCacheEnabled || !img || _pendingUsedCache || !_pendingWallpaperId) {
             return;
@@ -447,6 +468,13 @@ WallpaperItem {
         }
         var path = diskCacheLocalPath(slot);
         var size = wallpaperSourceSize;
+        var wallpaperForUpscale = root.currentWallpaper;
+        Wallhaven.setDiskCacheDimensions(
+            _diskCacheIndex,
+            req.id,
+            wallpaperForUpscale && wallpaperForUpscale.dimension_x,
+            wallpaperForUpscale && wallpaperForUpscale.dimension_y,
+        );
         req.image.grabToImage(function(result) {
             if (!result) {
                 return;
@@ -457,8 +485,92 @@ WallpaperItem {
                     root.syncLockScreenImage(path);
                     root.updateVarietySymlink(path);
                 }
+                root.maybeUpscaleCachedFile(path, wallpaperForUpscale);
             }
         }, size);
+    }
+
+    // If enabled and this wallpaper's native resolution genuinely falls short
+    // of the screen, hand the just-written disk-cache file to an installed
+    // external upscaler (e.g. realesrgan-ncnn-vulkan) and overwrite it in
+    // place with the upscaled result. Silently does nothing when the setting
+    // is off, the wallpaper doesn't need it, or no upscaler is installed --
+    // the cached file is left exactly as plain-scaling would have shown it.
+    function maybeUpscaleCachedFile(path, wallpaper) {
+        if (!cfg.UpscaleEnabled || !path || !wallpaper) {
+            return;
+        }
+        var screenWidth = Math.round(root.width) || 1920;
+        var screenHeight = Math.round(root.height) || 1080;
+        if (!Wallhaven.needsUpscale(wallpaper, screenWidth, screenHeight)) {
+            return;
+        }
+        dbusHelper.checkUpscalerAvailable(function(binaryPath) {
+            if (!binaryPath) {
+                return;
+            }
+            dbusHelper.upscale(path, path, function(ok) {
+                root.logDebug((ok ? "Upscaled" : "Upscale failed for") + " disk-cache image: " + path);
+            });
+        });
+    }
+
+    // Retroactively applies the external upscaler to wallpapers already
+    // sitting in the disk cache from before "Upscale low-res" was turned on
+    // (or from before this dimension-tracking existed at all -- those are
+    // silently skipped since there's no recorded native resolution to judge
+    // by). Runs the upscale calls one at a time rather than in parallel: each
+    // is a real GPU-bound external process, and firing dozens at once would
+    // just make them all compete for the same GPU with no net time saved.
+    function reupscaleCachedWallpapers() {
+        if (!cfg.UpscaleEnabled) {
+            engine.showStatus(i18n("Enable \"Upscale low-res\" first."), "warn");
+            return;
+        }
+        dbusHelper.checkUpscalerAvailable(function(binaryPath) {
+            if (!binaryPath) {
+                engine.showStatus(i18n("No upscaler installed (realesrgan-ncnn-vulkan not found on PATH)."), "warn");
+                return;
+            }
+            var entries = getCacheEntries();
+            var screenWidth = Math.round(root.width) || 1920;
+            var screenHeight = Math.round(root.height) || 1080;
+            var queue = [];
+            for (var i = 0; i < entries.length; i++) {
+                var entry = entries[i];
+                if (!entry.dimensionX || !entry.dimensionY) {
+                    continue;
+                }
+                var wallpaper = { dimension_x: entry.dimensionX, dimension_y: entry.dimensionY };
+                if (Wallhaven.needsUpscale(wallpaper, screenWidth, screenHeight)) {
+                    queue.push(diskCacheLocalPath(entry.slot));
+                }
+            }
+            if (!queue.length) {
+                engine.showStatus(i18n("No cached wallpapers need upscaling right now."), "info");
+                return;
+            }
+            var total = queue.length;
+            var upscaled = 0;
+            var failed = 0;
+            var runNext = function() {
+                if (!queue.length) {
+                    engine.showStatus(i18n("Re-upscale finished: %1 upscaled, %2 failed.", upscaled, failed), "info");
+                    return;
+                }
+                var path = queue.shift();
+                dbusHelper.upscale(path, path, function(ok) {
+                    if (ok) {
+                        upscaled++;
+                    } else {
+                        failed++;
+                    }
+                    runNext();
+                });
+            };
+            engine.showStatus(i18n("Re-upscaling %1 cached wallpaper(s)…", total), "info");
+            runNext();
+        });
     }
 
     function clearDiskCache() {
@@ -468,7 +580,7 @@ WallpaperItem {
             paths.push(diskCacheLocalPath(i));
         }
         cacheFileDeleter.deletePaths(paths);
-        _diskCacheIndex = { ids: [], next: 0, categories: {}, purities: {} };
+        _diskCacheIndex = { ids: [], next: 0, categories: {}, purities: {}, dimensions: {} };
         persistDiskCacheIndex();
         preloadImage.source = "";
         preloadImage2.source = "";
@@ -855,9 +967,19 @@ WallpaperItem {
         if (color.length !== 6) {
             return;
         }
-        var script = "kwriteconfig6 --file kdeglobals --group General --key AccentColor '#" + color + "'; "
-            + "command -v gsettings >/dev/null 2>&1 && gsettings set org.gnome.desktop.interface accent-color "
-            + "'#" + color + "' 2>/dev/null; true";
+        // kdeglobals stores AccentColor as a KConfig QColor ("r,g,b" decimal), and
+        // GNOME's accent-color is a fixed name enum — neither accepts a raw hex
+        // string, so both values must be translated first or the writes no-op.
+        var kdeColor = Wallhaven.hexToKdeAccentColor(color);
+        var gnomeAccent = Wallhaven.nearestGnomeAccentColor(color);
+        if (!kdeColor) {
+            return;
+        }
+        var script = "kwriteconfig6 --file kdeglobals --group General --key AccentColor '" + kdeColor + "'; ";
+        if (gnomeAccent) {
+            script += "command -v gsettings >/dev/null 2>&1 && gsettings set org.gnome.desktop.interface accent-color "
+                + "'" + gnomeAccent + "' 2>/dev/null; true";
+        }
         dbusHelper.runArgv(["bash", "-lc", script]);
     }
 
@@ -889,10 +1011,31 @@ WallpaperItem {
     }
 
     function isDbusServiceAvailable() {
-        return typeof PDBus !== "undefined"
-            && PDBus.SessionBus
-            && PDBus.SessionBus.nameHasOwner
-            && PDBus.SessionBus.nameHasOwner("org.robertsm.Wallhaven");
+        // Every other D-Bus call in this file goes through the async
+        // dbusMessage()+asyncCall() pattern (see dbusAvailabilityLoader.poll()
+        // below, or musicReactiveLoader.poll()) because QML cannot block on IPC.
+        // This used to call PDBus.SessionBus.nameHasOwner(...) directly as if it
+        // were a synchronous getter, which isn't part of that API — the check
+        // silently always evaluated as unavailable, so the "D-Bus service is not
+        // running" banner and the Variety buttons stayed stuck in the offline
+        // state even with `systemctl --user status wallhaven-dbus.service`
+        // showing it active. Read the periodically-refreshed cached result instead.
+        return root._dbusServiceAvailable;
+    }
+
+    // Same cached-getter pattern as isDbusServiceAvailable(): the actual check
+    // (dbusHelper.checkUpscalerAvailable()) is async and piggybacks on the same
+    // 5s poll as the D-Bus availability check (see dbusAvailabilityLoader.poll()),
+    // so config.qml's settings page can just read this synchronously.
+    function isUpscalerAvailable() {
+        return root._upscalerChecked && root._upscalerBinaryPath !== "";
+    }
+
+    // Whether an upscaler-availability check has completed at least once, so
+    // the settings UI can distinguish "checked, not found" from "haven't
+    // checked yet" (e.g. D-Bus service still offline).
+    function isUpscalerStatusKnown() {
+        return root._upscalerChecked;
     }
 
     function varietyConfigPath() {
@@ -950,7 +1093,18 @@ WallpaperItem {
                 && _batteryPercent <= (cfg.BatteryLowThreshold || 20)) {
             shouldPause = true;
         }
-        if (cfg.PauseWhenInactive && Qt.application.state !== Qt.ApplicationActive) {
+        // Was Qt.application.state !== Qt.ApplicationActive. This wallpaper's
+        // QML runs inside plasmashell's own process, not a normal top-level
+        // app window -- the desktop/wallpaper view rarely if ever gains or
+        // loses window focus the way Qt.application.state is meant to track,
+        // so that check was either permanently true or permanently false
+        // depending on the session, not a real signal of "nobody's looking at
+        // this session right now". Screen-lock state, polled from the
+        // standard org.freedesktop.ScreenSaver D-Bus interface (see
+        // screenLockLoader.poll() below), is what "session is inactive"
+        // actually means for a wallpaper: it's the same interface every other
+        // screensaver-aware Linux app uses to detect the lock screen.
+        if (cfg.PauseWhenInactive && root._screenLocked) {
             shouldPause = true;
         }
         if (shouldPause === _rulesPausedSlideshow) {
@@ -2225,6 +2379,7 @@ WallpaperItem {
         }
 
         _pendingImageUrl = url;
+        root.stopTransitionAnimations();
         var transitionMode = effectiveTransitionMode();
         var useTransition = cfg.CrossfadeMs > 0 && !immediate && currentUrl !== "";
         if (useTransition && transitionMode === "fadeblack") {
@@ -2412,6 +2567,17 @@ WallpaperItem {
         function runArgv(argv, callback) {
             wallhavenMessage("RunArgv", "s", [JSON.stringify(argv)], callback);
         }
+
+        // callback(binaryPath) -- binaryPath is "" when no upscaler is installed.
+        function checkUpscalerAvailable(callback) {
+            wallhavenMessage("UpscalerAvailable", "", [], callback);
+        }
+
+        // callback(ok) -- ok is false on any failure (not installed, timed out,
+        // tool errored); callers should just keep using the plain-scaled image.
+        function upscale(inputPath, outputPath, callback) {
+            wallhavenMessage("Upscale", "ss", [inputPath, outputPath], callback);
+        }
     }
 
     QtObject {
@@ -2450,6 +2616,59 @@ WallpaperItem {
         function appendLine(line) {
             dbusHelper.appendFile(debugLogFile, line);
         }
+    }
+
+    QtObject {
+        id: dbusAvailabilityLoader
+
+        function poll() {
+            if (typeof PDBus === "undefined" || !PDBus.SessionBus) {
+                root._dbusServiceAvailable = false;
+                return;
+            }
+            var msg = new PDBus.dbusMessage({
+                service: "org.freedesktop.DBus",
+                path: "/org/freedesktop/DBus",
+                iface: "org.freedesktop.DBus",
+                member: "NameHasOwner",
+                signature: "s",
+                arguments: ["org.robertsm.Wallhaven"],
+            });
+            PDBus.SessionBus.asyncCall(msg, function(hasOwner) {
+                root._dbusServiceAvailable = !!hasOwner;
+                if (hasOwner) {
+                    pollUpscaler();
+                } else {
+                    root._upscalerBinaryPath = "";
+                    root._upscalerChecked = true;
+                }
+            }, function() {
+                root._dbusServiceAvailable = false;
+                root._upscalerBinaryPath = "";
+                root._upscalerChecked = true;
+            });
+        }
+
+        // Piggybacks on the same 5s cadence as the D-Bus availability poll
+        // above (only reachable once that poll confirms the service is up):
+        // shutil.which() on the service side is cheap, and realesrgan-ncnn-vulkan
+        // being installed/removed mid-session is rare enough that re-checking
+        // this often is plenty responsive without being wasteful.
+        function pollUpscaler() {
+            dbusHelper.checkUpscalerAvailable(function(binaryPath) {
+                root._upscalerBinaryPath = binaryPath || "";
+                root._upscalerChecked = true;
+            });
+        }
+    }
+
+    Timer {
+        id: dbusAvailabilityTimer
+        interval: 5000
+        running: root._configured
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: dbusAvailabilityLoader.poll()
     }
 
     QtObject {
@@ -2643,6 +2862,46 @@ WallpaperItem {
         onTriggered: batteryPollLoader.tryPath(0)
     }
 
+    QtObject {
+        id: screenLockLoader
+
+        // org.freedesktop.ScreenSaver is the standard cross-desktop-environment
+        // interface kscreenlocker (and every other screensaver-aware Linux app)
+        // uses to publish lock state; GetActive() takes no arguments and
+        // returns a bool. Polled the same way as dbusAvailabilityLoader/
+        // musicReactiveLoader elsewhere in this file, since PDBus has no QML
+        // API for subscribing to the interface's ActiveChanged signal directly.
+        function poll() {
+            if (typeof PDBus === "undefined" || !PDBus.SessionBus) {
+                root._screenLocked = false;
+                return;
+            }
+            var msg = new PDBus.dbusMessage({
+                service: "org.freedesktop.ScreenSaver",
+                path: "/org/freedesktop/ScreenSaver",
+                iface: "org.freedesktop.ScreenSaver",
+                member: "GetActive",
+                signature: "",
+                arguments: [],
+            });
+            PDBus.SessionBus.asyncCall(msg, function(active) {
+                root._screenLocked = !!active;
+                root.evaluateSlideshowRules();
+            }, function() {
+                root._screenLocked = false;
+            });
+        }
+    }
+
+    Timer {
+        id: screenLockTimer
+        interval: 5000
+        running: root._configured && cfg.PauseWhenInactive
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: screenLockLoader.poll()
+    }
+
     Connections {
         target: Qt.application
         function onStateChanged() {
@@ -2810,6 +3069,12 @@ WallpaperItem {
         id: backgroundLayer
         anchors.fill: parent
         clip: true
+        layer.enabled: cfg.ImageEnhanceEnabled
+        layer.effect: MultiEffect {
+            brightness: cfg.EnhanceBrightness / 100
+            contrast: cfg.EnhanceContrast / 100
+            saturation: cfg.EnhanceSaturation / 100
+        }
 
         Item {
             id: backgroundTransform
@@ -2839,6 +3104,12 @@ WallpaperItem {
         anchors.fill: parent
         clip: true
         opacity: 0
+        layer.enabled: cfg.ImageEnhanceEnabled
+        layer.effect: MultiEffect {
+            brightness: cfg.EnhanceBrightness / 100
+            contrast: cfg.EnhanceContrast / 100
+            saturation: cfg.EnhanceSaturation / 100
+        }
 
         Item {
             id: foregroundTransform

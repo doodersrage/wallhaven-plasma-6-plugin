@@ -91,8 +91,13 @@ ColumnLayout {
     property alias cfg_ExactResolutions: resolutionsField.text
     property alias cfg_UseBlacklist: blacklistCheck.checked
     property alias cfg_DedupEnabled: dedupCheck.checked
+    property alias cfg_PreferSharpMatches: preferSharpMatchesCheck.checked
     property alias cfg_KenBurnsEnabled: kenBurnsCheck.checked
     property alias cfg_KenBurnsSpeed: kenBurnsSpeedSpin.value
+    property alias cfg_ImageEnhanceEnabled: imageEnhanceCheck.checked
+    property alias cfg_EnhanceBrightness: enhanceBrightnessSpin.value
+    property alias cfg_EnhanceContrast: enhanceContrastSpin.value
+    property alias cfg_EnhanceSaturation: enhanceSaturationSpin.value
     property alias cfg_ShowAttribution: attributionCheck.checked
     property alias cfg_AttributionCorner: attributionCornerCombo.currentValue
     property alias cfg_AttributionAutoHideSec: attributionHideSpin.value
@@ -108,6 +113,7 @@ ColumnLayout {
     property alias cfg_OfflineCacheFallback: offlineCacheCheck.checked
     property alias cfg_OfflineOnlyMode: offlineOnlyCheck.checked
     property alias cfg_MeteredCacheOnly: meteredCacheCheck.checked
+    property alias cfg_UpscaleEnabled: upscaleCheck.checked
     property alias cfg_UseKWalletForApiKey: kwalletCheck.checked
     property alias cfg_ControlBusEnabled: controlBusCheck.checked
     property alias cfg_SyncAdvanceEnabled: syncAdvanceCheck.checked
@@ -157,6 +163,10 @@ ColumnLayout {
     property bool showSetupWizard: wallpaperConfiguration && !wallpaperConfiguration.SetupWizardCompleted
     readonly property bool dbusServiceOnline: liveWallpaper && liveWallpaper.isDbusServiceAvailable
         ? liveWallpaper.isDbusServiceAvailable() : false
+    readonly property bool upscalerStatusKnown: liveWallpaper && liveWallpaper.isUpscalerStatusKnown
+        ? liveWallpaper.isUpscalerStatusKnown() : false
+    readonly property bool upscalerAvailable: liveWallpaper && liveWallpaper.isUpscalerAvailable
+        ? liveWallpaper.isUpscalerAvailable() : false
     property string varietyPreviewSearch: ""
 
     function fieldVisible(keywords) {
@@ -1502,6 +1512,13 @@ ColumnLayout {
                     text: i18n("Avoid recent duplicates (saved across restarts)")
                 }
 
+                QtControls2.CheckBox {
+                    id: preferSharpMatchesCheck
+
+                    Kirigami.FormData.label: i18n("Image quality:")
+                    text: i18n("Prefer sharper matches (bias random picks toward images that fit your screen size and aspect ratio without heavy upscaling or cropping)")
+                }
+
                 QtControls2.TextField {
                     id: tagBlocklistField
 
@@ -1860,8 +1877,8 @@ ColumnLayout {
                 QtControls2.CheckBox {
                     id: pauseInactiveCheck
 
-                    Kirigami.FormData.label: i18n("Inactive pause:")
-                    text: i18n("Pause when Plasma session is inactive")
+                    Kirigami.FormData.label: i18n("Screen lock pause:")
+                    text: i18n("Pause the slideshow while the screen is locked")
                 }
 
                 QtControls2.SpinBox {
@@ -2002,6 +2019,58 @@ ColumnLayout {
                     text: i18n("Also push the wallpaper accent to GTK apps and kdeglobals")
                 }
 
+                QtControls2.CheckBox {
+                    id: imageEnhanceCheck
+
+                    Kirigami.FormData.label: i18n("Image enhance:")
+                    text: i18n("Apply brightness/contrast/saturation adjustments to the wallpaper")
+                }
+
+                QtControls2.SpinBox {
+                    id: enhanceBrightnessSpin
+
+                    Kirigami.FormData.label: i18n("Brightness:")
+                    from: -100
+                    to: 100
+                    stepSize: 5
+                    enabled: imageEnhanceCheck.checked
+                    textFromValue: function(value) { return value + "%"; }
+                    valueFromText: function(text) { return parseInt(text, 10) || 0; }
+                }
+
+                QtControls2.SpinBox {
+                    id: enhanceContrastSpin
+
+                    Kirigami.FormData.label: i18n("Contrast:")
+                    from: -100
+                    to: 100
+                    stepSize: 5
+                    enabled: imageEnhanceCheck.checked
+                    textFromValue: function(value) { return value + "%"; }
+                    valueFromText: function(text) { return parseInt(text, 10) || 0; }
+                }
+
+                QtControls2.SpinBox {
+                    id: enhanceSaturationSpin
+
+                    Kirigami.FormData.label: i18n("Saturation:")
+                    from: -100
+                    to: 300
+                    stepSize: 5
+                    enabled: imageEnhanceCheck.checked
+                    textFromValue: function(value) { return value + "%"; }
+                    valueFromText: function(text) { return parseInt(text, 10) || 0; }
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: imageEnhanceCheck.checked
+                    text: i18n("0% means no change on each slider. Rendered client-side; the cached image on disk is not modified.")
+                }
+
                 QtControls2.Label {
                     Kirigami.FormData.label: " "
                     Layout.fillWidth: true
@@ -2129,6 +2198,60 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Metered network:")
                     text: i18n("Use cache only on cellular connections")
                     enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.CheckBox {
+                    id: upscaleCheck
+
+                    Kirigami.FormData.label: i18n("Upscale low-res:")
+                    text: i18n("Use an external AI upscaler for wallpapers smaller than your screen, if installed")
+                    enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: upscaleCheck.checked
+                    text: i18n("Requires the D-Bus service and realesrgan-ncnn-vulkan on your PATH, and disk cache enabled above. Falls back to plain scaling when either is missing.")
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Upscaler status:")
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: upscaleCheck.checked
+                    text: {
+                        if (liveWallpaper === null)
+                            return i18n("Apply Wallhaven as the wallpaper type to check.");
+                        if (!root.dbusServiceOnline)
+                            return i18n("D-Bus service offline; can't check.");
+                        if (!root.upscalerStatusKnown)
+                            return i18n("Checking…");
+                        return root.upscalerAvailable
+                            ? i18n("realesrgan-ncnn-vulkan detected.")
+                            : i18n("Not found on PATH; using plain scaling.");
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Re-upscale:")
+                    text: i18n("Re-upscale cached wallpapers")
+                    enabled: liveWallpaper !== null && upscaleCheck.checked && diskCacheCheck.checked
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.reupscaleCachedWallpapers)
+                            liveWallpaper.reupscaleCachedWallpapers();
+                    }
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: upscaleCheck.checked
+                    text: i18n("Applies the upscaler to wallpapers already in the disk cache whose native resolution falls short of your screen. Cache entries saved before this setting existed have no recorded resolution and are skipped; they'll be covered next time they're re-cached.")
                 }
 
                 QtControls2.CheckBox {

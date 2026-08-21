@@ -25,7 +25,7 @@ Commands:
   restart         Restart plasmashell
   deploy          translations + install + dbus + restart
   package         Create distributable .tar.xz package
-  test            Run wallhaven.js unit tests
+  test            Run wallhaven.js unit tests, QML smoke checks, and D-Bus service tests (if python3-dbus is installed)
   check           Validate structure + run tests
   release         Tag and publish GitHub release (see scripts/release.sh)
   translations    Compile .po files to contents/locale/
@@ -112,6 +112,12 @@ restart_plasma() {
 
 run_tests() {
     node "${SCRIPT_DIR}/tests/test-wallhaven.js"
+    bash "${SCRIPT_DIR}/tests/validate-qml.sh"
+    if python3 -c "import dbus, gi" >/dev/null 2>&1; then
+        python3 "${SCRIPT_DIR}/tests/test-variety-dbus.py"
+    else
+        echo "Skipping tests/test-variety-dbus.py (python3-dbus/python3-gi not installed)"
+    fi
 }
 
 run_check() {

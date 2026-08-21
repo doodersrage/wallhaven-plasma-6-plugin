@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -46,6 +47,12 @@ ALLOWED_COMMANDS = {
     "plasma-apply-colors",
     "kwriteconfig6",
 }
+# Only realesrgan-ncnn-vulkan is driven directly (its "-i <in> -o <out> -n <model>"
+# invocation is hardcoded below); other ncnn-vulkan-family tools take different
+# flags/model names and are not wired up to avoid guessing at an untested CLI shape.
+UPSCALER_BINARY = "realesrgan-ncnn-vulkan"
+UPSCALER_MODEL = "realesrgan-x4plus"
+UPSCALE_TIMEOUT_SEC = 120
 BATTERY_CAPACITY_RE = re.compile(r"^/sys/class/power_supply/BAT\d+/capacity$")
 HOME_READ_BLOCKED = (".ssh", ".gnupg", ".local/share/keyrings/")
 
@@ -98,6 +105,18 @@ def append_debug_log_line(existing: str, line: str, max_lines: int = 200) -> str
     if len(lines) > max_lines:
         lines = lines[-max_lines:]
     return "\n".join(lines) + "\n"
+
+
+def find_upscaler() -> str:
+    """Resolved path of the upscaler binary if it's installed, else ""."""
+    return shutil.which(UPSCALER_BINARY) or ""
+
+
+def _silent_remove(path: str) -> None:
+    try:
+        os.remove(path)
+    except OSError:
+        pass
 
 
 def run_argv(argv: list[str]) -> None:
@@ -305,6 +324,57 @@ class WallhavenControl(dbus.service.Object):
         if not isinstance(argv, list):
             raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: argv must be a list")
         run_argv([str(part) for part in argv])
+
+    @dbus.service.method(INTERFACE, out_signature="s")
+    def UpscalerAvailable(self) -> str:
+        """Resolved path of the external upscaler binary, or "" if not installed."""
+        return find_upscaler()
+
+    @dbus.service.method(INTERFACE, in_signature="ss", out_signature="b")
+    def Upscale(self, input_path: str, output_path: str) -> bool:
+        """Run the external upscaler on input_path, writing to output_path.
+
+        input_path and output_path may be the same file: the upscaled result
+        is written to a sibling temp file first and only swapped into place
+        with os.replace() on success, so a same-path in-place "upscale this
+        cached wallpaper" call never truncates the source before it's read
+        and never leaves a half-written file behind on failure.
+
+        Both paths must live under the plasmashell cache dir (same rule as
+        WriteTextFile/AppendTextFile). Returns False -- never raises -- when
+        the tool isn't installed, times out, or fails, so QML callers can
+        treat any falsy result as "fall back to plain scaling".
+        """
+        binary = find_upscaler()
+        if not binary:
+            return False
+        try:
+            src = validate_cache_path(input_path)
+            dst = validate_cache_path(output_path)
+        except dbus.exceptions.DBusException:
+            return False
+        if not os.path.isfile(src):
+            return False
+        tmp_dst = dst + ".upscale.tmp"
+        try:
+            result = subprocess.run(
+                [binary, "-i", src, "-o", tmp_dst, "-n", UPSCALER_MODEL],
+                check=False,
+                capture_output=True,
+                timeout=UPSCALE_TIMEOUT_SEC,
+            )
+        except (OSError, subprocess.TimeoutExpired, subprocess.SubprocessError):
+            _silent_remove(tmp_dst)
+            return False
+        if result.returncode != 0 or not os.path.isfile(tmp_dst):
+            _silent_remove(tmp_dst)
+            return False
+        try:
+            os.replace(tmp_dst, dst)
+        except OSError:
+            _silent_remove(tmp_dst)
+            return False
+        return True
 
 
 class WallhavenPlayer(dbus.service.Object):

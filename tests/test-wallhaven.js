@@ -210,6 +210,59 @@ function testDiskCacheNamespaceAndCategories() {
     assert(roundtrip.purities.ddd === "nsfw", "cache index stores purity");
 }
 
+function testDiskCachePinnedSlotsNeverEvicted() {
+    // Fill every slot, then pin all of them.
+    var index = { ids: [], next: 0, categories: {}, purities: {} };
+    var pinned = [];
+    for (var i = 0; i < 3; i++) {
+        Wallhaven.allocateDiskCacheSlot(index, "p" + i, 3, [], "general", "sfw");
+        pinned.push("p" + i);
+    }
+    assert(index.ids.length === 3, "three slots filled");
+
+    // A new, unpinned wallpaper must not be able to steal a pinned slot.
+    var slot = Wallhaven.allocateDiskCacheSlot(index, "new", 3, pinned, "general", "sfw");
+    assert(slot === -1, "allocation refused when every slot is pinned");
+    assert(index.ids.indexOf("new") === -1, "unpinned newcomer was not written into the index");
+    assert(
+        index.ids.indexOf("p0") !== -1 && index.ids.indexOf("p1") !== -1 && index.ids.indexOf("p2") !== -1,
+        "all three pinned ids survive untouched",
+    );
+
+    // Unpinning one slot frees it up again.
+    var slot2 = Wallhaven.allocateDiskCacheSlot(index, "new", 3, ["p0", "p1"], "general", "sfw");
+    assert(slot2 !== -1, "allocation succeeds once a slot is no longer pinned");
+    assert(index.ids.indexOf("new") !== -1, "newcomer took the freed slot");
+}
+
+function testDiskCacheDimensionTracking() {
+    var index = { ids: [], next: 0, categories: {}, purities: {}, dimensions: {} };
+    Wallhaven.allocateDiskCacheSlot(index, "abc12", 5, [], "general", "sfw");
+    Wallhaven.setDiskCacheDimensions(index, "abc12", 3840, 2160);
+    var dims = Wallhaven.diskCacheDimensionsForId(index, "abc12");
+    assert(dims && dims.dimension_x === 3840 && dims.dimension_y === 2160, "dimensions recorded for a cached id");
+    assert(Wallhaven.diskCacheDimensionsForId(index, "missing") === null, "unknown id has no recorded dimensions");
+
+    // Zero/garbage dimensions must not get written -- a later entry lookup
+    // must be able to tell "unknown" apart from "recorded as 0x0".
+    Wallhaven.setDiskCacheDimensions(index, "abc12", 0, 0);
+    var afterBadWrite = Wallhaven.diskCacheDimensionsForId(index, "abc12");
+    assert(afterBadWrite && afterBadWrite.dimension_x === 3840, "a zero-dimension write does not clobber a good prior value");
+
+    // Round-trips through the same serialize/parse cycle used for the persisted DiskCacheIndexJson.
+    var roundtrip = Wallhaven.parseDiskCacheIndex(Wallhaven.serializeDiskCacheIndex(index));
+    var rtDims = Wallhaven.diskCacheDimensionsForId(roundtrip, "abc12");
+    assert(rtDims && rtDims.dimension_x === 3840 && rtDims.dimension_y === 2160, "dimensions survive a serialize/parse roundtrip");
+
+    var entries = Wallhaven.listCacheEntries(index, []);
+    assert(entries.length === 1 && entries[0].dimensionX === 3840 && entries[0].dimensionY === 2160, "listCacheEntries exposes recorded dimensions");
+
+    // An entry cached before dimension-tracking existed has no recorded size.
+    var legacyIndex = { ids: ["legacy1"], next: 1, categories: {}, purities: {}, dimensions: {} };
+    var legacyEntries = Wallhaven.listCacheEntries(legacyIndex, []);
+    assert(legacyEntries[0].dimensionX === 0 && legacyEntries[0].dimensionY === 0, "pre-existing cache entries report unknown (0x0) dimensions");
+}
+
 function testNormalizeSearchPreset() {
     var cfg = {};
     Wallhaven.applyPresetToConfig({
@@ -289,6 +342,40 @@ function testTimeCapsules() {
     assert(Wallhaven.monthDayFromParts(3, 5) === "03-05", "month-day format");
 }
 
+function testWallpaperUrlSmallQuality() {
+    var wallpaper = {
+        id: "abc12",
+        path: "https://w.wallhaven.cc/full/ab/wallhaven-abc12.jpg",
+        thumbs: {
+            large: "https://th.wallhaven.cc/lg/ab/abc12.jpg",
+            original: "https://th.wallhaven.cc/orig/ab/abc12.jpg",
+            small: "https://th.wallhaven.cc/small/ab/abc12.jpg",
+        },
+    };
+    assert(
+        Wallhaven.wallpaperUrl(wallpaper, "small") === wallpaper.thumbs.small,
+        "small quality prefers thumbs.small over the bigger thumbs.large/original previews",
+    );
+    assert(
+        Wallhaven.wallpaperUrl(wallpaper, "large") === wallpaper.path,
+        "large quality still prefers the full-resolution path",
+    );
+    var noSmallThumb = { id: "def34", thumbs: { large: "https://th.wallhaven.cc/lg/de/def34.jpg" } };
+    assert(
+        Wallhaven.wallpaperUrl(noSmallThumb, "small") === noSmallThumb.thumbs.large,
+        "small quality falls back to a bigger thumb when thumbs.small is missing",
+    );
+}
+
+function testSystemThemeSyncColorConversion() {
+    assert(Wallhaven.hexToKdeAccentColor("#1a2b3c") === "26,43,60", "hex converts to kdeglobals decimal RGB");
+    assert(Wallhaven.hexToKdeAccentColor("not-a-color") === "", "invalid hex yields empty kde color");
+    assert(Wallhaven.nearestGnomeAccentColor("3584e4") === "blue", "exact GNOME accent hex maps to its name");
+    var accent = Wallhaven.nearestGnomeAccentColor("e62d42");
+    assert(accent === "red", "nearest GNOME accent match for a red-ish hex");
+    assert(Wallhaven.nearestGnomeAccentColor("zzzzzz") === "", "invalid hex yields empty gnome accent");
+}
+
 function testAchievements() {
     assert(Wallhaven.computeStreak("", "2026-01-01", 0) === 1, "first ever view starts streak at 1");
     assert(Wallhaven.computeStreak("2026-01-01", "2026-01-01", 4) === 4, "same day keeps streak");
@@ -297,6 +384,65 @@ function testAchievements() {
     assert(Wallhaven.findNewMilestone(8, 10, [10, 50, 100]) === 10, "crossing milestone fires once");
     assert(Wallhaven.findNewMilestone(10, 10, [10, 50, 100]) === 0, "already-hit milestone does not refire");
     assert(Wallhaven.findNewMilestone(48, 60, [10, 50, 100]) === 50, "skips ahead to the crossed milestone");
+}
+
+function testExportIncludesEnhanceSettings() {
+    var keys = ["PreferSharpMatches", "ImageEnhanceEnabled", "EnhanceBrightness", "EnhanceContrast", "EnhanceSaturation", "UpscaleEnabled"];
+    var cfg = { PreferSharpMatches: true, ImageEnhanceEnabled: true, EnhanceBrightness: 10, EnhanceContrast: -15, EnhanceSaturation: 50, UpscaleEnabled: true };
+    var snapshot = JSON.parse(Wallhaven.exportSettingsSnapshot(cfg));
+    keys.forEach(function(key) {
+        assert(snapshot.settings[key] !== undefined, "enhancement setting exported: " + key);
+    });
+    var imported = Wallhaven.importSettingsSnapshot(Wallhaven.exportSettingsSnapshot(cfg));
+    assert(imported.EnhanceContrast === -15, "enhancement setting roundtrips through import, including negative values");
+}
+
+function testNeedsUpscale() {
+    assert(Wallhaven.needsUpscale({ dimension_x: 1920, dimension_y: 1080 }, 1920, 1080) === false, "exact-fit image does not need upscaling");
+    assert(Wallhaven.needsUpscale({ dimension_x: 3840, dimension_y: 2160 }, 1920, 1080) === false, "already-larger image does not need upscaling");
+    assert(Wallhaven.needsUpscale({ dimension_x: 800, dimension_y: 450 }, 1920, 1080) === true, "image well below screen resolution needs upscaling");
+    assert(Wallhaven.needsUpscale({ dimension_x: 1800, dimension_y: 1012 }, 1920, 1080) === false, "image just a few percent short stays under the default margin");
+    assert(Wallhaven.needsUpscale({ dimension_x: 800, dimension_y: 450 }, 1920, 1080, 2.5) === false, "a stricter custom threshold suppresses borderline candidates");
+    assert(Wallhaven.needsUpscale(null, 1920, 1080) === false, "missing wallpaper dimensions never trigger an upscale");
+    assert(Wallhaven.needsUpscale({ dimension_x: 1920, dimension_y: 1080 }, 0, 0) === false, "missing screen dimensions never trigger an upscale");
+}
+
+function testWallpaperResolutionScore() {
+    var exactMatch = Wallhaven.wallpaperResolutionScore({ dimension_x: 1920, dimension_y: 1080 }, 1920, 1080);
+    assert(exactMatch === 1, "exact resolution and aspect match scores 1");
+
+    var largerThanScreen = Wallhaven.wallpaperResolutionScore({ dimension_x: 3840, dimension_y: 2160 }, 1920, 1080);
+    assert(largerThanScreen === 1, "image already covering the screen with matching aspect scores 1 (no upscale penalty)");
+
+    var smallerThanScreen = Wallhaven.wallpaperResolutionScore({ dimension_x: 960, dimension_y: 540 }, 1920, 1080);
+    assert(smallerThanScreen < 1, "image needing upscale to cover the screen scores below 1");
+    assert(smallerThanScreen > 0, "upscale penalty never reaches zero");
+
+    var mismatchedAspect = Wallhaven.wallpaperResolutionScore({ dimension_x: 1080, dimension_y: 1920 }, 1920, 1080);
+    assert(mismatchedAspect < exactMatch, "portrait image on a landscape screen scores lower than an exact match");
+
+    assert(Wallhaven.wallpaperResolutionScore(null, 1920, 1080) === 1, "missing wallpaper dimensions falls back to neutral score");
+    assert(Wallhaven.wallpaperResolutionScore({ dimension_x: 1920, dimension_y: 1080 }, 0, 0) === 1, "missing screen dimensions falls back to neutral score");
+}
+
+function testPickRandomIndexWeighting() {
+    var wallpapers = [
+        { id: "sharp", dimension_x: 1920, dimension_y: 1080 },
+        { id: "soft", dimension_x: 200, dimension_y: 150 },
+    ];
+    var weightFn = function (wallpaper) {
+        return wallpaper.id === "soft" ? 0 : 1;
+    };
+    for (var i = 0; i < 25; i++) {
+        var index = Wallhaven.pickRandomIndex(wallpapers, [], [], false, [], weightFn);
+        assert(wallpapers[index].id === "sharp", "zero-weight candidate is never selected when a positive-weight one exists");
+    }
+
+    var allZero = Wallhaven.pickRandomIndex(wallpapers, [], [], false, [], function () { return 0; });
+    assert(allZero === 0 || allZero === 1, "all-zero weights fall back to a uniform pick instead of stranding selection");
+
+    var unweighted = Wallhaven.pickRandomIndex(wallpapers, [], [], false, []);
+    assert(unweighted === 0 || unweighted === 1, "omitting weightFn keeps plain uniform random behavior");
 }
 
 [    testFileTypeFilter,
@@ -323,6 +469,8 @@ function testAchievements() {
     testParallaxMotion,
     testLockScreenSyncCommand,
     testDiskCacheNamespaceAndCategories,
+    testDiskCachePinnedSlotsNeverEvicted,
+    testDiskCacheDimensionTracking,
     testNormalizeSearchPreset,
     testExportIncludesV250Settings,
     testSwipeToRate,
@@ -330,6 +478,12 @@ function testAchievements() {
     testWeatherMapping,
     testTimeCapsules,
     testAchievements,
+    testWallpaperUrlSmallQuality,
+    testSystemThemeSyncColorConversion,
+    testWallpaperResolutionScore,
+    testPickRandomIndexWeighting,
+    testExportIncludesEnhanceSettings,
+    testNeedsUpscale,
 ].forEach(function(run) {
     run();
 });

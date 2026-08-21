@@ -22,6 +22,30 @@ def load_module():
     return module
 
 
+class UpscalerAvailabilityTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.mod = load_module()
+
+    def test_find_upscaler_missing(self) -> None:
+        original = self.mod.shutil.which
+        self.mod.shutil.which = lambda _name: None
+        try:
+            self.assertEqual(self.mod.find_upscaler(), "")
+        finally:
+            self.mod.shutil.which = original
+
+    def test_find_upscaler_present(self) -> None:
+        original = self.mod.shutil.which
+        self.mod.shutil.which = lambda name: (
+            "/usr/bin/realesrgan-ncnn-vulkan" if name == self.mod.UPSCALER_BINARY else None
+        )
+        try:
+            self.assertEqual(self.mod.find_upscaler(), "/usr/bin/realesrgan-ncnn-vulkan")
+        finally:
+            self.mod.shutil.which = original
+
+
 class VarietyParseTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
