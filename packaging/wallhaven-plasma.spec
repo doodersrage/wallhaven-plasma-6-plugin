@@ -1,5 +1,5 @@
 Name:           wallhaven-plasma
-Version:        2.6.1
+Version:        2.6.2
 Release:        1%{?dist}
 Summary:        Wallhaven wallpaper plugin for KDE Plasma 6
 License:        GPL-2.0-or-later
@@ -61,6 +61,9 @@ sed -i 's|/home/USER/.local/share/wallhaven-plasma/tools|%{_datadir}/wallhaven-p
 %{_datadir}/applications/wallhaven-preset.desktop
 
 %changelog
+* Sun Aug 23 2026 Wallhaven Plasma Port <wallhaven@local> - 2.6.2-1
+- Wire prefer-sharper, weather search, music/lock D-Bus unwrap, settings cfg bindings
+
 * Fri Aug 21 2026 Wallhaven Plasma Port <wallhaven@local> - 2.6.1-1
 - D-Bus name ownership, rolling disk cache, settings upscaler/history fixes
 

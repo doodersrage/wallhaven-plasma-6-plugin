@@ -57,6 +57,38 @@ function testSchedule() {
     assert(text === "weekday" || text === "weekend", "schedule search");
 }
 
+function testWeatherAndFavoritesReachSearch() {
+    var withWeather = Wallhaven.getEffectiveSearchText({
+        SearchText: "nature",
+        WeatherReactiveEnabled: true,
+        WeatherTagCache: "rain",
+    });
+    assert(withWeather.indexOf("nature") !== -1 && withWeather.indexOf("rain") !== -1, "weather tag reaches effective search");
+
+    var weatherOff = Wallhaven.getEffectiveSearchText({
+        SearchText: "nature",
+        WeatherReactiveEnabled: false,
+        WeatherTagCache: "rain",
+    });
+    assert(weatherOff === "nature", "weather tag ignored when reactive search is off");
+
+    var withFavorites = Wallhaven.getEffectiveSearchText({
+        SearchText: "city",
+        TagFavoritesJson: '["neon","cyberpunk"]',
+    });
+    assert(withFavorites.indexOf("neon") !== -1 && withFavorites.indexOf("cyberpunk") !== -1, "favorite tags reach effective search");
+}
+
+function testPreferSharpMatchesWeightFn() {
+    var off = Wallhaven.resolutionWeightFn({ PreferSharpMatches: false }, { screenWidth: 1920, screenHeight: 1080 });
+    assert(off === undefined, "prefer-sharp off returns no weight fn");
+
+    var on = Wallhaven.resolutionWeightFn({ PreferSharpMatches: true }, { screenWidth: 1920, screenHeight: 1080 });
+    assert(typeof on === "function", "prefer-sharp on returns a weight fn");
+    assert(on({ dimension_x: 1920, dimension_y: 1080 }) === 1, "exact match scores 1 through weight fn");
+    assert(on({ dimension_x: 800, dimension_y: 450 }) < 1, "undersized image scores below 1 through weight fn");
+}
+
 function testCollectionRotation() {
     var lines = "alice/42 # fav\nbob/7";
     var entries = Wallhaven.parseCollectionRotationLines(lines);
@@ -486,6 +518,8 @@ function testPickRandomIndexWeighting() {
     testBase64,
     testTagBlocklist,
     testSchedule,
+    testWeatherAndFavoritesReachSearch,
+    testPreferSharpMatchesWeightFn,
     testCollectionRotation,
     testHistory,
     testTransitionPick,

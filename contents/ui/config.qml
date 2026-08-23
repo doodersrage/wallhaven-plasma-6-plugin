@@ -116,6 +116,11 @@ ColumnLayout {
     property alias cfg_MeteredCacheOnly: meteredCacheCheck.checked
     property alias cfg_UpscaleEnabled: upscaleCheck.checked
     property string cfg_WallpaperHistoryJson
+    property string cfg_TagBlocklistJson
+    property string cfg_TagFavoritesJson
+    property string cfg_CollectionRotationJson
+    property string cfg_TimeCapsulesJson
+    property string cfg_SearchPresetsJson
     property alias cfg_UseKWalletForApiKey: kwalletCheck.checked
     property alias cfg_ControlBusEnabled: controlBusCheck.checked
     property alias cfg_SyncAdvanceEnabled: syncAdvanceCheck.checked
@@ -287,61 +292,47 @@ ColumnLayout {
     }
 
     function tagBlocklistText() {
-        if (!wallpaperConfiguration)
-            return "";
-
-        return Wallhaven.parseTagBlocklist(wallpaperConfiguration.TagBlocklistJson || "[]").join(", ");
+        return Wallhaven.parseTagBlocklist(cfg_TagBlocklistJson || "[]").join(", ");
     }
 
     function persistTagBlocklist(text) {
-        if (!wallpaperConfiguration)
-            return ;
-
         var tags = String(text || "").split(",").map(function(tag) {
             return tag.trim();
         }).filter(function(tag) {
             return tag.length > 0;
         });
-        wallpaperConfiguration.TagBlocklistJson = Wallhaven.serializeTagBlocklist(tags);
-        if (wallpaperConfiguration.writeConfig)
-            wallpaperConfiguration.writeConfig();
-
+        cfg_TagBlocklistJson = Wallhaven.serializeTagBlocklist(tags);
     }
 
     function collectionRotationText() {
-        if (!wallpaperConfiguration)
-            return "";
-
-        return Wallhaven.formatCollectionRotationLines(Wallhaven.parseCollectionRotation(wallpaperConfiguration.CollectionRotationJson || "[]"));
+        return Wallhaven.formatCollectionRotationLines(Wallhaven.parseCollectionRotation(cfg_CollectionRotationJson || "[]"));
     }
 
     function persistCollectionRotation(text) {
-        if (!wallpaperConfiguration)
-            return ;
-
         var entries = Wallhaven.parseCollectionRotationLines(text);
-        wallpaperConfiguration.CollectionRotationJson = Wallhaven.serializeCollectionRotation(entries);
-        if (wallpaperConfiguration.writeConfig)
-            wallpaperConfiguration.writeConfig();
-
+        cfg_CollectionRotationJson = Wallhaven.serializeCollectionRotation(entries);
     }
 
     function timeCapsuleText() {
-        if (!wallpaperConfiguration)
-            return "";
-
-        return Wallhaven.formatTimeCapsuleLines(Wallhaven.parseTimeCapsules(wallpaperConfiguration.TimeCapsulesJson || "[]"));
+        return Wallhaven.formatTimeCapsuleLines(Wallhaven.parseTimeCapsules(cfg_TimeCapsulesJson || "[]"));
     }
 
     function persistTimeCapsules(text) {
-        if (!wallpaperConfiguration)
-            return ;
-
         var entries = Wallhaven.parseTimeCapsuleLines(text);
-        wallpaperConfiguration.TimeCapsulesJson = Wallhaven.serializeTimeCapsules(entries);
-        if (wallpaperConfiguration.writeConfig)
-            wallpaperConfiguration.writeConfig();
+        cfg_TimeCapsulesJson = Wallhaven.serializeTimeCapsules(entries);
+    }
 
+    function favoriteTagsText() {
+        return Wallhaven.parseTagFavorites(cfg_TagFavoritesJson || "[]").join(", ");
+    }
+
+    function persistFavoriteTags(text) {
+        var tags = String(text || "").split(",").map(function(t) {
+            return t.trim();
+        }).filter(function(t) {
+            return t;
+        });
+        cfg_TagFavoritesJson = Wallhaven.serializeTagBlocklist(tags);
     }
 
     function currentHistoryEntries() {
@@ -377,10 +368,7 @@ ColumnLayout {
     }
 
     function currentPresets() {
-        if (!wallpaperConfiguration)
-            return [];
-
-        return Wallhaven.parseSearchPresets(wallpaperConfiguration.SearchPresetsJson || "[]");
+        return Wallhaven.parseSearchPresets(cfg_SearchPresetsJson || "[]");
     }
 
     function setComboValue(combo, value) {
@@ -461,14 +449,8 @@ ColumnLayout {
     }
 
     function persistPresets(presets) {
-        if (!wallpaperConfiguration)
-            return ;
-
-        wallpaperConfiguration.SearchPresetsJson = Wallhaven.serializeSearchPresets(presets);
-        if (wallpaperConfiguration.writeConfig)
-            wallpaperConfiguration.writeConfig();
-
-        presetCombo.model = presets;
+        cfg_SearchPresetsJson = Wallhaven.serializeSearchPresets(presets || []);
+        presetCombo.model = presets || [];
     }
 
     function buildCurrentConfigObject() {
@@ -1206,6 +1188,10 @@ ColumnLayout {
                     visible: browseModeCombo.currentValue === "collection"
                     enabled: collectionRotationCheck.checked
                     text: root.collectionRotationText()
+                    Binding on text {
+                        when: !collectionRotationField.activeFocus
+                        value: root.collectionRotationText()
+                    }
                     onEditingFinished: root.persistCollectionRotation(text)
                 }
 
@@ -1596,6 +1582,10 @@ ColumnLayout {
                     placeholderText: i18n("Comma-separated tags to exclude, e.g. nsfw, text")
                     visible: parent.searchFilters
                     text: root.tagBlocklistText()
+                    Binding on text {
+                        when: !tagBlocklistField.activeFocus
+                        value: root.tagBlocklistText()
+                    }
                     onEditingFinished: root.persistTagBlocklist(text)
                 }
 
@@ -1709,21 +1699,12 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Favorite tags:")
                     placeholderText: i18n("Comma-separated tags boosted in search")
                     visible: parent.searchFilters
-                    text: Wallhaven.parseTagFavorites(wallpaperConfiguration ? wallpaperConfiguration.TagFavoritesJson || "[]" : "[]").join(", ")
-                    onEditingFinished: {
-                        if (!wallpaperConfiguration)
-                            return ;
-
-                        var tags = text.split(",").map(function(t) {
-                            return t.trim();
-                        }).filter(function(t) {
-                            return t;
-                        });
-                        wallpaperConfiguration.TagFavoritesJson = Wallhaven.serializeTagBlocklist(tags);
-                        if (wallpaperConfiguration.writeConfig)
-                            wallpaperConfiguration.writeConfig();
-
+                    text: root.favoriteTagsText()
+                    Binding on text {
+                        when: !tagFavoritesField.activeFocus
+                        value: root.favoriteTagsText()
                     }
+                    onEditingFinished: root.persistFavoriteTags(text)
                 }
 
                 QtControls2.Button {
@@ -2799,6 +2780,10 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Time capsules:")
                     placeholderText: i18n("12-25|christmas snow|Holiday surprise\n2026-09-01|back to school city")
                     text: root.timeCapsuleText()
+                    Binding on text {
+                        when: !timeCapsuleField.activeFocus
+                        value: root.timeCapsuleText()
+                    }
                     onEditingFinished: root.persistTimeCapsules(text)
                 }
 

@@ -1509,7 +1509,7 @@ function buildPresetShareUrl(preset) {
 }
 
 function pluginVersion() {
-    return "2.6.1";
+    return "2.6.2";
 }
 
 function appendDebugLogLine(existing, line, maxLines) {

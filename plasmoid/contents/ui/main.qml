@@ -73,6 +73,27 @@ PlasmoidItem {
         });
     }
 
+    function dbusReplyAsString(value) {
+        if (value === undefined || value === null) {
+            return "";
+        }
+        if (typeof value === "string") {
+            return value;
+        }
+        if (Array.isArray(value) && value.length) {
+            return dbusReplyAsString(value[0]);
+        }
+        if (typeof value === "object") {
+            if (Object.prototype.hasOwnProperty.call(value, "value")) {
+                return dbusReplyAsString(value.value);
+            }
+            if (typeof value.length === "number" && value.length > 0) {
+                return dbusReplyAsString(value[0]);
+            }
+        }
+        return String(value);
+    }
+
     function loadHistory() {
         var msg = new PDBus.dbusMessage({
             service: "org.robertsm.Wallhaven",
@@ -83,6 +104,7 @@ PlasmoidItem {
             arguments: [historyFile],
         });
         PDBus.SessionBus.asyncCall(msg, function(text) {
+            text = dbusReplyAsString(text);
             if (!text) {
                 historyEntries = [];
                 return;
@@ -107,6 +129,7 @@ PlasmoidItem {
         });
         PDBus.SessionBus.asyncCall(msg, function(text) {
             root.dbusOffline = false;
+            text = dbusReplyAsString(text);
             if (!text) {
                 return;
             }

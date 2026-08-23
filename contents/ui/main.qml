@@ -1643,6 +1643,9 @@ WallpaperItem {
                 CollectionRotationIndex: cfg.CollectionRotationIndex,
                 WallpaperOfDayEnabled: cfg.WallpaperOfDayEnabled,
                 TagFavoritesJson: cfg.TagFavoritesJson,
+                PreferSharpMatches: cfg.PreferSharpMatches,
+                WeatherReactiveEnabled: cfg.WeatherReactiveEnabled,
+                WeatherTagCache: cfg.WeatherTagCache,
             };
         }
 
@@ -2741,7 +2744,8 @@ WallpaperItem {
                 arguments: ["org.mpris.MediaPlayer2.Player", "PlaybackStatus"],
             });
             PDBus.SessionBus.asyncCall(msg, function(status) {
-                root._musicPlaying = String(status) === "Playing";
+                // Same PDBus variant/array wrapping as UpscalerAvailable / Ping replies.
+                root._musicPlaying = Wallhaven.dbusReplyAsString(status) === "Playing";
             }, function() {
                 root._musicPlaying = false;
             });
@@ -2910,7 +2914,7 @@ WallpaperItem {
                 arguments: [],
             });
             PDBus.SessionBus.asyncCall(msg, function(active) {
-                root._screenLocked = !!active;
+                root._screenLocked = Wallhaven.dbusReplyIsTrue(active);
                 root.evaluateSlideshowRules();
             }, function() {
                 root._screenLocked = false;
@@ -3622,6 +3626,14 @@ WallpaperItem {
         function onIntervalJitterPercentChanged() { root.restartIntervalTimer(); }
         function onFileTypeFilterChanged() { if (root._configured) engine.resetSlideshow(); }
         function onTagBlocklistJsonChanged() { if (root._configured) engine.resetSlideshow(); }
+        function onTagFavoritesJsonChanged() { if (root._configured) engine.resetSlideshow(); }
+        function onPreferSharpMatchesChanged() { if (root._configured) engine.resetSlideshow(); }
+        function onWeatherReactiveEnabledChanged() { if (root._configured) engine.resetSlideshow(); }
+        function onWeatherTagCacheChanged() {
+            if (root._configured && cfg.WeatherReactiveEnabled) {
+                engine.resetSlideshow();
+            }
+        }
         function onScheduleEnabledChanged() { if (root._configured) engine.resetSlideshow(); }
         function onWeekdaySearchChanged() { if (root._configured) engine.resetSlideshow(); }
         function onWeekendSearchChanged() { if (root._configured) engine.resetSlideshow(); }

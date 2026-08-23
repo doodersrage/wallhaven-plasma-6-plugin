@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.6.2 — 2026-08-23
+
+### Fixed
+- **Prefer sharper matches was a no-op** — the toggle never reached `pickWallpaper` because `PreferSharpMatches` was omitted from `engine.configObject()`
+- **Weather-reactive search was a no-op** — `WeatherReactiveEnabled` / `WeatherTagCache` were written by the weather poll but never passed into search query building
+- **Music-reactive pacing** — MPRIS `PlaybackStatus` replies were compared with bare `String(status)`, which fails when PDBus wraps the value; now uses `dbusReplyAsString`
+- **Screen-lock pause** — `GetActive` replies now go through `dbusReplyIsTrue` so a wrapped false does not look locked forever
+- **Like / favorite tags** — changing `TagFavoritesJson` now resets the slideshow so boosted tags affect the next search
+- **Settings JSON fields** — tag blocklist, favorite tags, collection rotation, time capsules, and saved presets use `cfg_*` bindings (Plasma Apply/load) instead of one-shot reads from `wallpaperConfiguration`
+- **Plasmoid history/status** — `ReadTextFile` replies are unwrapped before `JSON.parse`, so the recent-wallpapers popup and status thumb no longer stay empty when PDBus wraps the string
+
 ## 2.6.1 — 2026-08-21
 
 ### Fixed

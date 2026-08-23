@@ -42,6 +42,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="2.6.2" date="2026-08-23">
+      <description>
+        <p>Feature-wiring fixes: prefer sharper matches and weather-reactive search now reach the wallpaper picker and query builder; music-reactive pacing and screen-lock pause unwrap D-Bus replies correctly; settings JSON fields use Plasma cfg bindings; plasmoid history/status parse ReadTextFile replies reliably.</p>
+      </description>
+    </release>
     <release version="2.6.1" date="2026-08-21">
       <description>
         <p>Settings panel now polls D-Bus itself and binds to a live wallpaper property, so the "service is not running" banner clears when wallhaven-dbus.service is actually up. Upscaler status is polled the same way and no longer stays on "Checking…". The wallpaper history gallery reads from the live wallpaper instead of a blank config snapshot. Disk cache slots roll again: the slot count is a ceiling, and the oldest unused unpinned wallpaper is aged out when a new one is cached.</p>

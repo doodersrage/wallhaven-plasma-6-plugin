@@ -18,6 +18,22 @@ Enable **Wallhaven** in System Settings → Search → Plasma Search (KRunner).
 
 **KDE Store listing:** [opendesktop.org/p/2368647](https://www.opendesktop.org/p/2368647/) — see [docs/KDE_STORE.md](docs/KDE_STORE.md) for maintainer notes.
 
+## v2.6.2 — feature wiring
+
+Several advertised toggles were silent no-ops; they now reach the engine and D-Bus replies unwrap correctly.
+
+| Area | Highlights |
+|------|------------|
+| **Search** | Prefer sharper matches and weather-reactive tags actually affect picks/queries |
+| **Effects** | Music-reactive Ken Burns and screen-lock pause read wrapped D-Bus replies correctly |
+| **Settings** | Blocklist, favorites, rotation, capsules, and presets use Plasma `cfg_*` bindings |
+| **Plasmoid** | History scrubber and status thumb unwrap `ReadTextFile` before parsing |
+
+```bash
+./dev-helper.sh deploy
+./dev-helper.sh release              # tag v2.6.2
+```
+
 ## v2.6.1 — patch
 
 Settings and D-Bus correctness on top of 2.6.0.
