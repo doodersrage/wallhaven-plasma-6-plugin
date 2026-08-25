@@ -12,6 +12,8 @@ finish-args:
   - --talk-name=org.robertsm.Wallhaven
   - --talk-name=org.mpris.MediaPlayer2.wallhaven
   - --filesystem=xdg-cache/plasmashell:rw
+  - --talk-name=org.freedesktop.ScreenSaver
+  - --talk-name=org.freedesktop.login1
   - --filesystem=home/.config/variety:ro
 modules:
   - name: wallhaven-plasma

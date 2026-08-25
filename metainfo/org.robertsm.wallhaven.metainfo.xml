@@ -42,6 +42,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="2.7.0" date="2026-08-25">
+      <description>
+        <p>Hardening and polish: CI config-wiring audit, preset browser with full snapshots, more-like-current browse mode, optional cache original download, idle slideshow pause, per-group sync profiles, panel blur strength, offline empty-cache notification, plasmoid tags and recent menu entry, and setup wizard status for D-Bus/upscaler/shortcuts.</p>
+      </description>
+    </release>
     <release version="2.6.2" date="2026-08-23">
       <description>
         <p>Feature-wiring fixes: prefer sharper matches and weather-reactive search now reach the wallpaper picker and query builder; music-reactive pacing and screen-lock pause unwrap D-Bus replies correctly; settings JSON fields use Plasma cfg bindings; plasmoid history/status parse ReadTextFile replies reliably.</p>

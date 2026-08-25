@@ -238,8 +238,70 @@ var EXPORTABLE_SETTINGS_KEYS = [
     "MusicReactiveEnabled", "MusicReactiveIntensity", "WeatherReactiveEnabled",
     "WeatherLocation", "TimeCapsulesJson", "SystemThemeSyncEnabled", "AchievementsEnabled",
     "PreferSharpMatches", "ImageEnhanceEnabled", "EnhanceBrightness", "EnhanceContrast",
-    "EnhanceSaturation", "UpscaleEnabled",
+    "EnhanceSaturation", "UpscaleEnabled", "CacheDownloadOriginal",
+    "PauseOnIdleEnabled", "IdlePauseMinutes", "SyncProfilesEnabled", "SyncProfilesJson",
+    "PanelBlurStrength", "SettingsFilterHint",
 ];
+
+// Fields captured when saving/applying search presets or sync-group profiles.
+var PRESET_SNAPSHOT_KEYS = [
+    "SearchText", "BrowseMode", "CollectionUser", "CollectionId",
+    "Sortings", "LocalSortings", "Order", "TopRange",
+    "CategoryGeneral", "CategoryAnime", "CategoryPeople",
+    "PuritySfw", "PuritySketchy", "PurityNsfw",
+    "MinWidth", "MinHeight", "Ratio", "ColorFilter", "ExactResolutions",
+    "UseBlacklist", "DedupEnabled", "PreferSharpMatches", "FileTypeFilter",
+    "TagBlocklistJson", "TagFavoritesJson",
+    "TimeOfDayEnabled", "DaySearch", "NightSearch",
+    "ScheduleEnabled", "WeekdaySearch", "WeekendSearch",
+    "WallpaperOfDayEnabled",
+];
+
+function buildPresetSnapshotFromCfg(cfg) {
+    var out = {};
+    if (!cfg) {
+        return out;
+    }
+    for (var i = 0; i < PRESET_SNAPSHOT_KEYS.length; i++) {
+        var key = PRESET_SNAPSHOT_KEYS[i];
+        if (cfg[key] !== undefined) {
+            out[key] = cfg[key];
+        }
+    }
+    return out;
+}
+
+function parseSyncProfiles(raw) {
+    if (!raw) {
+        return {};
+    }
+    try {
+        var parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function serializeSyncProfiles(profiles) {
+    if (!profiles || typeof profiles !== "object") {
+        return "{}";
+    }
+    return JSON.stringify(profiles);
+}
+
+function applySyncProfile(profile, configuration) {
+    if (!profile || !configuration) {
+        return false;
+    }
+    var keys = Object.keys(profile);
+    for (var i = 0; i < keys.length; i++) {
+        if (keys[i] !== "name") {
+            configuration[keys[i]] = profile[keys[i]];
+        }
+    }
+    return true;
+}
 
 function exportSettingsSnapshot(cfg) {
     var snapshot = {
@@ -266,28 +328,9 @@ function importSettingsSnapshot(raw) {
 }
 
 function buildPresetFromConfig(name, cfg) {
-    return {
-        name: String(name || "").trim(),
-        SearchText: cfg.SearchText || "",
-        Sortings: cfg.Sortings || "random",
-        Order: cfg.Order || "desc",
-        TopRange: cfg.TopRange || "1M",
-        CategoryGeneral: !!cfg.CategoryGeneral,
-        CategoryAnime: !!cfg.CategoryAnime,
-        CategoryPeople: !!cfg.CategoryPeople,
-        PuritySfw: !!cfg.PuritySfw,
-        PuritySketchy: !!cfg.PuritySketchy,
-        PurityNsfw: !!cfg.PurityNsfw,
-        MinWidth: cfg.MinWidth || "",
-        MinHeight: cfg.MinHeight || "",
-        Ratio: cfg.Ratio || "landscape",
-        ColorFilter: cfg.ColorFilter || "",
-        ExactResolutions: cfg.ExactResolutions || "",
-        UseBlacklist: !!cfg.UseBlacklist,
-        TimeOfDayEnabled: !!cfg.TimeOfDayEnabled,
-        DaySearch: cfg.DaySearch || "",
-        NightSearch: cfg.NightSearch || "",
-    };
+    var out = buildPresetSnapshotFromCfg(cfg);
+    out.name = String(name || "").trim();
+    return out;
 }
 
 function applyPresetToConfig(preset, configuration) {
@@ -890,7 +933,9 @@ function parseCollectionsResponse(json) {
 
 function getEffectiveSearchText(cfg) {
     var base = "";
-    if (cfg.TimeOfDayEnabled) {
+    if (cfg.BrowseMode === "similar") {
+        base = buildSimilarSearchQuery(cfg.SimilarSourceId || "");
+    } else if (cfg.TimeOfDayEnabled) {
         var hour = new Date().getHours();
         var isDay = hour >= 6 && hour < 20;
         base = isDay ? (cfg.DaySearch || "") : (cfg.NightSearch || "");
@@ -1277,10 +1322,12 @@ function dominantColorFromWallhaven(colors) {
     return "";
 }
 
-function buildPanelTintMetadata(hexColor, wallpaperId) {
+function buildPanelTintMetadata(hexColor, wallpaperId, blurStrength) {
+    var blur = Math.max(0, Math.min(100, parseInt(blurStrength, 10) || 0));
     return JSON.stringify({
         wallpaperId: wallpaperId ? String(wallpaperId) : "",
         color: hexColor || "",
+        blurStrength: blur,
         updatedAt: new Date().toISOString(),
     }, null, 2);
 }
@@ -1509,7 +1556,7 @@ function buildPresetShareUrl(preset) {
 }
 
 function pluginVersion() {
-    return "2.6.2";
+    return "2.7.0";
 }
 
 function appendDebugLogLine(existing, line, maxLines) {

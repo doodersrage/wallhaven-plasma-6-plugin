@@ -18,6 +18,27 @@ Enable **Wallhaven** in System Settings → Search → Plasma Search (KRunner).
 
 **KDE Store listing:** [opendesktop.org/p/2368647](https://www.opendesktop.org/p/2368647/) — see [docs/KDE_STORE.md](docs/KDE_STORE.md) for maintainer notes.
 
+## v2.7.0 — hardening & polish
+
+Hardening, UX polish, and several opt-in 2.7 features on top of the 2.6 wiring fixes.
+
+| Area | Highlights |
+|------|------------|
+| **Hardening** | CI config-wiring audit (`scripts/check-config-wiring.sh`); architecture + smoke docs |
+| **Search** | **More like current** browse mode (`like:id`); preset browser with full snapshot export |
+| **Cache** | Optional download of original-resolution file; cache list auto-refreshes; offline empty-cache notification |
+| **Effects** | Panel blur strength; music-reactive gated on Ken Burns; idle slideshow pause |
+| **Sync** | Per control-bus group search profiles (save/apply on group switch) |
+| **Plasmoid** | Tags under thumbnail; recent wallpapers in context menu |
+| **Setup** | Wizard shows D-Bus, upscaler, and shortcuts status |
+
+```bash
+./dev-helper.sh deploy
+./dev-helper.sh release              # tag v2.7.0
+```
+
+See also: [docs/SMOKE.md](docs/SMOKE.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/FLATHUB.md](docs/FLATHUB.md)
+
 ## v2.6.2 — feature wiring
 
 Several advertised toggles were silent no-ops; they now reach the engine and D-Bus replies unwrap correctly.

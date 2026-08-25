@@ -144,6 +144,7 @@ WallpaperItem {
     readonly property bool upscalerAvailable: upscalerStatusKnown && upscalerBinaryPath !== ""
     property var wallpaperHistoryEntries: []
     property bool _screenLocked: false
+    property bool _sessionIdle: false
 
     property real parallaxPhase: 0
     readonly property real parallaxScreenPhase: {
@@ -479,6 +480,20 @@ WallpaperItem {
             wallpaperForUpscale && wallpaperForUpscale.dimension_x,
             wallpaperForUpscale && wallpaperForUpscale.dimension_y,
         );
+        var originalUrl = String(req.remoteUrl || "");
+        if (cfg.CacheDownloadOriginal && originalUrl.indexOf("http") === 0) {
+            dbusHelper.runArgv([
+                "curl", "-fsSL", "--max-time", "120", "-o", path, originalUrl,
+            ], function() {
+                persistDiskCacheIndex();
+                if (cfg.SyncLockScreen || cfg.VarietySymlinkEnabled) {
+                    root.syncLockScreenImage(path);
+                    root.updateVarietySymlink(path);
+                }
+                root.maybeUpscaleCachedFile(path, wallpaperForUpscale);
+            });
+            return;
+        }
         req.image.grabToImage(function(result) {
             if (!result) {
                 return;
@@ -956,7 +971,7 @@ WallpaperItem {
         if (cfg.PanelTintEnabled) {
             settingsFileWriter.writeFile(
                 panelTintFile,
-                Wallhaven.buildPanelTintMetadata(hexColor, wallpaperId),
+                Wallhaven.buildPanelTintMetadata(hexColor, wallpaperId, cfg.PanelBlurStrength),
                 (cfg.AutoPanelAccentEnabled || cfg.SystemThemeSyncEnabled) ? applyAccents : null,
             );
         } else {
@@ -1099,6 +1114,35 @@ WallpaperItem {
         });
     }
 
+    function saveSyncProfileForCurrentGroup() {
+        if (!root.configuration || !cfg.SyncProfilesEnabled) {
+            return;
+        }
+        var group = String(cfg.SyncAdvanceGroup || "default").trim() || "default";
+        var profiles = Wallhaven.parseSyncProfiles(cfg.SyncProfilesJson || "{}");
+        profiles[group] = engine.configObject();
+        root.configuration.SyncProfilesJson = Wallhaven.serializeSyncProfiles(profiles);
+        scheduleConfigWrite();
+        engine.showStatus(i18n("Saved search profile for sync group \"%1\".", group), "info");
+    }
+
+    function applySyncProfileForGroup(group) {
+        if (!root.configuration || !cfg.SyncProfilesEnabled) {
+            return;
+        }
+        group = String(group || "default").trim() || "default";
+        var profiles = Wallhaven.parseSyncProfiles(cfg.SyncProfilesJson || "{}");
+        var profile = profiles[group];
+        if (!profile) {
+            return;
+        }
+        Wallhaven.applySyncProfile(profile, root.configuration);
+        scheduleConfigWrite();
+        if (root._configured) {
+            engine.resetSlideshow();
+        }
+    }
+
     function evaluateSlideshowRules() {
         var shouldPause = false;
         if (cfg.PauseOnBatteryLow && _batteryPercent >= 0
@@ -1117,6 +1161,9 @@ WallpaperItem {
         // actually means for a wallpaper: it's the same interface every other
         // screensaver-aware Linux app uses to detect the lock screen.
         if (cfg.PauseWhenInactive && root._screenLocked) {
+            shouldPause = true;
+        }
+        if (cfg.PauseOnIdleEnabled && root._sessionIdle) {
             shouldPause = true;
         }
         if (shouldPause === _rulesPausedSlideshow) {
@@ -1646,6 +1693,8 @@ WallpaperItem {
                 PreferSharpMatches: cfg.PreferSharpMatches,
                 WeatherReactiveEnabled: cfg.WeatherReactiveEnabled,
                 WeatherTagCache: cfg.WeatherTagCache,
+                SimilarSourceId: (cfg.BrowseMode === "similar" && root.currentWallpaperId !== "wallpaper")
+                    ? String(root.currentWallpaperId) : "",
             };
         }
 
@@ -1788,6 +1837,18 @@ WallpaperItem {
 
         function buildBlacklistQuery(callback) {
             var config = configObject();
+            if (config.BrowseMode === "similar") {
+                var sid = root.currentWallpaperId;
+                if (!sid || sid === "wallpaper") {
+                    showStatus(i18n("More-like-current mode needs a wallpaper on screen first."), "warn");
+                    searchQuery = "";
+                    callback();
+                    return;
+                }
+                searchQuery = Wallhaven.buildSimilarSearchQuery(sid);
+                callback();
+                return;
+            }
             var base = Wallhaven.getEffectiveSearchText(config);
             if (!config.UseBlacklist || !config.ApiKey) {
                 searchQuery = base;
@@ -2122,6 +2183,13 @@ WallpaperItem {
             root.loading = true;
             if (!showNextCachedWallpaper(immediate, fromHistory)) {
                 showStatus(i18n("No cached wallpapers available."), "warn");
+                if (cfg.OfflineOnlyMode && cfg.NotifyOnError) {
+                    root.sendSystemNotification(
+                        i18n("Wallhaven"),
+                        i18n("Offline-only mode is on but the disk cache is empty."),
+                        true,
+                    );
+                }
             }
             endBusy();
         }
@@ -2931,6 +2999,42 @@ WallpaperItem {
         onTriggered: screenLockLoader.poll()
     }
 
+    QtObject {
+        id: idleSessionLoader
+
+        function poll() {
+            if (typeof PDBus === "undefined" || !PDBus.SessionBus) {
+                root._sessionIdle = false;
+                return;
+            }
+            var msg = new PDBus.dbusMessage({
+                service: "org.freedesktop.ScreenSaver",
+                path: "/org/freedesktop/ScreenSaver",
+                iface: "org.freedesktop.ScreenSaver",
+                member: "GetSessionIdleTime",
+                signature: "",
+                arguments: [],
+            });
+            PDBus.SessionBus.asyncCall(msg, function(seconds) {
+                var idleSec = Number(Wallhaven.dbusReplyAsString(seconds)) || 0;
+                var threshold = Math.max(1, cfg.IdlePauseMinutes || 5) * 60;
+                root._sessionIdle = idleSec >= threshold;
+                root.evaluateSlideshowRules();
+            }, function() {
+                root._sessionIdle = false;
+            });
+        }
+    }
+
+    Timer {
+        id: idleSessionTimer
+        interval: 15000
+        running: root._configured && cfg.PauseOnIdleEnabled
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: idleSessionLoader.poll()
+    }
+
     Connections {
         target: Qt.application
         function onStateChanged() {
@@ -3569,6 +3673,11 @@ WallpaperItem {
         target: root.configuration
         function onSearchTextChanged() { if (root._configured) engine.resetSlideshow(); }
         function onApiKeyChanged() { if (root._configured) engine.resetSlideshow(); }
+        function onSyncAdvanceGroupChanged() {
+            if (root._configured && cfg.SyncProfilesEnabled) {
+                root.applySyncProfileForGroup(cfg.SyncAdvanceGroup);
+            }
+        }
         function onBrowseModeChanged() { if (root._configured) engine.resetSlideshow(); }
         function onCollectionUserChanged() { if (root._configured) engine.resetSlideshow(); }
         function onCollectionIdChanged() { if (root._configured) engine.resetSlideshow(); }

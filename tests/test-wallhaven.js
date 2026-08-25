@@ -89,6 +89,29 @@ function testPreferSharpMatchesWeightFn() {
     assert(on({ dimension_x: 800, dimension_y: 450 }) < 1, "undersized image scores below 1 through weight fn");
 }
 
+function testPresetSnapshotAndSimilarMode() {
+    var cfg = {
+        SearchText: "city",
+        BrowseMode: "similar",
+        SimilarSourceId: "abc12",
+        FileTypeFilter: "png",
+        TagBlocklistJson: '["nsfw"]',
+        PreferSharpMatches: true,
+    };
+    var snap = Wallhaven.buildPresetSnapshotFromCfg(cfg);
+    assert(snap.FileTypeFilter === "png", "preset snapshot includes file type");
+    assert(snap.PreferSharpMatches === true, "preset snapshot includes prefer sharp");
+    assert(snap.TagBlocklistJson === '["nsfw"]', "preset snapshot includes tag blocklist json");
+
+    var similarQuery = Wallhaven.getEffectiveSearchText({ BrowseMode: "similar", SimilarSourceId: "xyz99" });
+    assert(similarQuery === "like:xyz99", "similar browse mode builds like query");
+
+    var profiles = Wallhaven.parseSyncProfiles('{"desk":{"SearchText":"nature"}}');
+    assert(profiles.desk && profiles.desk.SearchText === "nature", "sync profiles parse");
+    var serialized = Wallhaven.serializeSyncProfiles(profiles);
+    assert(JSON.parse(serialized).desk.SearchText === "nature", "sync profiles roundtrip");
+}
+
 function testCollectionRotation() {
     var lines = "alice/42 # fav\nbob/7";
     var entries = Wallhaven.parseCollectionRotationLines(lines);
@@ -520,6 +543,7 @@ function testPickRandomIndexWeighting() {
     testSchedule,
     testWeatherAndFavoritesReachSearch,
     testPreferSharpMatchesWeightFn,
+    testPresetSnapshotAndSimilarMode,
     testCollectionRotation,
     testHistory,
     testTransitionPick,

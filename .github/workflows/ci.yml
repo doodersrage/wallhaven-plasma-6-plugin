@@ -16,7 +16,7 @@ jobs:
 
       - name: Validate plugin structure
         run: |
-          chmod +x scripts/validate.sh
+          chmod +x scripts/validate.sh scripts/check-config-wiring.sh
           ./scripts/validate.sh
 
       - name: Sync translations

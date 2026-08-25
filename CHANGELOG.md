@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.7.0 — 2026-08-25
+
+Hardening, UX polish, and opt-in 2.7 features.
+
+### Added
+- **Config wiring audit** — `scripts/check-config-wiring.sh` fails CI when search-affecting keys are missing from `engine.configObject()` or lack `cfg_*` bindings
+- **Preset browser** — browse bundled curated/community presets from settings; exports use full preset snapshots via `buildPresetSnapshotFromCfg()`
+- **More like current** — new browse mode issues `like:<id>` searches from the current wallpaper
+- **Cache original download** — optional `curl` fetch of the full-resolution file when writing disk cache (`CacheDownloadOriginal`)
+- **Idle slideshow pause** — optional pause after N minutes of session idle (`PauseOnIdleEnabled` / `IdlePauseMinutes`)
+- **Sync profiles** — save and auto-apply search settings per control-bus group (`SyncProfilesEnabled` / `SyncProfilesJson`)
+- **Panel blur strength** — optional blur amount passed to panel tint metadata
+- **Offline notification** — toast when offline-only mode has no cached wallpapers left
+- **Plasmoid** — tag line under thumbnail; "Recent wallpapers…" in the context menu
+- **Docs** — `docs/SMOKE.md`, `docs/ARCHITECTURE.md`, `docs/FLATHUB.md`
+- **Setup wizard** — live D-Bus, upscaler, and shortcuts status; music-reactive warns when Ken Burns is off
+
+### Changed
+- Cache list in settings auto-refreshes when disk cache entry count changes
+- Flatpak manifest adds ScreenSaver and login1 D-Bus talk permissions for idle/lock detection
+
 ## 2.6.2 — 2026-08-23
 
 ### Fixed

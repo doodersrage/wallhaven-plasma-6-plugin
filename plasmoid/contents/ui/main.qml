@@ -211,14 +211,18 @@ PlasmoidItem {
 
     preferredRepresentation: fullRepresentation
 
-    fullRepresentation: RowLayout {
+    fullRepresentation: ColumnLayout {
         spacing: Kirigami.Units.smallSpacing
 
-        Item {
-            id: thumbFrame
-            Layout.preferredWidth: Kirigami.Units.iconSizes.large
-            Layout.preferredHeight: Kirigami.Units.iconSizes.large
-            clip: false
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Kirigami.Units.smallSpacing
+
+            Item {
+                id: thumbFrame
+                Layout.preferredWidth: Kirigami.Units.iconSizes.large
+                Layout.preferredHeight: Kirigami.Units.iconSizes.large
+                clip: false
 
             Item {
                 id: swipeContent
@@ -338,6 +342,7 @@ PlasmoidItem {
                 }
             }
         }
+        }
 
         ColumnLayout {
             spacing: 0
@@ -400,6 +405,19 @@ PlasmoidItem {
             icon.name: "open-menu-symbolic"
             ToolTip.text: i18n("More actions")
             onClicked: plasmoidMenu.open()
+        }
+        }
+
+        QtControls2.Label {
+            Layout.fillWidth: true
+            Layout.maximumWidth: parent.width
+            visible: statusData.tags !== ""
+            wrapMode: Text.WordWrap
+            maximumLineCount: 2
+            elide: Text.ElideRight
+            font.pointSize: 7
+            opacity: 0.75
+            text: statusData.tags
         }
     }
 
@@ -464,6 +482,14 @@ PlasmoidItem {
             text: i18n("Similar wallpapers")
             enabled: statusData.id !== "" && !root.dbusOffline
             onTriggered: root.sendCommand("similar")
+        }
+        QtControls2.MenuItem {
+            text: i18n("Recent wallpapers…")
+            enabled: root.historyEntries.length > 0 && !root.dbusOffline
+            onTriggered: {
+                root.loadHistory();
+                historyPopup.open();
+            }
         }
         QtControls2.MenuSeparator {}
         QtControls2.MenuItem {

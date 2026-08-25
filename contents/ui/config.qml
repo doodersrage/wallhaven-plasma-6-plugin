@@ -115,6 +115,13 @@ ColumnLayout {
     property alias cfg_OfflineOnlyMode: offlineOnlyCheck.checked
     property alias cfg_MeteredCacheOnly: meteredCacheCheck.checked
     property alias cfg_UpscaleEnabled: upscaleCheck.checked
+    property alias cfg_CacheDownloadOriginal: cacheDownloadOriginalCheck.checked
+    property alias cfg_PauseOnIdleEnabled: pauseIdleCheck.checked
+    property alias cfg_IdlePauseMinutes: idlePauseMinutesSpin.value
+    property alias cfg_SyncProfilesEnabled: syncProfilesCheck.checked
+    property string cfg_SyncProfilesJson
+    property alias cfg_PanelBlurStrength: panelBlurStrengthSpin.value
+    property alias cfg_SettingsFilterHint: settingsSearchField.text
     property string cfg_WallpaperHistoryJson
     property string cfg_TagBlocklistJson
     property string cfg_TagFavoritesJson
@@ -454,31 +461,40 @@ ColumnLayout {
     }
 
     function buildCurrentConfigObject() {
-        if (!wallpaperConfiguration)
-            return {
-            };
-
-        return {
-            "SearchText": wallpaperConfiguration.SearchText,
-            "Sortings": wallpaperConfiguration.Sortings,
-            "Order": wallpaperConfiguration.Order,
-            "TopRange": wallpaperConfiguration.TopRange,
-            "CategoryGeneral": wallpaperConfiguration.CategoryGeneral,
-            "CategoryAnime": wallpaperConfiguration.CategoryAnime,
-            "CategoryPeople": wallpaperConfiguration.CategoryPeople,
-            "PuritySfw": wallpaperConfiguration.PuritySfw,
-            "PuritySketchy": wallpaperConfiguration.PuritySketchy,
-            "PurityNsfw": wallpaperConfiguration.PurityNsfw,
-            "MinWidth": wallpaperConfiguration.MinWidth,
-            "MinHeight": wallpaperConfiguration.MinHeight,
-            "Ratio": wallpaperConfiguration.Ratio,
-            "ColorFilter": wallpaperConfiguration.ColorFilter,
-            "ExactResolutions": wallpaperConfiguration.ExactResolutions,
-            "UseBlacklist": wallpaperConfiguration.UseBlacklist,
-            "TimeOfDayEnabled": wallpaperConfiguration.TimeOfDayEnabled,
-            "DaySearch": wallpaperConfiguration.DaySearch,
-            "NightSearch": wallpaperConfiguration.NightSearch
-        };
+        return Wallhaven.buildPresetSnapshotFromCfg({
+            SearchText: cfg_SearchText,
+            BrowseMode: cfg_BrowseMode,
+            CollectionUser: cfg_CollectionUser,
+            CollectionId: cfg_CollectionId,
+            Sortings: cfg_Sortings,
+            LocalSortings: cfg_LocalSortings,
+            Order: cfg_Order,
+            TopRange: cfg_TopRange,
+            CategoryGeneral: cfg_CategoryGeneral,
+            CategoryAnime: cfg_CategoryAnime,
+            CategoryPeople: cfg_CategoryPeople,
+            PuritySfw: cfg_PuritySfw,
+            PuritySketchy: cfg_PuritySketchy,
+            PurityNsfw: cfg_PurityNsfw,
+            MinWidth: cfg_MinWidth,
+            MinHeight: cfg_MinHeight,
+            Ratio: cfg_Ratio,
+            ColorFilter: cfg_ColorFilter,
+            ExactResolutions: cfg_ExactResolutions,
+            UseBlacklist: cfg_UseBlacklist,
+            DedupEnabled: cfg_DedupEnabled,
+            PreferSharpMatches: cfg_PreferSharpMatches,
+            FileTypeFilter: cfg_FileTypeFilter,
+            TagBlocklistJson: cfg_TagBlocklistJson,
+            TagFavoritesJson: cfg_TagFavoritesJson,
+            TimeOfDayEnabled: cfg_TimeOfDayEnabled,
+            DaySearch: cfg_DaySearch,
+            NightSearch: cfg_NightSearch,
+            ScheduleEnabled: cfg_ScheduleEnabled,
+            WeekdaySearch: cfg_WeekdaySearch,
+            WeekendSearch: cfg_WeekendSearch,
+            WallpaperOfDayEnabled: cfg_WallpaperOfDayEnabled,
+        });
     }
 
     function exportSettingsToClipboard() {
@@ -666,6 +682,38 @@ ColumnLayout {
                 Kirigami.FormData.label: i18n("Presets:")
                 text: i18n("Import curated presets")
                 onClicked: root.importCuratedPresets()
+            }
+
+            QtControls2.Label {
+                Kirigami.FormData.label: i18n("Setup status:")
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                opacity: 0.85
+                text: root.dbusServiceOnline
+                    ? i18n("D-Bus service: online")
+                    : i18n("D-Bus service: offline — run: systemctl --user enable --now wallhaven-dbus.service")
+            }
+
+            QtControls2.Label {
+                Kirigami.FormData.label: " "
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                opacity: 0.85
+                text: {
+                    if (!root.upscalerStatusKnown)
+                        return i18n("Upscaler: checking…");
+                    return root.upscalerAvailable
+                        ? i18n("Upscaler: realesrgan-ncnn-vulkan found")
+                        : i18n("Upscaler: not installed (optional)");
+                }
+            }
+
+            QtControls2.Label {
+                Kirigami.FormData.label: " "
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                opacity: 0.7
+                text: i18n("Shortcuts: ./dev-helper.sh install-shortcuts (Meta+Alt+arrows)")
             }
 
             RowLayout {
@@ -1047,12 +1095,24 @@ ColumnLayout {
                         "label": i18n("Search"),
                         "value": "search"
                     }, {
+                        "label": i18n("More like current"),
+                        "value": "similar"
+                    }, {
                         "label": i18n("Collection"),
                         "value": "collection"
                     }, {
                         "label": i18n("Favorites"),
                         "value": "favorites"
                     }]
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: browseModeCombo.currentValue === "similar"
+                    text: i18n("Keeps searching for wallpapers similar to the one on screen (like:ID). Start in Search or Collection mode first if the screen is empty.")
                 }
 
                 QtControls2.TextField {
@@ -1669,6 +1729,32 @@ ColumnLayout {
                 }
 
                 QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Preset browser:")
+                    visible: parent.searchFilters
+                    text: i18n("Bundled packs (one-click import):")
+                }
+
+                Flow {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    visible: parent.searchFilters
+                    spacing: Kirigami.Units.smallSpacing
+
+                    Repeater {
+                        model: Wallhaven.bundledCuratedPresets().concat(Wallhaven.bundledCommunityPresets())
+
+                        delegate: QtControls2.Button {
+                            text: modelData.name
+                            onClicked: {
+                                var merged = Wallhaven.mergePresetLists(root.currentPresets(), [modelData]);
+                                root.persistPresets(merged);
+                                importExportStatus.text = i18n("Imported preset \"%1\".", modelData.name);
+                            }
+                        }
+                    }
+                }
+
+                QtControls2.Label {
                     Kirigami.FormData.label: " "
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
@@ -1890,6 +1976,24 @@ ColumnLayout {
                     text: i18n("Write dominant color JSON for external theming tools")
                 }
 
+                QtControls2.SpinBox {
+                    id: panelBlurStrengthSpin
+
+                    Kirigami.FormData.label: i18n("Panel blur hint (%):")
+                    from: 0
+                    to: 100
+                    enabled: panelTintCheck.checked
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: panelTintCheck.checked
+                    text: i18n("Blur strength is stored in the panel tint JSON for external tools; Plasma panel blur itself is configured in System Settings.")
+                }
+
                 QtControls2.CheckBox {
                     id: autoPanelAccentCheck
 
@@ -1930,6 +2034,22 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("Screen lock pause:")
                     text: i18n("Pause the slideshow while the screen is locked")
+                }
+
+                QtControls2.CheckBox {
+                    id: pauseIdleCheck
+
+                    Kirigami.FormData.label: i18n("Idle pause:")
+                    text: i18n("Pause when the session has been idle for several minutes")
+                }
+
+                QtControls2.SpinBox {
+                    id: idlePauseMinutesSpin
+
+                    Kirigami.FormData.label: i18n("Idle threshold (min):")
+                    from: 1
+                    to: 120
+                    enabled: pauseIdleCheck.checked
                 }
 
                 QtControls2.SpinBox {
@@ -2021,6 +2141,16 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("Music-reactive pacing:")
                     text: i18n("Speed up Ken Burns panning while music is playing (via MPRIS)")
+                    enabled: kenBurnsCheck.checked
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: !kenBurnsCheck.checked
+                    text: i18n("Enable Ken Burns above for music-reactive pacing to take effect.")
                 }
 
                 QtControls2.SpinBox {
@@ -2029,7 +2159,7 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Music reactivity (%):")
                     from: 0
                     to: 100
-                    enabled: musicReactiveCheck.checked
+                    enabled: musicReactiveCheck.checked && kenBurnsCheck.checked
                 }
 
                 QtControls2.CheckBox {
@@ -2228,6 +2358,24 @@ ColumnLayout {
                 }
 
                 QtControls2.CheckBox {
+                    id: cacheDownloadOriginalCheck
+
+                    Kirigami.FormData.label: i18n("Cache original file:")
+                    text: i18n("Download the full-resolution file from Wallhaven (requires curl)")
+                    enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Per-monitor cache:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: liveWallpaper
+                        ? i18n("Each screen keeps its own cache files (namespace %1). People/NSFW filters apply per monitor.", liveWallpaper.diskCacheNamespace || "default")
+                        : i18n("Each monitor keeps separate cache files so filters on one screen do not leak wallpapers to another.")
+                }
+
+                QtControls2.CheckBox {
                     id: offlineCacheCheck
 
                     Kirigami.FormData.label: i18n("Offline fallback:")
@@ -2282,7 +2430,7 @@ ColumnLayout {
                             return i18n("Checking…");
                         return root.upscalerAvailable
                             ? i18n("realesrgan-ncnn-vulkan detected.")
-                            : i18n("Not found on PATH; using plain scaling.");
+                            : i18n("Not found on PATH; using plain scaling. Install: github.com/xinntao/Real-ESRGAN/releases");
                     }
                 }
 
@@ -2567,6 +2715,24 @@ ColumnLayout {
                     enabled: syncAdvanceCheck.checked
                 }
 
+                QtControls2.CheckBox {
+                    id: syncProfilesCheck
+
+                    Kirigami.FormData.label: i18n("Sync profiles:")
+                    text: i18n("Remember search settings per sync group")
+                    enabled: syncAdvanceCheck.checked
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Save profile:")
+                    text: i18n("Save search profile for this sync group")
+                    enabled: liveWallpaper !== null && syncProfilesCheck.checked
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.saveSyncProfileForCurrentGroup)
+                            liveWallpaper.saveSyncProfileForCurrentGroup();
+                    }
+                }
+
                 QtControls2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
@@ -2846,6 +3012,10 @@ ColumnLayout {
 
         function onWallpaperHistoryEntriesChanged() {
             root.refreshHistoryModel();
+        }
+
+        function onDiskCacheEntryCountChanged() {
+            root.refreshCacheModel();
         }
     }
 
