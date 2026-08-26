@@ -484,6 +484,11 @@ PlasmoidItem {
             onTriggered: root.sendCommand("similar")
         }
         QtControls2.MenuItem {
+            text: i18n("Wallpaper info")
+            enabled: (statusData.id !== "" || statusData.tags !== "") && !root.dbusOffline
+            onTriggered: root.sendCommand("info")
+        }
+        QtControls2.MenuItem {
             text: i18n("Recent wallpapers…")
             enabled: root.historyEntries.length > 0 && !root.dbusOffline
             onTriggered: {

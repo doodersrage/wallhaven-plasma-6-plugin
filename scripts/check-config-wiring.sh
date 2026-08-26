@@ -34,7 +34,8 @@ extract_xml_keys() {
 }
 
 extract_cfg_keys() {
-    grep -oP 'property (?:alias )?cfg_\K[A-Za-z0-9]+' "${CONFIG_QML}" | sort -u
+    # Matches: property alias cfg_Foo, property string cfg_Foo, property int cfg_Foo, …
+    grep -oP 'property\s+(?:alias|[A-Za-z0-9_]+)\s+cfg_\K[A-Za-z0-9]+' "${CONFIG_QML}" | sort -u
 }
 
 extract_config_object_keys() {
@@ -69,7 +70,8 @@ while IFS= read -r key; do
     done
     [[ ${skip} -eq 1 ]] && continue
     if ! grep -qx "${key}" <<< "${cfg_keys}"; then
-        echo "WARN: ${key} in main.xml has no cfg_* binding in config.qml" >&2
+        echo "ERROR: ${key} in main.xml has no cfg_* binding in config.qml" >&2
+        errors=$((errors + 1))
     fi
 done <<< "${xml_keys}"
 

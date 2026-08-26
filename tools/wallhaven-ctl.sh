@@ -12,7 +12,7 @@ usage() {
     cat <<EOF
 Send commands to the Wallhaven wallpaper plugin.
 
-Usage: $(basename "$0") <next|prev|reload|pause|resume|like|dislike|search query...|importpreset url|history id>
+Usage: $(basename "$0") <next|prev|reload|pause|resume|like|dislike|info|search query...|importpreset url|history id>
 
 Environment:
   WALLHAVEN_SYNC_GROUP   Control/sync group name (default: default)
@@ -58,11 +58,23 @@ if [[ "${CMD}" == "importpreset" ]]; then
     shift
     PRESET_URL="$*"
     if [[ -z "${PRESET_URL}" ]]; then
-        echo "Usage: $(basename "$0") importpreset <wallhaven://preset/...>" >&2
+        echo "Usage: $(basename "$0") importpreset <wallhaven://preset/...|https://.../preset.json>" >&2
         exit 1
     fi
     write_control_file importpreset "${PRESET_URL}"
     echo "Sent preset import to ${CONTROL_FILE}"
+    exit 0
+fi
+
+if [[ "${CMD}" == "info" ]]; then
+    if command -v qdbus6 >/dev/null 2>&1; then
+        if qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.CommandInGroup info "${GROUP}" 2>/dev/null; then
+            echo "Sent 'info' via D-Bus"
+            exit 0
+        fi
+    fi
+    write_control_file info
+    echo "Sent 'info' to ${CONTROL_FILE}"
     exit 0
 fi
 

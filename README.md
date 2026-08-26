@@ -18,6 +18,27 @@ Enable **Wallhaven** in System Settings → Search → Plasma Search (KRunner).
 
 **KDE Store listing:** [opendesktop.org/p/2368647](https://www.opendesktop.org/p/2368647/) — see [docs/KDE_STORE.md](docs/KDE_STORE.md) for maintainer notes.
 
+## v2.8.0 — distribution & follow-ups
+
+Closes the post-2.7 checklist: wiring audit correctness, CI smoke, collections/presets UX, laptop mode, wallpaper info, and bug-report export.
+
+| Area | Highlights |
+|------|------------|
+| **Hardening** | Typed `cfg_*` bindings counted; missing ones fail CI; offline smoke script |
+| **Search** | Load collections by username; import presets from HTTPS JSON |
+| **Power** | One-click laptop mode preset |
+| **History** | Up to 2000 seen IDs + clear button |
+| **Control** | Wallpaper info action / plasmoid / `wh info` |
+| **Multi-monitor** | Use this screen’s name as sync group |
+| **Diagnostics** | Export bug-report JSON file |
+
+```bash
+./dev-helper.sh deploy
+./dev-helper.sh release              # tag v2.8.0
+```
+
+Upload the release tarball to [OpenDesktop p/2368647](https://www.opendesktop.org/p/2368647/) — see [docs/KDE_STORE.md](docs/KDE_STORE.md).
+
 ## v2.7.0 — hardening & polish
 
 Hardening, UX polish, and several opt-in 2.7 features on top of the 2.6 wiring fixes.

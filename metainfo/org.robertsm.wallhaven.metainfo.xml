@@ -42,6 +42,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="2.8.0" date="2026-08-26">
+      <description>
+        <p>Distribution and polish: config-wiring audit treats typed cfg_* bindings as real, offline CI smoke, collections by username, HTTP/JSON preset import, laptop power-saving preset, longer seen-history with clear, wallpaper info action, per-screen sync-group helper, and bug-report file export.</p>
+      </description>
+    </release>
     <release version="2.7.0" date="2026-08-25">
       <description>
         <p>Hardening and polish: CI config-wiring audit, preset browser with full snapshots, more-like-current browse mode, optional cache original download, idle slideshow pause, per-group sync profiles, panel blur strength, offline empty-cache notification, plasmoid tags and recent menu entry, and setup wizard status for D-Bus/upscaler/shortcuts.</p>

@@ -9,10 +9,28 @@ msgstr ""
 msgid "0 = manual only. Pause also available from desktop Wallpaper Actions."
 msgstr ""
 
+msgid "0% means no change on each slider. Rendered client-side; the cached image on disk is not modified."
+msgstr ""
+
+msgid "12-25|christmas snow|Holiday surprise — 2026-09-01|back to school city"
+msgstr ""
+
 msgid "%1 blocked wallpaper(s)"
 msgstr ""
 
 msgid "%1 cached wallpaper(s)"
+msgstr ""
+
+msgid "🔥 %1-day wallpaper streak!"
+msgstr ""
+
+msgid "🎉 %1 — now searching \"
+msgstr ""
+
+msgid "%1 wallpaper IDs remembered"
+msgstr ""
+
+msgid "🎉 %1 wallpapers viewed!"
 msgstr ""
 
 msgid "6am–8pm"
@@ -22,6 +40,9 @@ msgid "8pm–6am"
 msgstr ""
 
 msgid "Accept commands from plasmoid/CLI"
+msgstr ""
+
+msgid "Accepts wallhaven:// share links or raw JSON from https (GitHub raw, gist, pastebin, etc.)."
 msgstr ""
 
 msgid "Account blacklist:"
@@ -43,6 +64,9 @@ msgid "All results are blocked. Clear the blocklist or try another search."
 msgstr ""
 
 msgid "All wide"
+msgstr ""
+
+msgid "Also push the wallpaper accent to GTK apps and kdeglobals"
 msgstr ""
 
 msgid "Anime:"
@@ -75,7 +99,16 @@ msgstr ""
 msgid "Applied Variety search: %1"
 msgstr ""
 
+msgid "Applies the upscaler to wallpapers already in the disk cache whose native resolution falls short of your screen. Cache entries saved before this setting existed have no recorded resolution and are skipped; they'll be covered next time they're re-cached."
+msgstr ""
+
 msgid "Apply accent color via plasma-apply-colors when available"
+msgstr ""
+
+msgid "Apply brightness/contrast/saturation adjustments to the wallpaper"
+msgstr ""
+
+msgid "Apply laptop power-saving preset"
 msgstr ""
 
 msgid "Apply preset:"
@@ -87,6 +120,9 @@ msgstr ""
 msgid "Apply Variety search to Wallhaven"
 msgstr ""
 
+msgid "Apply Wallhaven as the wallpaper type to check."
+msgstr ""
+
 msgid "Apply Wallhaven as the wallpaper type to import settings."
 msgstr ""
 
@@ -94,6 +130,9 @@ msgid "Apply Wallhaven as the wallpaper type to manage the blocklist."
 msgstr ""
 
 msgid "Apply Wallhaven as the wallpaper type to see cache stats."
+msgstr ""
+
+msgid "Apply Wallhaven as the wallpaper type to see recent wallpapers."
 msgstr ""
 
 msgid "Apply Wallhaven tag blacklist (Search + API key)"
@@ -114,13 +153,19 @@ msgstr ""
 msgid "Auto panel accent:"
 msgstr ""
 
-msgid "Avoid recent duplicates (saved across restarts)"
+msgid "Auto-switch the search on a specific date. One per line: date|search query|optional label. MM-DD repeats every year (birthdays, holidays); YYYY-MM-DD fires once."
+msgstr ""
+
+msgid "Avoid recent duplicates (saved across restarts, up to 2000 IDs)"
 msgstr ""
 
 msgid "Battery pause:"
 msgstr ""
 
 msgid "Battery threshold (%):"
+msgstr ""
+
+msgid "Bias search toward rain/snow/storm tags matching local weather"
 msgstr ""
 
 msgid "Black"
@@ -153,10 +198,19 @@ msgstr ""
 msgid "Blue Purple"
 msgstr ""
 
+msgid "Blur strength is stored in the panel tint JSON for external tools; Plasma panel blur itself is configured in System Settings."
+msgstr ""
+
+msgid "Boosted tags: %1"
+msgstr ""
+
 msgid "Bottom left"
 msgstr ""
 
 msgid "Bottom right"
+msgstr ""
+
+msgid "Brightness:"
 msgstr ""
 
 msgid "Bright Red"
@@ -171,16 +225,22 @@ msgstr ""
 msgid "Browse mode:"
 msgstr ""
 
+msgid "Bug report file:"
+msgstr ""
+
+msgid "Bundled packs (one-click import):"
+msgstr ""
+
 msgid "Cached:"
 msgstr ""
 
 msgid "Cache Manager"
 msgstr ""
 
-msgid "Cache recent wallpapers locally (faster revisits)"
+msgid "Cache original file:"
 msgstr ""
 
-msgid "Cache slots:"
+msgid "Cache recent wallpapers locally; oldest unused are replaced"
 msgstr ""
 
 msgid "Cache status:"
@@ -195,6 +255,9 @@ msgstr ""
 msgid "Checking…"
 msgstr ""
 
+msgid "City name, or \"
+msgstr ""
+
 msgid "Clear blocklist"
 msgstr ""
 
@@ -207,10 +270,19 @@ msgstr ""
 msgid "Clear disk cache"
 msgstr ""
 
+msgid "Cleared seen wallpaper history (%1 entries)."
+msgstr ""
+
 msgid "Clear history:"
 msgstr ""
 
+msgid "Clear seen history"
+msgstr ""
+
 msgid "Clear wallpaper history"
+msgstr ""
+
+msgid "Click to open · drag right to like, left to mute tags"
 msgstr ""
 
 msgid "Collection"
@@ -238,6 +310,9 @@ msgid "Comma-separated tags boosted in search"
 msgstr ""
 
 msgid "Comma-separated tags to exclude, e.g. nsfw, text"
+msgstr ""
+
+msgid "Contrast:"
 msgstr ""
 
 msgid "Control bus:"
@@ -306,6 +381,12 @@ msgstr ""
 msgid "Could not load wallpaper."
 msgstr ""
 
+msgid "Could not load wallpaper #%1."
+msgstr ""
+
+msgid "Could not load wallpaper #%1 — showing preview instead."
+msgstr ""
+
 msgid "Could not parse collections response."
 msgstr ""
 
@@ -363,6 +444,15 @@ msgstr ""
 msgid "D-Bus offline"
 msgstr ""
 
+msgid "D-Bus service offline; can't check."
+msgstr ""
+
+msgid "D-Bus service: offline — run: systemctl --user enable --now wallhaven-dbus.service"
+msgstr ""
+
+msgid "D-Bus service: online"
+msgstr ""
+
 msgid "Debug info:"
 msgstr ""
 
@@ -396,7 +486,19 @@ msgstr ""
 msgid "Disk cache cleared."
 msgstr ""
 
+msgid "Dislike (mute these tags)"
+msgstr ""
+
+msgid "Download the full-resolution file from Wallhaven (requires curl)"
+msgstr ""
+
 msgid "Duplicates:"
+msgstr ""
+
+msgid "Each monitor keeps separate cache files so filters on one screen do not leak wallpapers to another."
+msgstr ""
+
+msgid "Each screen keeps its own cache files (namespace %1). People/NSFW filters apply per monitor."
 msgstr ""
 
 msgid "Effects"
@@ -414,10 +516,19 @@ msgstr ""
 msgid "Empty = screen width"
 msgstr ""
 
+msgid "Enable \"
+msgstr ""
+
 msgid "Enabled"
 msgstr ""
 
+msgid "Enable Ken Burns above for music-reactive pacing to take effect."
+msgstr ""
+
 msgid "Enter an API key first."
+msgstr ""
+
+msgid "Enter an API key or a collection username first."
 msgstr ""
 
 msgid "Evict"
@@ -429,7 +540,16 @@ msgstr ""
 msgid "Export:"
 msgstr ""
 
+msgid "Export bug report JSON…"
+msgstr ""
+
+msgid "Exported bug report bundle."
+msgstr ""
+
 msgid "Export file:"
+msgstr ""
+
+msgid "Export Wallhaven Bug Report"
 msgstr ""
 
 msgid "Export Wallhaven Settings"
@@ -439,6 +559,9 @@ msgid "External Control"
 msgstr ""
 
 msgid "Fade through black"
+msgstr ""
+
+msgid "Failed to fetch preset (%1)."
 msgstr ""
 
 msgid "Failed to load collections (%1)."
@@ -477,6 +600,9 @@ msgstr ""
 msgid "Forest"
 msgstr ""
 
+msgid "Fun & Discovery"
+msgstr ""
+
 msgid "General:"
 msgstr ""
 
@@ -496,6 +622,18 @@ msgid "Gray"
 msgstr ""
 
 msgid "Green"
+msgstr ""
+
+msgid "ID: %1"
+msgstr ""
+
+msgid "Idle pause:"
+msgstr ""
+
+msgid "Idle threshold (min):"
+msgstr ""
+
+msgid "Image enhance:"
 msgstr ""
 
 msgid "Image failed to load. Trying another…"
@@ -528,6 +666,9 @@ msgstr ""
 msgid "Imported %1 curated preset(s)."
 msgstr ""
 
+msgid "Imported preset \"
+msgstr ""
+
 msgid "Imported preset %1."
 msgstr ""
 
@@ -546,9 +687,6 @@ msgstr ""
 msgid "Import Wallhaven Settings"
 msgstr ""
 
-msgid "Inactive pause:"
-msgstr ""
-
 msgid "Install Meta+Alt+arrow global shortcuts with: ./dev-helper.sh install-shortcuts"
 msgstr ""
 
@@ -561,6 +699,9 @@ msgstr ""
 msgid "Interval (min):"
 msgstr ""
 
+msgid "Invalid export path."
+msgstr ""
+
 msgid "Invalid preset URL."
 msgstr ""
 
@@ -568,6 +709,9 @@ msgid "JPEG image (*.jpg *.jpeg)"
 msgstr ""
 
 msgid "JSON files (*.json)"
+msgstr ""
+
+msgid "Keeps searching for wallpapers similar to the one on screen (like:ID). Start in Search or Collection mode first if the screen is empty."
 msgstr ""
 
 msgid "Ken Burns:"
@@ -582,10 +726,22 @@ msgstr ""
 msgid "KWallet:"
 msgstr ""
 
+msgid "Laptop mode:"
+msgstr ""
+
+msgid "Laptop mode applied (metered, battery, idle pause, lighter effects)."
+msgstr ""
+
+msgid "Laptop mode enables metered-cache-only, battery pause, idle pause, and turns off Ken Burns / parallax / upscale / original downloads."
+msgstr ""
+
 msgid "Large (full wallpaper)"
 msgstr ""
 
 msgid "Light Gray"
+msgstr ""
+
+msgid "Like (boost these tags)"
 msgstr ""
 
 msgid "Load API key from KWallet on startup"
@@ -603,6 +759,9 @@ msgstr ""
 msgid "Loading next wallpaper…"
 msgstr ""
 
+msgid "Loading wallpaper #%1 from history…"
+msgstr ""
+
 msgid "Loading wallpapers similar to %1…"
 msgstr ""
 
@@ -612,13 +771,22 @@ msgstr ""
 msgid "Lock screen:"
 msgstr ""
 
+msgid "Lock screen uses a static Plasma image copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer enabling disk cache (and optional original download) so the lock screen gets a full-resolution file."
+msgstr ""
+
 msgid "Manual"
+msgstr ""
+
+msgid "Max cache slots:"
 msgstr ""
 
 msgid "Max retry attempts:"
 msgstr ""
 
 msgid "Metered network:"
+msgstr ""
+
+msgid "Milestone toasts:"
 msgstr ""
 
 msgid "Min height:"
@@ -633,10 +801,28 @@ msgstr ""
 msgid "More actions"
 msgstr ""
 
+msgid "More like current"
+msgstr ""
+
+msgid "More-like-current mode needs a wallpaper on screen first."
+msgstr ""
+
+msgid "Music-reactive pacing:"
+msgstr ""
+
+msgid "Music reactivity (%):"
+msgstr ""
+
 msgid "Must match wallpaper Advanced → Sync group"
 msgstr ""
 
+msgid "Muted tags: %1"
+msgstr ""
+
 msgid "Network error during search test."
+msgstr ""
+
+msgid "Network error fetching preset."
 msgstr ""
 
 msgid "Network error while loading collections."
@@ -669,10 +855,16 @@ msgstr ""
 msgid "No cached wallpapers available."
 msgstr ""
 
-msgid "No collections found for this API key."
+msgid "No cached wallpapers need upscaling right now."
+msgstr ""
+
+msgid "No collections found."
 msgstr ""
 
 msgid "No favorites collection found."
+msgstr ""
+
+msgid "No history yet."
 msgstr ""
 
 msgid "No image_fetch_search in Variety config."
@@ -687,13 +879,31 @@ msgstr ""
 msgid "No previous wallpaper in history."
 msgstr ""
 
+msgid "No recent wallpapers yet. They appear here as the slideshow advances."
+msgstr ""
+
 msgid "No settings match %1. Try another tab or clear the filter."
+msgstr ""
+
+msgid "No tags to rate yet."
+msgstr ""
+
+msgid "Not found on PATH; using plain scaling. Install: github.com/xinntao/Real-ESRGAN/releases"
 msgstr ""
 
 msgid "Notifications"
 msgstr ""
 
+msgid "Notify on view-count milestones and daily streaks"
+msgstr ""
+
+msgid "No upscaler installed (realesrgan-ncnn-vulkan not found on PATH)."
+msgstr ""
+
 msgid "No wallpaper available to save."
+msgstr ""
+
+msgid "No wallpaper details yet."
 msgstr ""
 
 msgid "No wallpaper loaded yet. Apply Wallhaven as the wallpaper type and wait for the first image."
@@ -714,6 +924,9 @@ msgstr ""
 msgid "Offline only:"
 msgstr ""
 
+msgid "Offline-only mode is on but the disk cache is empty."
+msgstr ""
+
 msgid "Olive"
 msgstr ""
 
@@ -732,6 +945,9 @@ msgstr ""
 msgid "Open wallpaper page"
 msgstr ""
 
+msgid "Open wallpaper settings while Wallhaven is active to see the count"
+msgstr ""
+
 msgid "Optional: add your Wallhaven API key for NSFW and favorites."
 msgstr ""
 
@@ -748,6 +964,9 @@ msgid "Original (full wallpaper)"
 msgstr ""
 
 msgid "Other"
+msgstr ""
+
+msgid "Panel blur hint (%):"
 msgstr ""
 
 msgid "Panel tint hint:"
@@ -777,7 +996,10 @@ msgstr ""
 msgid "Pause slideshow on low battery"
 msgstr ""
 
-msgid "Pause when Plasma session is inactive"
+msgid "Pause the slideshow while the screen is locked"
+msgstr ""
+
+msgid "Pause when the session has been idle for several minutes"
 msgstr ""
 
 msgid "People:"
@@ -786,7 +1008,10 @@ msgstr ""
 msgid "Performance"
 msgstr ""
 
-msgid "Per-monitor profiles: set a different sync group and search on each screen, or the same group to advance together."
+msgid "Per-monitor cache:"
+msgstr ""
+
+msgid "Per-monitor profiles: open wallpaper settings on each screen, set a unique sync group (or use the button above), save a profile, and enable sync profiles. Same group advances together; different groups keep separate searches."
 msgstr ""
 
 msgid "Pick collection:"
@@ -807,7 +1032,13 @@ msgstr ""
 msgid "PNG image (*.png)"
 msgstr ""
 
+msgid "Prefer sharper matches (bias random picks toward images that fit your screen size and aspect ratio without heavy upscaling or cropping)"
+msgstr ""
+
 msgid "Preload count:"
+msgstr ""
+
+msgid "Preset browser:"
 msgstr ""
 
 msgid "Preset name:"
@@ -846,7 +1077,16 @@ msgstr ""
 msgid "Ratio:"
 msgstr ""
 
+msgid "realesrgan-ncnn-vulkan detected."
+msgstr ""
+
 msgid "Recent:"
+msgstr ""
+
+msgid "Recent wallpapers"
+msgstr ""
+
+msgid "Recent wallpapers…"
 msgstr ""
 
 msgid "Red"
@@ -879,6 +1119,9 @@ msgstr ""
 msgid "Reload Wallpaper"
 msgstr ""
 
+msgid "Remember search settings per sync group"
+msgstr ""
+
 msgid "Request failed (%1). Retry %2/%3 in %4s…"
 msgstr ""
 
@@ -886,6 +1129,9 @@ msgid "Request timed out. Retry %1/%2 in %3s…"
 msgstr ""
 
 msgid "Request timeout (sec):"
+msgstr ""
+
+msgid "Requires the D-Bus service and realesrgan-ncnn-vulkan on your PATH, and disk cache enabled above. Falls back to plain scaling when either is missing."
 msgstr ""
 
 msgid "Resolution & Ratio"
@@ -900,10 +1146,25 @@ msgstr ""
 msgid "Retry delay (sec):"
 msgstr ""
 
+msgid "Re-upscale:"
+msgstr ""
+
+msgid "Re-upscale cached wallpapers"
+msgstr ""
+
+msgid "Re-upscale finished: %1 upscaled, %2 failed."
+msgstr ""
+
+msgid "Re-upscaling %1 cached wallpaper(s)…"
+msgstr ""
+
 msgid "Rotate collections:"
 msgstr ""
 
 msgid "Sat–Sun"
+msgstr ""
+
+msgid "Saturation:"
 msgstr ""
 
 msgid "Save current search"
@@ -912,7 +1173,16 @@ msgstr ""
 msgid "Saved presets:"
 msgstr ""
 
+msgid "Saved search profile for sync group \"
+msgstr ""
+
 msgid "Save preset:"
+msgstr ""
+
+msgid "Save profile:"
+msgstr ""
+
+msgid "Save search profile for this sync group"
 msgstr ""
 
 msgid "Save settings to file…"
@@ -925,6 +1195,12 @@ msgid "Save Wallpaper…"
 msgstr ""
 
 msgid "Saving wallpaper…"
+msgstr ""
+
+msgid "🎉 Scheduled wallpaper switch — now searching \"
+msgstr ""
+
+msgid "Screen lock pause:"
 msgstr ""
 
 msgid "Search"
@@ -948,6 +1224,9 @@ msgstr ""
 msgid "Search test failed (%1)."
 msgstr ""
 
+msgid "Seen history:"
+msgstr ""
+
 msgid "Sent preset import request."
 msgstr ""
 
@@ -969,6 +1248,9 @@ msgstr ""
 msgid "Settings imported."
 msgstr ""
 
+msgid "Setup status:"
+msgstr ""
+
 msgid "Setup wizard:"
 msgstr ""
 
@@ -976,6 +1258,9 @@ msgid "SFW:"
 msgstr ""
 
 msgid "Share preset:"
+msgstr ""
+
+msgid "Shortcuts: ./dev-helper.sh install-shortcuts (Meta+Alt+arrows)"
 msgstr ""
 
 msgid "Show cached wallpapers when the network fails"
@@ -997,6 +1282,9 @@ msgid "Show setup wizard again"
 msgstr ""
 
 msgid "Show status messages on the wallpaper"
+msgstr ""
+
+msgid "Show wallpaper #%1"
 msgstr ""
 
 msgid "Similar wallpapers"
@@ -1056,7 +1344,13 @@ msgstr ""
 msgid "Source"
 msgstr ""
 
+msgid "Speed up Ken Burns panning while music is playing (via MPRIS)"
+msgstr ""
+
 msgid "Start D-Bus service"
+msgstr ""
+
+msgid "Swipe the panel widget thumbnail left/right (or use its menu) to like/dislike the current wallpaper's tags."
 msgstr ""
 
 msgid "Symlink cached wallpaper as wallhaven-current.jpg"
@@ -1068,6 +1362,12 @@ msgstr ""
 msgid "Sync group:"
 msgstr ""
 
+msgid "Sync group set to this screen (%1)."
+msgstr ""
+
+msgid "Sync profiles:"
+msgstr ""
+
 msgid "System color scheme"
 msgstr ""
 
@@ -1075,6 +1375,9 @@ msgid "System notification for errors and warnings"
 msgstr ""
 
 msgid "System notification when wallpaper changes"
+msgstr ""
+
+msgid "System theme sync:"
 msgstr ""
 
 msgid "Tag blocklist:"
@@ -1099,6 +1402,18 @@ msgid "Test search"
 msgstr ""
 
 msgid "Test search:"
+msgstr ""
+
+msgid "This screen:"
+msgstr ""
+
+msgid "Time Capsule"
+msgstr ""
+
+msgid "Time capsules:"
+msgstr ""
+
+msgid "Timed out fetching preset."
 msgstr ""
 
 msgid "Timed out while loading collections."
@@ -1134,6 +1449,24 @@ msgstr ""
 msgid "Unpin"
 msgstr ""
 
+msgid "Upscale low-res:"
+msgstr ""
+
+msgid "Upscaler: checking…"
+msgstr ""
+
+msgid "Upscaler: not installed (optional)"
+msgstr ""
+
+msgid "Upscaler: realesrgan-ncnn-vulkan found"
+msgstr ""
+
+msgid "Upscaler status:"
+msgstr ""
+
+msgid "Use an external AI upscaler for wallpapers smaller than your screen, if installed"
+msgstr ""
+
 msgid "Use cache only on cellular connections"
 msgstr ""
 
@@ -1147,6 +1480,12 @@ msgid "Use separate day/night searches"
 msgstr ""
 
 msgid "Use separate weekday/weekend searches"
+msgstr ""
+
+msgid "Uses the free Open-Meteo API (no key required); location is geocoded once and cached."
+msgstr ""
+
+msgid "Use this screen’s name as sync group"
 msgstr ""
 
 msgid "Use today's Wallhaven toplist (overrides sorting)"
@@ -1185,10 +1524,19 @@ msgstr ""
 msgid "Wallhaven D-Bus service is not running. Run: systemctl --user enable --now wallhaven-dbus.service"
 msgstr ""
 
-msgid "wallhaven://preset/…"
+msgid "Wallhaven milestone"
+msgstr ""
+
+msgid "wallhaven://preset/… or https://…/preset.json"
 msgstr ""
 
 msgid "Wallhaven request failed after %1 attempts."
+msgstr ""
+
+msgid "Wallhaven streak"
+msgstr ""
+
+msgid "Wallhaven time capsule"
 msgstr ""
 
 msgid "Wallpaper #%1"
@@ -1203,6 +1551,12 @@ msgstr ""
 msgid "Wallpaper history cleared."
 msgstr ""
 
+msgid "Wallpaper info"
+msgstr ""
+
+msgid "Wallpaper Info"
+msgstr ""
+
 msgid "Wallpaper of the day:"
 msgstr ""
 
@@ -1210,6 +1564,12 @@ msgid "Wallpaper saved."
 msgstr ""
 
 msgid "Watch Variety config for changes"
+msgstr ""
+
+msgid "Weather location:"
+msgstr ""
+
+msgid "Weather-reactive search:"
 msgstr ""
 
 msgid "Weekday Schedule"
@@ -1231,6 +1591,9 @@ msgid "Welcome to Wallhaven for Plasma"
 msgstr ""
 
 msgid "White"
+msgstr ""
+
+msgid "With an API key, loads your collections. Or enter a username above to browse that user’s public collections."
 msgstr ""
 
 msgid "Would apply search: %1"

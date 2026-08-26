@@ -6,13 +6,22 @@ Wallhaven is published on OpenDesktop / KDE Store:
 
 ## Updating the listing
 
-When you ship a new release:
+When you ship a new release (current: **2.8.0**):
 
-1. Build tarball: `./dev-helper.sh package` → `wallhaven-plasma-X.Y.Z.tar.xz`
+1. Build/publish: `./dev-helper.sh release` → GitHub Release + `wallhaven-plasma-X.Y.Z.tar.xz`
 2. Upload the new file on the product **Files** tab at [opendesktop.org/p/2368647](https://www.opendesktop.org/p/2368647/)
-3. Replace screenshots if the UI changed (`./scripts/capture-screenshots.sh`)
-4. Update release notes on the store page (copy from `CHANGELOG.md` / `metainfo/` release entry)
-5. Bump AppStream in git so Discover metadata stays in sync
+3. Paste release notes from `CHANGELOG.md` (2.8.0 section) into the store description / changelog field
+4. Replace screenshots if the UI changed (`./scripts/capture-screenshots.sh`)
+5. Confirm AppStream in git matches (`metainfo/org.robertsm.wallhaven.metainfo.xml` release entry)
+
+### 2.8.0 store blurb (copy/paste)
+
+```
+v2.8.0 — Collections by username, HTTPS preset import, laptop power-saving preset,
+wallpaper info action, longer seen-history with clear, per-screen sync-group helper,
+bug-report JSON export, and stricter settings wiring CI.
+```
+
 
 ## Prerequisites for each release
 

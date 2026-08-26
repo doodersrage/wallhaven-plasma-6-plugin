@@ -1,6 +1,6 @@
 # Maintainer: Wallhaven Plasma Port
 pkgname=wallhaven-plasma
-pkgver=2.7.0
+pkgver=2.8.0
 pkgrel=1
 pkgdesc="Wallhaven.cc wallpaper plugin for KDE Plasma 6"
 arch=('any')

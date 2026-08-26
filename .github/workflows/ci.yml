@@ -16,7 +16,7 @@ jobs:
 
       - name: Validate plugin structure
         run: |
-          chmod +x scripts/validate.sh scripts/check-config-wiring.sh
+          chmod +x scripts/validate.sh scripts/check-config-wiring.sh scripts/smoke-offline.sh
           ./scripts/validate.sh
 
       - name: Sync translations
@@ -27,6 +27,9 @@ jobs:
 
       - name: Run wallhaven.js tests
         run: node tests/test-wallhaven.js
+
+      - name: Offline / optional D-Bus smoke
+        run: chmod +x scripts/smoke-offline.sh && ./scripts/smoke-offline.sh
 
       - name: Variety D-Bus tests
         run: python3 tests/test-variety-dbus.py

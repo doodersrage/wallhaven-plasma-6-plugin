@@ -172,7 +172,8 @@ ColumnLayout {
         "attribution", "ken", "parallax", "panel", "battery", "offline", "kwallet",
         "toplist", "wotd", "refresh", "playback", "advanced", "similar", "quality",
         "music", "weather", "achievement", "streak", "milestone", "theme", "capsule",
-        "swipe", "like", "dislike",
+        "swipe", "like", "dislike", "idle", "upscaler", "original", "blur", "profile",
+        "laptop", "metered", "seen", "duplicate", "info", "bug", "github", "http",
     ]
     property bool showSetupWizard: wallpaperConfiguration && !wallpaperConfiguration.SetupWizardCompleted
     property bool dbusPollCompleted: false
@@ -952,14 +953,20 @@ ColumnLayout {
 
         function refresh() {
             errorText = "";
-            if (!apiKeyField.text) {
-                errorText = i18n("Enter an API key first.");
-                return ;
+            entries = [];
+            var user = collectionUserField.text.trim();
+            var url = "";
+            if (user) {
+                url = Wallhaven.buildCollectionsUrlForUser(user, apiKeyField.text);
+            } else if (apiKeyField.text) {
+                url = Wallhaven.buildCollectionsUrl(apiKeyField.text);
+            } else {
+                errorText = i18n("Enter an API key or a collection username first.");
+                return;
             }
             loading = true;
-            entries = [];
             var xhr = new XMLHttpRequest();
-            xhr.open("GET", Wallhaven.buildCollectionsUrl(apiKeyField.text));
+            xhr.open("GET", url);
             xhr.setRequestHeader("Accept", "application/json");
             xhr.timeout = 30000;
             xhr.onreadystatechange = function() {
@@ -971,7 +978,7 @@ ColumnLayout {
                     try {
                         entries = Wallhaven.parseCollectionsResponse(JSON.parse(xhr.responseText));
                         if (!entries.length)
-                            errorText = i18n("No collections found for this API key.");
+                            errorText = i18n("No collections found.");
                         else
                             syncPickerSelection();
                     } catch (e) {
@@ -1209,8 +1216,18 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Collections:")
                     text: collectionsLoader.loading ? i18n("Loading…") : i18n("Load collections")
                     visible: browseModeCombo.currentValue === "collection"
-                    enabled: apiKeyField.text !== "" && !collectionsLoader.loading
+                    enabled: !collectionsLoader.loading
+                        && (apiKeyField.text !== "" || collectionUserField.text.trim() !== "")
                     onClicked: collectionsLoader.refresh()
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: browseModeCombo.currentValue === "collection"
+                    text: i18n("With an API key, loads your collections. Or enter a username above to browse that user’s public collections.")
                 }
 
                 QtControls2.ComboBox {
@@ -1625,7 +1642,26 @@ ColumnLayout {
                     id: dedupCheck
 
                     Kirigami.FormData.label: i18n("Duplicates:")
-                    text: i18n("Avoid recent duplicates (saved across restarts)")
+                    text: i18n("Avoid recent duplicates (saved across restarts, up to 2000 IDs)")
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Seen history:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: liveWallpaper
+                        ? i18n("%1 wallpaper IDs remembered", liveWallpaper.seenIdsCount || 0)
+                        : i18n("Open wallpaper settings while Wallhaven is active to see the count")
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    text: i18n("Clear seen history")
+                    enabled: liveWallpaper !== null && (liveWallpaper.seenIdsCount || 0) > 0
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.clearSeenHistory)
+                            liveWallpaper.clearSeenHistory();
+                    }
                 }
 
                 QtControls2.CheckBox {
@@ -1767,7 +1803,7 @@ ColumnLayout {
                     id: presetUrlField
 
                     Kirigami.FormData.label: i18n("Preset URL:")
-                    placeholderText: i18n("wallhaven://preset/…")
+                    placeholderText: i18n("wallhaven://preset/… or https://…/preset.json")
                     visible: parent.searchFilters
                 }
 
@@ -1777,6 +1813,15 @@ ColumnLayout {
                     visible: parent.searchFilters
                     enabled: presetUrlField.text.trim() !== "" && liveWallpaper !== null
                     onClicked: root.importPresetFromUrlField()
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: parent.searchFilters
+                    text: i18n("Accepts wallhaven:// share links or raw JSON from https (GitHub raw, gist, pastebin, etc.).")
                 }
 
                 QtControls2.TextField {
@@ -1967,6 +2012,15 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("Lock screen:")
                     text: i18n("Copy the current wallpaper to the lock screen")
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: lockScreenCheck.checked
+                    text: i18n("Lock screen uses a static Plasma image copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer enabling disk cache (and optional original download) so the lock screen gets a full-resolution file.")
                 }
 
                 QtControls2.CheckBox {
@@ -2646,6 +2700,31 @@ ColumnLayout {
                 }
 
                 QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Bug report file:")
+                    text: i18n("Export bug report JSON…")
+                    enabled: liveWallpaper !== null
+                    onClicked: bugReportExportDialog.open()
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Laptop mode:")
+                    text: i18n("Apply laptop power-saving preset")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.applyLaptopMode)
+                            liveWallpaper.applyLaptopMode();
+                    }
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: i18n("Laptop mode enables metered-cache-only, battery pause, idle pause, and turns off Ken Burns / parallax / upscale / original downloads.")
+                }
+
+                QtControls2.Button {
                     Kirigami.FormData.label: i18n("Setup wizard:")
                     text: i18n("Show setup wizard again")
                     onClicked: root.resetSetupWizard()
@@ -2733,11 +2812,21 @@ ColumnLayout {
                     }
                 }
 
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("This screen:")
+                    text: i18n("Use this screen’s name as sync group")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.useScreenNameAsSyncGroup)
+                            liveWallpaper.useScreenNameAsSyncGroup();
+                    }
+                }
+
                 QtControls2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     opacity: 0.7
-                    text: i18n("Per-monitor profiles: set a different sync group and search on each screen, or the same group to advance together.")
+                    text: i18n("Per-monitor profiles: open wallpaper settings on each screen, set a unique sync group (or use the button above), save a profile, and enable sync profiles. Same group advances together; different groups keep separate searches.")
                 }
 
                 QtControls2.Label {
@@ -2944,7 +3033,7 @@ ColumnLayout {
                     id: timeCapsuleField
 
                     Kirigami.FormData.label: i18n("Time capsules:")
-                    placeholderText: i18n("12-25|christmas snow|Holiday surprise\n2026-09-01|back to school city")
+                    placeholderText: i18n("12-25|christmas snow|Holiday surprise — 2026-09-01|back to school city")
                     text: root.timeCapsuleText()
                     Binding on text {
                         when: !timeCapsuleField.activeFocus
@@ -2979,6 +3068,20 @@ ColumnLayout {
             if (liveWallpaper && liveWallpaper.exportSettingsToFile) {
                 liveWallpaper.exportSettingsToFile(selectedFile);
                 importExportStatus.text = i18n("Settings exported to file.");
+            }
+        }
+    }
+
+    FileDialog {
+        id: bugReportExportDialog
+
+        title: i18n("Export Wallhaven Bug Report")
+        nameFilters: [i18n("JSON files (*.json)")]
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: "json"
+        onAccepted: {
+            if (liveWallpaper && liveWallpaper.exportDebugBundleToFile) {
+                liveWallpaper.exportDebugBundleToFile(selectedFile);
             }
         }
     }

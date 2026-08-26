@@ -140,7 +140,7 @@ function serializeSeenIds(ids) {
     if (!ids || !ids.length) {
         return "[]";
     }
-    return JSON.stringify(ids.slice(-500));
+    return JSON.stringify(ids.slice(-2000));
 }
 
 function parseIdList(raw) {
@@ -1556,7 +1556,7 @@ function buildPresetShareUrl(preset) {
 }
 
 function pluginVersion() {
-    return "2.7.0";
+    return "2.8.0";
 }
 
 function appendDebugLogLine(existing, line, maxLines) {
@@ -1863,6 +1863,64 @@ function buildSettingsUrl(apiKey) {
 
 function buildCollectionsUrl(apiKey) {
     return "https://wallhaven.cc/api/v1/collections?apikey=" + encodeURIComponent(apiKey.trim());
+}
+
+function buildCollectionsUrlForUser(username, apiKey) {
+    var user = String(username || "").trim();
+    if (!user) {
+        return "";
+    }
+    var url = "https://wallhaven.cc/api/v1/collections/" + encodeURIComponent(user);
+    if (apiKey) {
+        url += "?apikey=" + encodeURIComponent(String(apiKey).trim());
+    }
+    return url;
+}
+
+function isHttpPresetUrl(url) {
+    var raw = String(url || "").trim().toLowerCase();
+    return raw.indexOf("https://") === 0 || raw.indexOf("http://") === 0;
+}
+
+function parseRemotePresetPayload(raw) {
+    var text = String(raw || "").trim();
+    if (!text) {
+        throw new Error("empty preset");
+    }
+    if (text.charAt(0) === "{" || text.charAt(0) === "[") {
+        var parsed = JSON.parse(text);
+        if (parsed && parsed.settings && typeof parsed.settings === "object") {
+            return parsed.settings;
+        }
+        if (parsed && parsed.name) {
+            return parsed;
+        }
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return parsed;
+        }
+        throw new Error("invalid preset json");
+    }
+    return importPresetFromShareUrl(text);
+}
+
+function laptopModeSettings() {
+    return {
+        MeteredCacheOnly: true,
+        OfflineCacheFallback: true,
+        PauseOnBatteryLow: true,
+        BatteryLowThreshold: 20,
+        PauseOnIdleEnabled: true,
+        IdlePauseMinutes: 10,
+        ImageQuality: "large",
+        PreloadCount: 1,
+        AdaptivePreloadEnabled: false,
+        KenBurnsEnabled: false,
+        MusicReactiveEnabled: false,
+        ParallaxEnabled: false,
+        UpscaleEnabled: false,
+        CacheDownloadOriginal: false,
+        NotifyOnRefresh: false,
+    };
 }
 
 function buildWallpaperUrl(wallpaperId, apiKey) {

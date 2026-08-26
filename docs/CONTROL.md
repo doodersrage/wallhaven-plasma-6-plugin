@@ -10,7 +10,7 @@ Add **Wallhaven Control** to the panel:
 - **History** button — popup scrubber of the last dozen wallpapers, click one to bring it back
 - Countdown + pause state
 - Previous / next / pause / reload buttons
-- Menu: like/dislike, similar wallpapers, copy tags, block, D-Bus offline help
+- Menu: like/dislike, similar wallpapers, wallpaper info, recent history, copy tags, block, D-Bus offline help
 
 ## Global keyboard shortcuts
 

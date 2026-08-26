@@ -42,6 +42,13 @@ WallpaperItem {
     readonly property string panelTintFile: diskCacheDir + "/wallhaven-panel-tint.json"
     readonly property string debugLogFile: diskCacheDir + "/wallhaven-debug.log"
     readonly property int diskCacheEntryCount: Wallhaven.listCachedIds(_diskCacheIndex).length
+    readonly property int seenIdsCount: {
+        try {
+            return Wallhaven.parseSeenIds(cfg && cfg.SeenIdsJson ? cfg.SeenIdsJson : "[]").length;
+        } catch (e) {
+            return 0;
+        }
+    }
 
     function syncAdvanceFile() {
         var group = (cfg.SyncAdvanceGroup || "default").replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -193,7 +200,7 @@ WallpaperItem {
 
     contextualActions: [
         reloadAction, nextAction, previousAction, pauseResumeAction, similarAction,
-        copyIdAction, copyTagsAction, copyUrlAction, favoriteAction,
+        wallpaperInfoAction, copyIdAction, copyTagsAction, copyUrlAction, favoriteAction,
         blockWallpaperAction, openInBrowserAction, saveWallpaperAction,
     ]
 
@@ -232,6 +239,14 @@ WallpaperItem {
         icon.name: "view-list-icons"
         enabled: root.currentWallpaperId !== "" && root.currentWallpaperId !== "wallpaper"
         onTriggered: root.loadSimilarWallpapers()
+    }
+
+    PlasmaCore.Action {
+        id: wallpaperInfoAction
+        text: i18n("Wallpaper Info")
+        icon.name: "help-about"
+        enabled: root.wallpaperDetailsText !== "" || (root.currentWallpaperId !== "" && root.currentWallpaperId !== "wallpaper")
+        onTriggered: root.showWallpaperInfo()
     }
 
     PlasmaCore.Action {
@@ -1027,18 +1042,117 @@ WallpaperItem {
     }
 
     function importPresetFromUrl(url) {
+        var raw = String(url || "").trim();
+        if (!raw) {
+            return;
+        }
+        if (Wallhaven.isHttpPresetUrl(raw)) {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", raw);
+            xhr.setRequestHeader("Accept", "application/json, text/plain, */*");
+            xhr.timeout = 30000;
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== XMLHttpRequest.DONE) {
+                    return;
+                }
+                if (xhr.status < 200 || xhr.status >= 300) {
+                    engine.showStatus(i18n("Failed to fetch preset (%1).", xhr.status), "error");
+                    return;
+                }
+                root.applyImportedPresetPayload(xhr.responseText);
+            };
+            xhr.onerror = function() {
+                engine.showStatus(i18n("Network error fetching preset."), "error");
+            };
+            xhr.ontimeout = function() {
+                engine.showStatus(i18n("Timed out fetching preset."), "error");
+            };
+            xhr.send();
+            return;
+        }
         try {
-            var preset = Wallhaven.importPresetFromShareUrl(url);
-            if (!preset || !root.configuration) {
-                return;
-            }
-            Wallhaven.applyPresetToConfig(preset, root.configuration);
-            scheduleConfigWrite();
-            engine.showStatus(i18n("Imported preset %1.", preset.name || ""), "info");
-            engine.resetSlideshow();
+            root.applyImportedPresetPayload(raw);
         } catch (e) {
             engine.showStatus(i18n("Invalid preset URL."), "error");
         }
+    }
+
+    function applyImportedPresetPayload(raw) {
+        if (!root.configuration) {
+            return;
+        }
+        var preset = Wallhaven.parseRemotePresetPayload(raw);
+        if (!preset) {
+            engine.showStatus(i18n("Invalid preset URL."), "error");
+            return;
+        }
+        Wallhaven.applyPresetToConfig(preset, root.configuration);
+        scheduleConfigWrite();
+        engine.showStatus(i18n("Imported preset %1.", preset.name || ""), "info");
+        engine.resetSlideshow();
+    }
+
+    function applyLaptopMode() {
+        if (!root.configuration) {
+            return;
+        }
+        var settings = Wallhaven.laptopModeSettings();
+        var keys = Object.keys(settings);
+        for (var i = 0; i < keys.length; i++) {
+            root.configuration[keys[i]] = settings[keys[i]];
+        }
+        scheduleConfigWrite();
+        engine.showStatus(i18n("Laptop mode applied (metered, battery, idle pause, lighter effects)."), "info");
+    }
+
+    function useScreenNameAsSyncGroup() {
+        if (!root.configuration) {
+            return;
+        }
+        var group = diskCacheNamespace || "default";
+        root.configuration.SyncAdvanceEnabled = true;
+        root.configuration.SyncAdvanceGroup = group;
+        root.configuration.SyncProfilesEnabled = true;
+        scheduleConfigWrite();
+        if (root.saveSyncProfileForCurrentGroup) {
+            root.saveSyncProfileForCurrentGroup();
+        }
+        engine.showStatus(i18n("Sync group set to this screen (%1).", group), "info");
+    }
+
+    function clearSeenHistory() {
+        var count = seenIdsCount;
+        engine.clearSeenIds();
+        engine.showStatus(i18n("Cleared seen wallpaper history (%1 entries).", count), "info");
+    }
+
+    function showWallpaperInfo() {
+        var details = root.wallpaperDetailsText || "";
+        if (!details && root.currentWallpaperId && root.currentWallpaperId !== "wallpaper") {
+            details = i18n("ID: %1", root.currentWallpaperId);
+            if (root._currentTags) {
+                details += "\n" + root._currentTags;
+            }
+        }
+        if (!details) {
+            engine.showStatus(i18n("No wallpaper details yet."), "warn");
+            return;
+        }
+        engine.showStatus(details, "info", false);
+        root.sendSystemNotification(i18n("Wallpaper info"), details, false);
+    }
+
+    function exportDebugBundleToFile(destUrl) {
+        getDebugInfo(function(info) {
+            var dest = urlToLocalPath(destUrl) || String(destUrl || "");
+            if (!dest) {
+                engine.showStatus(i18n("Invalid export path."), "warn");
+                return;
+            }
+            settingsFileWriter.writeFile(dest, info, function() {
+                engine.showStatus(i18n("Exported bug report bundle."), "info");
+            });
+        });
     }
 
     function isDbusServiceAvailable() {
@@ -3126,6 +3240,9 @@ WallpaperItem {
                     break;
                 case "similar":
                     root.loadSimilarWallpapers();
+                    break;
+                case "info":
+                    root.showWallpaperInfo();
                     break;
                 case "importpreset":
                     if (cmd.query) {

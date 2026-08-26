@@ -48,4 +48,7 @@ python3 -m py_compile tools/wallhaven-dbus.py
 chmod +x scripts/check-config-wiring.sh
 ./scripts/check-config-wiring.sh
 
+chmod +x scripts/smoke-offline.sh
+./scripts/smoke-offline.sh
+
 echo "==> Structure OK (version ${version})"

@@ -40,7 +40,18 @@ Run after `./dev-helper.sh deploy` and before tagging a release.
 - [ ] Thumbnail + tags line visible when D-Bus online
 - [ ] History popup lists recent wallpapers; click restores one
 - [ ] Swipe like/dislike updates tag favorites/blocklist
+- [ ] Menu → Wallpaper info shows details / notification
 
 ## Sync groups
 
 - [ ] Save profile for sync group A, switch group B, switch back — search settings restore
+- [ ] “Use this screen’s name as sync group” sets group to cache namespace
+
+## 2.8 extras
+
+- [ ] Collection mode: load by username (public) without only API-key owner list
+- [ ] Import preset from `https://…json`
+- [ ] Diagnostics → Apply laptop mode toggles metered/battery/idle and disables heavy effects
+- [ ] Clear seen history resets count; duplicates resume avoiding after new views
+- [ ] Export bug report JSON writes a file
+- [ ] Desktop Wallpaper Actions → Wallpaper Info

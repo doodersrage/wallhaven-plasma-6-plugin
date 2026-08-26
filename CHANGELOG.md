@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.8.0 — 2026-08-26
+
+Distribution polish and the remaining 2.7 follow-ups.
+
+### Added
+- **Offline CI smoke** — `scripts/smoke-offline.sh` validates ctl/help, D-Bus Python parse, and optional live Ping
+- **Collections by username** — browse a user’s public collections without only using the API-key owner list
+- **HTTP/JSON preset import** — `https://…/preset.json` (or export snapshot) in addition to `wallhaven://preset/…`
+- **Laptop mode** — one-click power-saving preset (metered cache, battery/idle pause, lighter effects)
+- **Wallpaper info** — desktop Wallpaper Action, plasmoid menu, and `wallhaven-ctl.sh info`
+- **Per-screen sync group** — button sets sync group to this monitor’s cache namespace and saves a profile
+- **Bug report file export** — write the debug bundle JSON from Diagnostics
+- **Seen history UI** — show remembered ID count and clear button (history now keeps up to 2000 IDs)
+
+### Fixed
+- **Config wiring audit** — recognizes `property string cfg_*` (and other typed) bindings; missing bindings are errors, not warnings
+- **Settings filter keywords** — idle / upscaler / laptop / seen / bug / http discovery terms
+
+### Changed
+- Lock-screen sync help text clarifies desktop-only effects vs static image copy
+- Store/Flathub docs call out the 2.8.0 upload checklist
+
 ## 2.7.0 — 2026-08-25
 
 Hardening, UX polish, and opt-in 2.7 features.

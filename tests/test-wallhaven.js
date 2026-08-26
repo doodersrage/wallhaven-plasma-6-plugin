@@ -112,6 +112,31 @@ function testPresetSnapshotAndSimilarMode() {
     assert(JSON.parse(serialized).desk.SearchText === "nature", "sync profiles roundtrip");
 }
 
+function testLaptopModeAndRemotePreset() {
+    var laptop = Wallhaven.laptopModeSettings();
+    assert(laptop.MeteredCacheOnly === true, "laptop metered");
+    assert(laptop.PauseOnBatteryLow === true, "laptop battery");
+    assert(laptop.KenBurnsEnabled === false, "laptop disables ken burns");
+
+    assert(Wallhaven.isHttpPresetUrl("https://example.com/p.json") === true, "https preset url");
+    assert(Wallhaven.isHttpPresetUrl("wallhaven://preset/x") === false, "share url not http");
+
+    var fromSettings = Wallhaven.parseRemotePresetPayload(JSON.stringify({
+        settings: { SearchText: "forest", name: "ignored" },
+    }));
+    assert(fromSettings.SearchText === "forest", "remote settings wrapper");
+
+    var fromPreset = Wallhaven.parseRemotePresetPayload(JSON.stringify({
+        name: "Ocean",
+        SearchText: "ocean",
+    }));
+    assert(fromPreset.SearchText === "ocean", "remote named preset");
+
+    var userUrl = Wallhaven.buildCollectionsUrlForUser("alice", "key");
+    assert(userUrl.indexOf("/collections/alice") !== -1, "user collections path");
+    assert(userUrl.indexOf("apikey=") !== -1, "user collections apikey");
+}
+
 function testCollectionRotation() {
     var lines = "alice/42 # fav\nbob/7";
     var entries = Wallhaven.parseCollectionRotationLines(lines);
@@ -544,6 +569,7 @@ function testPickRandomIndexWeighting() {
     testWeatherAndFavoritesReachSearch,
     testPreferSharpMatchesWeightFn,
     testPresetSnapshotAndSimilarMode,
+    testLaptopModeAndRemotePreset,
     testCollectionRotation,
     testHistory,
     testTransitionPick,
