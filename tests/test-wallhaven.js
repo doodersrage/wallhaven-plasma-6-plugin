@@ -137,6 +137,36 @@ function testLaptopModeAndRemotePreset() {
     assert(userUrl.indexOf("apikey=") !== -1, "user collections apikey");
 }
 
+function testCollectionUrlFilterAndApiHealth() {
+    var parsed = Wallhaven.parseCollectionShareUrl("https://wallhaven.cc/collections/bob/42");
+    assert(parsed && parsed.username === "bob" && parsed.id === "42", "parse collection url");
+    assert(Wallhaven.parseCollectionShareUrl("carol/99").username === "carol", "parse shorthand");
+
+    var filtered = Wallhaven.filterCollectionsByQuery([
+        { username: "a", id: "1", label: "Nature", display: "a · Nature" },
+        { username: "b", id: "2", label: "Cars", display: "b · Cars" },
+    ], "nat");
+    assert(filtered.length === 1 && filtered[0].label === "Nature", "filter collections");
+
+    var health = Wallhaven.buildApiHealthSnapshot({
+        lastStatus: 429,
+        rateLimitCount: 3,
+        lastRateLimitAt: "t",
+    });
+    assert(health.rateLimitCount === 3, "health rate count");
+    assert(health.lastStatus === 429, "health status");
+
+    var snap = JSON.parse(Wallhaven.buildStatusSnapshot({
+        id: "abc",
+        details: "line",
+        apiHealth: health,
+        browseMode: "playlist",
+    }));
+    assert(snap.details === "line", "status details");
+    assert(snap.browseMode === "playlist", "status browse mode");
+    assert(snap.apiHealth.rateLimitCount === 3, "status api health");
+}
+
 function testCollectionRotation() {
     var lines = "alice/42 # fav\nbob/7";
     var entries = Wallhaven.parseCollectionRotationLines(lines);
@@ -570,6 +600,7 @@ function testPickRandomIndexWeighting() {
     testPreferSharpMatchesWeightFn,
     testPresetSnapshotAndSimilarMode,
     testLaptopModeAndRemotePreset,
+    testCollectionUrlFilterAndApiHealth,
     testCollectionRotation,
     testHistory,
     testTransitionPick,

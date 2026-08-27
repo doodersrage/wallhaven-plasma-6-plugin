@@ -20,9 +20,14 @@ PlasmoidItem {
         localThumbUrl: "",
         pageUrl: "",
         tags: "",
+        details: "",
+        resolution: "",
+        purity: "",
+        category: "",
         paused: false,
         slideshowActive: false,
         nextChangeMs: 0,
+        apiHealth: null,
     })
     property bool dbusOffline: false
     property int countdownMs: 0
@@ -144,9 +149,14 @@ PlasmoidItem {
                     localThumbUrl: parsed.localThumbUrl || "",
                     pageUrl: parsed.pageUrl || "",
                     tags: parsed.tags || "",
+                    details: parsed.details || "",
+                    resolution: parsed.resolution || "",
+                    purity: parsed.purity || "",
+                    category: parsed.category || "",
                     paused: !!parsed.paused,
                     slideshowActive: !!parsed.slideshowActive,
                     nextChangeMs: Math.max(0, parseInt(parsed.nextChangeMs, 10) || 0),
+                    apiHealth: parsed.apiHealth || null,
                 };
                 countdownMs = statusData.nextChangeMs;
             } catch (e) {
@@ -419,6 +429,49 @@ PlasmoidItem {
             opacity: 0.75
             text: statusData.tags
         }
+
+        QtControls2.Label {
+            Layout.fillWidth: true
+            visible: statusData.apiHealth && statusData.apiHealth.rateLimitCount > 0
+            font.pointSize: 7
+            opacity: 0.8
+            color: Kirigami.Theme.neutralTextColor
+            text: statusData.apiHealth
+                ? i18n("API rate-limited ×%1", statusData.apiHealth.rateLimitCount)
+                : ""
+        }
+    }
+
+    QtControls2.Popup {
+        id: detailsPopup
+        x: 0
+        y: fullRepresentation ? fullRepresentation.height : 0
+        width: Math.min(360, Math.max(220, parent ? parent.width : 280))
+        height: Math.min(280, detailsPopupLabel.implicitHeight + 48)
+        padding: 12
+        modal: false
+        focus: true
+        closePolicy: QtControls2.Popup.CloseOnEscape | QtControls2.Popup.CloseOnPressOutsideParent
+
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 6
+            QtControls2.Label {
+                Layout.fillWidth: true
+                font.bold: true
+                text: i18n("Wallpaper details")
+            }
+            QtControls2.ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                QtControls2.Label {
+                    id: detailsPopupLabel
+                    width: detailsPopup.availableWidth
+                    wrapMode: Text.WordWrap
+                    text: statusData.details || statusData.tags || i18n("No details yet.")
+                }
+            }
+        }
     }
 
     QtControls2.Popup {
@@ -485,8 +538,14 @@ PlasmoidItem {
         }
         QtControls2.MenuItem {
             text: i18n("Wallpaper info")
-            enabled: (statusData.id !== "" || statusData.tags !== "") && !root.dbusOffline
-            onTriggered: root.sendCommand("info")
+            enabled: (statusData.id !== "" || statusData.tags !== "" || statusData.details !== "") && !root.dbusOffline
+            onTriggered: {
+                if (statusData.details) {
+                    detailsPopup.open();
+                } else {
+                    root.sendCommand("info");
+                }
+            }
         }
         QtControls2.MenuItem {
             text: i18n("Recent wallpapers…")

@@ -57,6 +57,7 @@ WallpaperItem {
 
     function effectiveOfflineOnly() {
         return cfg.OfflineOnlyMode
+            || cfg.BrowseMode === "playlist"
             || (cfg.MeteredCacheOnly && root.meteredConnection);
     }
 
@@ -137,6 +138,34 @@ WallpaperItem {
     property int _lastSyncAdvanceTs: 0
     property string _instanceId: Math.random().toString(36).slice(2, 10)
     property string wallpaperDetailsText: ""
+    property string wallpaperDetailsResolution: ""
+    property string wallpaperDetailsPurity: ""
+    property string wallpaperDetailsCategory: ""
+    property bool wallpaperDetailsOpen: false
+    property int _apiLastStatus: 0
+    property string _apiLastError: ""
+    property int _apiRateLimitCount: 0
+    property string _apiLastRateLimitAt: ""
+    property string _apiLastSuccessAt: ""
+    readonly property var apiHealth: Wallhaven.buildApiHealthSnapshot({
+        lastStatus: _apiLastStatus,
+        lastError: _apiLastError,
+        rateLimitCount: _apiRateLimitCount,
+        lastRateLimitAt: _apiLastRateLimitAt,
+        lastSuccessAt: _apiLastSuccessAt,
+    })
+    readonly property string apiHealthSummary: {
+        if (_apiRateLimitCount > 0 && _apiLastStatus === 429) {
+            return i18n("Rate limited (429) — %1 time(s)", _apiRateLimitCount);
+        }
+        if (_apiLastStatus >= 400) {
+            return i18n("Last API error: HTTP %1", _apiLastStatus);
+        }
+        if (_apiLastSuccessAt) {
+            return i18n("API OK");
+        }
+        return i18n("API idle");
+    }
     property int _nextSlideshowAt: 0
     property var _metrics: Wallhaven.createMetricsState()
     property int _batteryPercent: 100
@@ -819,13 +848,19 @@ WallpaperItem {
                 localThumbUrl: localThumb,
                 pageUrl: currentPageUrl,
                 tags: _currentTags,
+                details: wallpaperDetailsText,
+                resolution: wallpaperDetailsResolution,
+                purity: wallpaperDetailsPurity,
+                category: wallpaperDetailsCategory,
                 paused: cfg.SlideshowPaused,
                 slideshowActive: slideshowActive(),
                 nextChangeMs: nextMs,
                 attribution: attributionText,
                 syncGroup: cfg.SyncAdvanceGroup || "default",
+                browseMode: cfg.BrowseMode || "",
                 varietyWatchEnabled: cfg.VarietyWatchEnabled,
                 metrics: _metrics,
+                apiHealth: root.apiHealth,
             }),
         );
         publishDbusConfig();
@@ -1138,8 +1173,42 @@ WallpaperItem {
             engine.showStatus(i18n("No wallpaper details yet."), "warn");
             return;
         }
+        root.wallpaperDetailsOpen = true;
         engine.showStatus(details, "info", false);
         root.sendSystemNotification(i18n("Wallpaper info"), details, false);
+    }
+
+    function saveApiKeyToKWallet() {
+        var key = String(cfg.ApiKey || "").trim();
+        if (!key) {
+            engine.showStatus(i18n("Enter an API key first."), "warn");
+            return;
+        }
+        var escaped = key.replace(/'/g, "'\\''");
+        dbusHelper.runArgv([
+            "bash", "-lc",
+            "printf '%s' '" + escaped + "' | kwallet-query -w wallhaven -f org.robertsm.wallhaven apikey 2>/dev/null"
+                + " || printf '%s' '" + escaped + "' | kwallet-query --write-password apikey -f org.robertsm.wallhaven -w kdewallet 2>/dev/null",
+        ], function() {
+            if (root.configuration) {
+                root.configuration.UseKWalletForApiKey = true;
+                scheduleConfigWrite();
+            }
+            engine.showStatus(i18n("API key saved to KWallet (folder org.robertsm.wallhaven)."), "info");
+        });
+    }
+
+    function noteApiResult(status, errorText) {
+        root._apiLastStatus = status || 0;
+        root._apiLastError = String(errorText || "");
+        if (status === 429) {
+            root._apiRateLimitCount = (root._apiRateLimitCount || 0) + 1;
+            root._apiLastRateLimitAt = new Date().toISOString();
+        } else if (status === 200) {
+            root._apiLastSuccessAt = new Date().toISOString();
+            root._apiLastError = "";
+        }
+        publishStatus();
     }
 
     function exportDebugBundleToFile(destUrl) {
@@ -1906,6 +1975,7 @@ WallpaperItem {
                 }
                 settled = true;
                 finishXhr();
+                root.noteApiResult(status, text);
                 if (status === 0) {
                     root._needsReconnectFetch = true;
                     root._connectivityOnline = false;
@@ -1919,6 +1989,7 @@ WallpaperItem {
                 }
                 settled = true;
                 finishXhr();
+                root.noteApiResult(200, "");
                 onSuccess(json);
             }
 
@@ -2027,7 +2098,8 @@ WallpaperItem {
             var config = configObject();
             var fetchRequestId = expectedRequestId !== undefined ? expectedRequestId : requestId;
 
-            if (config.OfflineOnlyMode || (config.MeteredCacheOnly && root.meteredConnection)) {
+            if (config.OfflineOnlyMode || config.BrowseMode === "playlist"
+                    || (config.MeteredCacheOnly && root.meteredConnection)) {
                 onDone(null);
                 return;
             }
@@ -2182,6 +2254,10 @@ WallpaperItem {
                 }
                 root._currentTags = Wallhaven.tagsToCopyString(json.data.tags);
                 root.wallpaperDetailsText = Wallhaven.formatWallpaperDetails(wallpaper, json.data);
+                root.wallpaperDetailsResolution = resolution;
+                root.wallpaperDetailsPurity = String(json.data.purity || wallpaper.purity || "");
+                root.wallpaperDetailsCategory = String(json.data.category || wallpaper.category || "");
+                root.publishStatus();
                 if (root.configuration) {
                     root.configuration.PreviewWallpaperDetails = root.wallpaperDetailsText;
                     scheduleConfigWrite();
@@ -2263,7 +2339,14 @@ WallpaperItem {
         }
 
         function showNextCachedWallpaper(immediate, fromHistory) {
-            var ids = Wallhaven.listCachedIds(root._diskCacheIndex, configObject());
+            var config = configObject();
+            var ids = Wallhaven.listCachedIds(root._diskCacheIndex, config);
+            if (cfg.BrowseMode === "playlist" && cfg.OfflinePlaylistPinnedOnly) {
+                var pinned = Wallhaven.parsePinnedCacheIds(cfg.PinnedCacheIdsJson || "[]");
+                ids = ids.filter(function(id) {
+                    return pinned.indexOf(id) !== -1;
+                });
+            }
             if (!ids.length) {
                 return false;
             }
@@ -2271,7 +2354,9 @@ WallpaperItem {
             var id = ids[root._offlineCacheCursor];
             var wp = Wallhaven.makeCachedWallpaper(id);
             var remote = Wallhaven.thumbUrlForId(id);
-            if (cfg.OfflineOnlyMode) {
+            if (cfg.BrowseMode === "playlist") {
+                showStatus(i18n("Playlist — cached wallpaper."), "info");
+            } else if (cfg.OfflineOnlyMode) {
                 showStatus(i18n("Offline mode — showing cached wallpaper."), "info");
             } else {
                 showStatus(i18n("Showing cached wallpaper (offline)."), "warn");
@@ -2296,11 +2381,16 @@ WallpaperItem {
             busy = true;
             root.loading = true;
             if (!showNextCachedWallpaper(immediate, fromHistory)) {
-                showStatus(i18n("No cached wallpapers available."), "warn");
-                if (cfg.OfflineOnlyMode && cfg.NotifyOnError) {
+                var emptyMsg = cfg.BrowseMode === "playlist"
+                    ? (cfg.OfflinePlaylistPinnedOnly
+                        ? i18n("Playlist is empty — pin wallpapers in the disk cache first.")
+                        : i18n("Playlist is empty — enable disk cache and download some wallpapers first."))
+                    : i18n("No cached wallpapers available.");
+                showStatus(emptyMsg, "warn");
+                if ((cfg.OfflineOnlyMode || cfg.BrowseMode === "playlist") && cfg.NotifyOnError) {
                     root.sendSystemNotification(
                         i18n("Wallhaven"),
-                        i18n("Offline-only mode is on but the disk cache is empty."),
+                        emptyMsg,
                         true,
                     );
                 }
@@ -3783,6 +3873,71 @@ WallpaperItem {
             color: "#ffffff"
             font.pointSize: Math.max(7, Math.round(9 * (cfg.AttributionFontScale || 100) / 100))
             text: root.attributionText
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            enabled: attributionBanner.attributionVisible
+            onClicked: root.showWallpaperInfo()
+        }
+    }
+
+    Rectangle {
+        id: detailsSheet
+        z: 120
+        anchors.fill: parent
+        color: "#99000000"
+        visible: root.wallpaperDetailsOpen
+        enabled: visible
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root.wallpaperDetailsOpen = false
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 48, 480)
+            height: Math.min(detailsSheetLabel.implicitHeight + 72, parent.height - 48)
+            radius: 10
+            color: "#e6101014"
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: { /* keep open */ }
+            }
+
+            Column {
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 10
+
+                QQC2.Label {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    color: "white"
+                    font.bold: true
+                    text: i18n("Wallpaper details")
+                }
+
+                QQC2.ScrollView {
+                    width: parent.width
+                    height: parent.height - 56
+                    clip: true
+                    QQC2.Label {
+                        id: detailsSheetLabel
+                        width: detailsSheet.width - 80
+                        wrapMode: Text.WordWrap
+                        color: "#f0f0f0"
+                        text: root.wallpaperDetailsText || i18n("No details yet.")
+                    }
+                }
+
+                QQC2.Button {
+                    text: i18n("Close")
+                    onClicked: root.wallpaperDetailsOpen = false
+                }
+            }
         }
     }
 

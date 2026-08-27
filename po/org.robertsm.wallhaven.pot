@@ -75,6 +75,12 @@ msgstr ""
 msgid "Any"
 msgstr ""
 
+msgid "API health:"
+msgstr ""
+
+msgid "API idle"
+msgstr ""
+
 msgid "API key:"
 msgstr ""
 
@@ -87,10 +93,19 @@ msgstr ""
 msgid "API key required for favorites mode."
 msgstr ""
 
+msgid "API key saved to KWallet (folder org.robertsm.wallhaven)."
+msgstr ""
+
 msgid "API key validation failed (%1)."
 msgstr ""
 
+msgid "API OK"
+msgstr ""
+
 msgid "API order:"
+msgstr ""
+
+msgid "API rate-limited ×%1"
 msgstr ""
 
 msgid "API sorting:"
@@ -115,6 +130,9 @@ msgid "Apply preset:"
 msgstr ""
 
 msgid "Apply selected preset"
+msgstr ""
+
+msgid "Apply URL:"
 msgstr ""
 
 msgid "Apply Variety search to Wallhaven"
@@ -285,6 +303,9 @@ msgstr ""
 msgid "Click to open · drag right to like, left to mute tags"
 msgstr ""
 
+msgid "Close"
+msgstr ""
+
 msgid "Collection"
 msgstr ""
 
@@ -295,6 +316,9 @@ msgid "Collection list:"
 msgstr ""
 
 msgid "Collections:"
+msgstr ""
+
+msgid "Collection URL:"
 msgstr ""
 
 msgid "Collection user:"
@@ -390,6 +414,9 @@ msgstr ""
 msgid "Could not parse collections response."
 msgstr ""
 
+msgid "Could not parse collection URL. Use https://wallhaven.cc/collections/user/id"
+msgstr ""
+
 msgid "Could not parse search response."
 msgstr ""
 
@@ -409,6 +436,9 @@ msgid "Current Wallpaper"
 msgstr ""
 
 msgid "Cyan Blue"
+msgstr ""
+
+msgid "Cycles the disk cache (and optional pinned-only subset) with no network fetches. Pin wallpapers under Advanced → Cache."
 msgstr ""
 
 msgid "Cycle through multiple collections on each advance"
@@ -585,6 +615,12 @@ msgstr ""
 msgid "File type:"
 msgstr ""
 
+msgid "Filter by name, id, or username"
+msgstr ""
+
+msgid "Filter collections:"
+msgstr ""
+
 msgid "Filters"
 msgstr ""
 
@@ -622,6 +658,9 @@ msgid "Gray"
 msgstr ""
 
 msgid "Green"
+msgstr ""
+
+msgid "https://wallhaven.cc/collections/user/12345"
 msgstr ""
 
 msgid "ID: %1"
@@ -738,13 +777,16 @@ msgstr ""
 msgid "Large (full wallpaper)"
 msgstr ""
 
+msgid "Last API error: HTTP %1"
+msgstr ""
+
 msgid "Light Gray"
 msgstr ""
 
 msgid "Like (boost these tags)"
 msgstr ""
 
-msgid "Load API key from KWallet on startup"
+msgid "Load API key from KWallet on startup (recommended)"
 msgstr ""
 
 msgid "Load collections"
@@ -861,6 +903,12 @@ msgstr ""
 msgid "No collections found."
 msgstr ""
 
+msgid "No collections match “%1”."
+msgstr ""
+
+msgid "No details yet."
+msgstr ""
+
 msgid "No favorites collection found."
 msgstr ""
 
@@ -924,13 +972,16 @@ msgstr ""
 msgid "Offline only:"
 msgstr ""
 
-msgid "Offline-only mode is on but the disk cache is empty."
+msgid "Offline playlist"
 msgstr ""
 
 msgid "Olive"
 msgstr ""
 
 msgid "On errors:"
+msgstr ""
+
+msgid "Only play pinned cache entries"
 msgstr ""
 
 msgid "On refresh:"
@@ -940,6 +991,9 @@ msgid "Opened on Wallhaven — use the heart button to favorite (no public write
 msgstr ""
 
 msgid "Open in Browser"
+msgstr ""
+
+msgid "Open settings while Wallhaven is the active wallpaper to see live API health."
 msgstr ""
 
 msgid "Open wallpaper page"
@@ -976,6 +1030,9 @@ msgid "Parallax:"
 msgstr ""
 
 msgid "Parallax strength:"
+msgstr ""
+
+msgid "Parse collection URL"
 msgstr ""
 
 msgid "Pause:"
@@ -1029,6 +1086,18 @@ msgstr ""
 msgid "Playback"
 msgstr ""
 
+msgid "Playlist — cached wallpaper."
+msgstr ""
+
+msgid "Playlist is empty — enable disk cache and download some wallpapers first."
+msgstr ""
+
+msgid "Playlist is empty — pin wallpapers in the disk cache first."
+msgstr ""
+
+msgid "Playlist pins:"
+msgstr ""
+
 msgid "PNG image (*.png)"
 msgstr ""
 
@@ -1071,7 +1140,13 @@ msgstr ""
 msgid "Random"
 msgstr ""
 
+msgid "Rate limited (429) — %1 time(s)"
+msgstr ""
+
 msgid "Rate limited by Wallhaven. Retry %1/%2 in %3s…"
+msgstr ""
+
+msgid "Rate-limit hits this session: %1. Last at %2."
 msgstr ""
 
 msgid "Ratio:"
@@ -1167,6 +1242,9 @@ msgstr ""
 msgid "Saturation:"
 msgstr ""
 
+msgid "Save current API key to KWallet"
+msgstr ""
+
 msgid "Save current search"
 msgstr ""
 
@@ -1186,6 +1264,9 @@ msgid "Save search profile for this sync group"
 msgstr ""
 
 msgid "Save settings to file…"
+msgstr ""
+
+msgid "Save to KWallet:"
 msgstr ""
 
 msgid "Save Wallpaper"
@@ -1348,6 +1429,9 @@ msgid "Speed up Ken Burns panning while music is playing (via MPRIS)"
 msgstr ""
 
 msgid "Start D-Bus service"
+msgstr ""
+
+msgid "Stores the key in KWallet folder org.robertsm.wallhaven (entry apikey). Prefer this over leaving the key only in wallpaper settings."
 msgstr ""
 
 msgid "Swipe the panel widget thumbnail left/right (or use its menu) to like/dislike the current wallpaper's tags."
@@ -1545,6 +1629,9 @@ msgstr ""
 msgid "Wallpaper Actions: Reload / Next / Similar / Pause / Copy / Block / Save."
 msgstr ""
 
+msgid "Wallpaper details"
+msgstr ""
+
 msgid "Wallpaper History"
 msgstr ""
 
@@ -1593,7 +1680,7 @@ msgstr ""
 msgid "White"
 msgstr ""
 
-msgid "With an API key, loads your collections. Or enter a username above to browse that user’s public collections."
+msgid "With an API key, loads your collections. Or enter a username / paste a collection URL to browse public collections, then filter by name."
 msgstr ""
 
 msgid "Would apply search: %1"

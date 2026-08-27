@@ -221,7 +221,7 @@ var EXPORTABLE_SETTINGS_KEYS = [
     "KenBurnsSpeed", "ShowAttribution", "RequestTimeoutSec", "RetryDelaySec",
     "RetryAttempts", "NotifyOnRefresh", "NotifyOnError", "ShowStatusBanner",
     "DiskCacheEnabled", "DiskCacheMaxSlots", "OfflineCacheFallback",
-    "OfflineOnlyMode", "TimeOfDayEnabled", "DaySearch", "NightSearch",
+    "OfflineOnlyMode", "OfflinePlaylistPinnedOnly", "TimeOfDayEnabled", "DaySearch", "NightSearch",
     "BlockedIdsJson", "SearchPresetsJson", "FileTypeFilter", "IntervalJitterPercent",
     "DayIntervalMin", "NightIntervalMin", "TransitionMode", "AttributionCorner",
     "AttributionAutoHideSec", "AttributionFontScale", "UseKWalletForApiKey",
@@ -748,7 +748,7 @@ function shouldFilterByCategories(cfg) {
         return false;
     }
     var mode = cfg.BrowseMode || "search";
-    return mode !== "collection" && mode !== "favorites";
+    return mode !== "collection" && mode !== "favorites" && mode !== "playlist";
 }
 
 function wallpaperMatchesPurity(wallpaper, cfg) {
@@ -804,12 +804,68 @@ function listCachedIds(index, cfg) {
     return ids;
 }
 
-function pickRandomCachedId(index) {
-    var ids = listCachedIds(index);
+function pickRandomCachedId(index, cfg, pinnedOnly) {
+    var ids = listCachedIds(index, cfg);
+    if (pinnedOnly) {
+        var pinned = parsePinnedCacheIds(cfg && cfg.PinnedCacheIdsJson);
+        ids = ids.filter(function(id) {
+            return pinned.indexOf(id) !== -1;
+        });
+    }
     if (!ids.length) {
         return "";
     }
     return ids[(Math.random() * ids.length) | 0];
+}
+
+function parseCollectionShareUrl(raw) {
+    var text = String(raw || "").trim();
+    if (!text) {
+        return null;
+    }
+    // https://wallhaven.cc/collections/username/12345
+    var m = text.match(/wallhaven\.cc\/collections\/([^\/\s?#]+)\/(\d+)/i);
+    if (m) {
+        return { username: m[1], id: m[2] };
+    }
+    // username/12345 or username:12345
+    m = text.match(/^([A-Za-z0-9_-]+)[\/:](\d+)$/);
+    if (m) {
+        return { username: m[1], id: m[2] };
+    }
+    return null;
+}
+
+function filterCollectionsByQuery(entries, query) {
+    entries = entries || [];
+    query = String(query || "").trim().toLowerCase();
+    if (!query) {
+        return entries;
+    }
+    return entries.filter(function(entry) {
+        if (!entry) {
+            return false;
+        }
+        var hay = [
+            entry.username || "",
+            entry.id || "",
+            entry.label || "",
+            entry.display || "",
+        ].join(" ").toLowerCase();
+        return hay.indexOf(query) !== -1;
+    });
+}
+
+function buildApiHealthSnapshot(state) {
+    state = state || {};
+    return {
+        lastStatus: parseInt(state.lastStatus, 10) || 0,
+        lastError: String(state.lastError || ""),
+        rateLimitCount: parseInt(state.rateLimitCount, 10) || 0,
+        lastRateLimitAt: String(state.lastRateLimitAt || ""),
+        lastSuccessAt: String(state.lastSuccessAt || ""),
+        healthy: state.lastStatus === 200 || state.lastStatus === 0 && !state.lastError,
+    };
 }
 
 function parallaxStrengthNorm(strength) {
@@ -1288,13 +1344,19 @@ function buildStatusSnapshot(data) {
         localThumbUrl: data.localThumbUrl || "",
         pageUrl: data.pageUrl || "",
         tags: data.tags || "",
+        details: data.details || "",
+        resolution: data.resolution || "",
+        purity: data.purity || "",
+        category: data.category || "",
         paused: !!data.paused,
         slideshowActive: !!data.slideshowActive,
         nextChangeMs: Math.max(0, parseInt(data.nextChangeMs, 10) || 0),
         attribution: data.attribution || "",
         varietyWatchEnabled: !!data.varietyWatchEnabled,
         syncGroup: data.syncGroup || "default",
+        browseMode: data.browseMode || "",
         metrics: data.metrics || null,
+        apiHealth: data.apiHealth || null,
         updatedAt: new Date().toISOString(),
     }, null, 2);
 }
@@ -1556,7 +1618,7 @@ function buildPresetShareUrl(preset) {
 }
 
 function pluginVersion() {
-    return "2.8.0";
+    return "2.9.0";
 }
 
 function appendDebugLogLine(existing, line, maxLines) {

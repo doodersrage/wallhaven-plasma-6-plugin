@@ -16,9 +16,28 @@ Enable **Wallhaven** in System Settings → Search → Plasma Search (KRunner).
 
 **Control without opening settings:** see [docs/CONTROL.md](docs/CONTROL.md) (plasmoid, Meta+Alt shortcuts, KRunner, D-Bus).
 
+**API key / KWallet:** see [docs/KWALLET.md](docs/KWALLET.md).
+
 **KDE Store listing:** [opendesktop.org/p/2368647](https://www.opendesktop.org/p/2368647/) — see [docs/KDE_STORE.md](docs/KDE_STORE.md) for maintainer notes.
 
+## v2.9.0 — playlist, details, and safer keys
+
+| Area | Highlights |
+|------|------------|
+| **Settings** | Filter box actually hides non-matching rows |
+| **Browse** | Offline playlist (cache / pinned-only) |
+| **Collections** | Paste collection URLs; filter by name |
+| **Details** | Desktop sheet + plasmoid popup |
+| **API** | Rate-limit / health in Diagnostics and plasmoid |
+| **Secrets** | Save API key to KWallet; see [docs/KWALLET.md](docs/KWALLET.md) |
+
+```bash
+./dev-helper.sh deploy
+./dev-helper.sh release              # tag v2.9.0
+```
+
 ## v2.8.0 — distribution & follow-ups
+
 
 Closes the post-2.7 checklist: wiring audit correctness, CI smoke, collections/presets UX, laptop mode, wallpaper info, and bug-report export.
 

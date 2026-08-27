@@ -113,6 +113,7 @@ ColumnLayout {
     property alias cfg_DiskCacheMaxSlots: diskCacheSlotsSpin.value
     property alias cfg_OfflineCacheFallback: offlineCacheCheck.checked
     property alias cfg_OfflineOnlyMode: offlineOnlyCheck.checked
+    property alias cfg_OfflinePlaylistPinnedOnly: playlistPinnedCheck.checked
     property alias cfg_MeteredCacheOnly: meteredCacheCheck.checked
     property alias cfg_UpscaleEnabled: upscaleCheck.checked
     property alias cfg_CacheDownloadOriginal: cacheDownloadOriginalCheck.checked
@@ -129,6 +130,8 @@ ColumnLayout {
     property string cfg_TimeCapsulesJson
     property string cfg_SearchPresetsJson
     property alias cfg_UseKWalletForApiKey: kwalletCheck.checked
+    property string collectionSearchQuery: ""
+    property string collectionUrlFieldText: ""
     property alias cfg_ControlBusEnabled: controlBusCheck.checked
     property alias cfg_SyncAdvanceEnabled: syncAdvanceCheck.checked
     property alias cfg_SyncAdvanceGroup: syncGroupField.text
@@ -174,7 +177,13 @@ ColumnLayout {
         "music", "weather", "achievement", "streak", "milestone", "theme", "capsule",
         "swipe", "like", "dislike", "idle", "upscaler", "original", "blur", "profile",
         "laptop", "metered", "seen", "duplicate", "info", "bug", "github", "http",
+        "playlist", "pinned", "health", "rate", "limit", "kwallet", "wallet", "secret",
+        "details", "collection", "url",
     ]
+
+    function rowVisible(keywords) {
+        return fieldVisible(keywords);
+    }
     property bool showSetupWizard: wallpaperConfiguration && !wallpaperConfiguration.SetupWizardCompleted
     property bool dbusPollCompleted: false
     property bool dbusPolledOnline: false
@@ -643,6 +652,7 @@ ColumnLayout {
 
             QtControls2.Label {
                 Kirigami.FormData.label: i18n("Getting started:")
+                    visible: rowVisible(["getting", "started"])
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
                 text: i18n("Optional: add your Wallhaven API key for NSFW and favorites.")
@@ -652,6 +662,7 @@ ColumnLayout {
                 id: wizardApiKeyField
 
                 Kirigami.FormData.label: i18n("API key:")
+                    visible: rowVisible(["api", "key"])
                 Layout.fillWidth: true
                 placeholderText: i18n("API key (optional)")
                 echoMode: TextInput.Password
@@ -663,6 +674,7 @@ ColumnLayout {
                 id: wizardSearchField
 
                 Kirigami.FormData.label: i18n("Search:")
+                    visible: rowVisible(["search"])
                 Layout.fillWidth: true
                 placeholderText: i18n("Search tags, e.g. nature landscape")
                 text: searchTextField.text
@@ -673,6 +685,7 @@ ColumnLayout {
                 id: wizardIntervalSpin
 
                 Kirigami.FormData.label: i18n("Slideshow interval (min):")
+                    visible: rowVisible(["slideshow", "interval", "min"])
                 from: 0
                 to: 240
                 value: intervalSpin.value > 0 ? intervalSpin.value : 30
@@ -681,12 +694,14 @@ ColumnLayout {
 
             QtControls2.Button {
                 Kirigami.FormData.label: i18n("Presets:")
+                    visible: rowVisible(["presets"])
                 text: i18n("Import curated presets")
                 onClicked: root.importCuratedPresets()
             }
 
             QtControls2.Label {
                 Kirigami.FormData.label: i18n("Setup status:")
+                    visible: rowVisible(["setup", "status"])
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
                 opacity: 0.85
@@ -948,12 +963,14 @@ ColumnLayout {
         id: collectionsLoader
 
         property var entries: []
+        property var allEntries: []
         property bool loading: false
         property string errorText: ""
 
         function refresh() {
             errorText = "";
             entries = [];
+            allEntries = [];
             var user = collectionUserField.text.trim();
             var url = "";
             if (user) {
@@ -976,8 +993,9 @@ ColumnLayout {
                 loading = false;
                 if (xhr.status === 200) {
                     try {
-                        entries = Wallhaven.parseCollectionsResponse(JSON.parse(xhr.responseText));
-                        if (!entries.length)
+                        allEntries = Wallhaven.parseCollectionsResponse(JSON.parse(xhr.responseText));
+                        applyFilter();
+                        if (!allEntries.length)
                             errorText = i18n("No collections found.");
                         else
                             syncPickerSelection();
@@ -999,6 +1017,14 @@ ColumnLayout {
             xhr.send();
         }
 
+        function applyFilter() {
+            entries = Wallhaven.filterCollectionsByQuery(allEntries, root.collectionSearchQuery);
+            if (allEntries.length && !entries.length)
+                errorText = i18n("No collections match “%1”.", root.collectionSearchQuery);
+            else if (entries.length)
+                errorText = "";
+        }
+
         function applySelection(index) {
             if (index < 0 || index >= entries.length)
                 return ;
@@ -1006,6 +1032,18 @@ ColumnLayout {
             var entry = entries[index];
             collectionUserField.text = entry.username;
             collectionIdField.text = entry.id;
+        }
+
+        function applyShareUrl(raw) {
+            var parsed = Wallhaven.parseCollectionShareUrl(raw);
+            if (!parsed) {
+                errorText = i18n("Could not parse collection URL. Use https://wallhaven.cc/collections/user/id");
+                return;
+            }
+            collectionUserField.text = parsed.username;
+            collectionIdField.text = parsed.id;
+            errorText = "";
+            refresh();
         }
 
         function syncPickerSelection() {
@@ -1096,6 +1134,7 @@ ColumnLayout {
                     id: browseModeCombo
 
                     Kirigami.FormData.label: i18n("Browse mode:")
+                    visible: rowVisible(["browse", "mode", "source", "search", "collection", "playlist", "offline", "favorites", "similar"])
                     textRole: "label"
                     valueRole: "value"
                     model: [{
@@ -1110,7 +1149,27 @@ ColumnLayout {
                     }, {
                         "label": i18n("Favorites"),
                         "value": "favorites"
+                    }, {
+                        "label": i18n("Offline playlist"),
+                        "value": "playlist"
                     }]
+                    visible: rowVisible(["browse", "mode", "source", "search", "collection", "playlist", "offline"])
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: browseModeCombo.currentValue === "playlist" && rowVisible(["playlist", "offline", "cache", "pinned"])
+                    text: i18n("Cycles the disk cache (and optional pinned-only subset) with no network fetches. Pin wallpapers under Advanced → Cache.")
+                }
+
+                QtControls2.CheckBox {
+                    id: playlistPinnedCheck
+                    Kirigami.FormData.label: i18n("Playlist pins:")
+                    text: i18n("Only play pinned cache entries")
+                    visible: browseModeCombo.currentValue === "playlist" && rowVisible(["playlist", "pinned", "cache", "offline"])
                 }
 
                 QtControls2.Label {
@@ -1168,12 +1227,14 @@ ColumnLayout {
                     id: apiKeyField
 
                     Kirigami.FormData.label: i18n("API key:")
+                    visible: rowVisible(["api", "key"])
                     placeholderText: i18n("Optional; required for NSFW and favorites")
                     echoMode: TextInput.Password
                 }
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Validate key:")
+                    visible: rowVisible(["validate", "key"])
                     text: apiKeyValidator.checking ? i18n("Checking…") : i18n("Test API key")
                     enabled: apiKeyField.text !== "" && !apiKeyValidator.checking
                     onClicked: apiKeyValidator.validate()
@@ -1192,33 +1253,19 @@ ColumnLayout {
                     id: kwalletCheck
 
                     Kirigami.FormData.label: i18n("KWallet:")
-                    text: i18n("Load API key from KWallet on startup")
-                }
-
-                QtControls2.TextField {
-                    id: collectionUserField
-
-                    Kirigami.FormData.label: i18n("Collection user:")
-                    placeholderText: i18n("Username for collection/favorites override")
-                    visible: browseModeCombo.currentValue !== "search"
-                }
-
-                QtControls2.TextField {
-                    id: collectionIdField
-
-                    Kirigami.FormData.label: i18n("Collection ID:")
-                    visible: browseModeCombo.currentValue === "collection"
+                    text: i18n("Load API key from KWallet on startup (recommended)")
+                    visible: rowVisible(["kwallet", "wallet", "api", "key", "secret", "security"])
                 }
 
                 QtControls2.Button {
-                    id: loadCollectionsButton
-
-                    Kirigami.FormData.label: i18n("Collections:")
-                    text: collectionsLoader.loading ? i18n("Loading…") : i18n("Load collections")
-                    visible: browseModeCombo.currentValue === "collection"
-                    enabled: !collectionsLoader.loading
-                        && (apiKeyField.text !== "" || collectionUserField.text.trim() !== "")
-                    onClicked: collectionsLoader.refresh()
+                    Kirigami.FormData.label: i18n("Save to KWallet:")
+                    text: i18n("Save current API key to KWallet")
+                    visible: rowVisible(["kwallet", "wallet", "api", "key", "secret", "security"])
+                    enabled: liveWallpaper !== null && apiKeyField.text.trim() !== ""
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.saveApiKeyToKWallet)
+                            liveWallpaper.saveApiKeyToKWallet();
+                    }
                 }
 
                 QtControls2.Label {
@@ -1226,8 +1273,75 @@ ColumnLayout {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     opacity: 0.7
-                    visible: browseModeCombo.currentValue === "collection"
-                    text: i18n("With an API key, loads your collections. Or enter a username above to browse that user’s public collections.")
+                    visible: rowVisible(["kwallet", "wallet", "api", "key", "secret"])
+                    text: i18n("Stores the key in KWallet folder org.robertsm.wallhaven (entry apikey). Prefer this over leaving the key only in wallpaper settings.")
+                }
+
+                QtControls2.TextField {
+                    id: collectionUserField
+
+                    Kirigami.FormData.label: i18n("Collection user:")
+                    placeholderText: i18n("Username for collection/favorites override")
+                    visible: browseModeCombo.currentValue !== "search" && browseModeCombo.currentValue !== "playlist" && browseModeCombo.currentValue !== "similar"
+                        && rowVisible(["collection", "user", "favorites"])
+                }
+
+                QtControls2.TextField {
+                    id: collectionIdField
+
+                    Kirigami.FormData.label: i18n("Collection ID:")
+                    visible: browseModeCombo.currentValue === "collection" && rowVisible(["collection", "id"])
+                }
+
+                QtControls2.TextField {
+                    id: collectionUrlField
+
+                    Kirigami.FormData.label: i18n("Collection URL:")
+                    placeholderText: i18n("https://wallhaven.cc/collections/user/12345")
+                    visible: browseModeCombo.currentValue === "collection" && rowVisible(["collection", "url", "share"])
+                    text: root.collectionUrlFieldText
+                    onTextChanged: root.collectionUrlFieldText = text
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Apply URL:")
+                    text: i18n("Parse collection URL")
+                    visible: browseModeCombo.currentValue === "collection" && rowVisible(["collection", "url", "share"])
+                    enabled: collectionUrlField.text.trim() !== ""
+                    onClicked: collectionsLoader.applyShareUrl(collectionUrlField.text.trim())
+                }
+
+                QtControls2.Button {
+                    id: loadCollectionsButton
+
+                    Kirigami.FormData.label: i18n("Collections:")
+                    text: collectionsLoader.loading ? i18n("Loading…") : i18n("Load collections")
+                    visible: browseModeCombo.currentValue === "collection" && rowVisible(["collection", "load", "browse"])
+                    enabled: !collectionsLoader.loading
+                        && (apiKeyField.text !== "" || collectionUserField.text.trim() !== "")
+                    onClicked: collectionsLoader.refresh()
+                }
+
+                QtControls2.TextField {
+                    id: collectionFilterField
+
+                    Kirigami.FormData.label: i18n("Filter collections:")
+                    placeholderText: i18n("Filter by name, id, or username")
+                    visible: browseModeCombo.currentValue === "collection" && collectionsLoader.allEntries.length > 0
+                        && rowVisible(["collection", "filter", "search", "find"])
+                    onTextChanged: {
+                        root.collectionSearchQuery = text.trim();
+                        collectionsLoader.applyFilter();
+                    }
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: browseModeCombo.currentValue === "collection" && rowVisible(["collection"])
+                    text: i18n("With an API key, loads your collections. Or enter a username / paste a collection URL to browse public collections, then filter by name.")
                 }
 
                 QtControls2.ComboBox {
@@ -1236,6 +1350,7 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Pick collection:")
                     textRole: "display"
                     visible: browseModeCombo.currentValue === "collection" && collectionsLoader.entries.length > 0
+                        && rowVisible(["collection", "pick"])
                     model: collectionsLoader.entries
                     onActivated: collectionsLoader.applySelection(currentIndex)
                 }
@@ -1246,6 +1361,7 @@ ColumnLayout {
                     wrapMode: Text.WordWrap
                     opacity: 0.7
                     visible: browseModeCombo.currentValue === "collection" && collectionsLoader.errorText !== ""
+                        && rowVisible(["collection"])
                     text: collectionsLoader.errorText
                 }
 
@@ -1254,7 +1370,7 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("Rotate collections:")
                     text: i18n("Cycle through multiple collections on each advance")
-                    visible: browseModeCombo.currentValue === "collection"
+                    visible: browseModeCombo.currentValue === "collection" && rowVisible(["collection", "rotate"])
                 }
 
                 QtControls2.TextArea {
@@ -1262,7 +1378,7 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("Collection list:")
                     placeholderText: i18n("username/id per line (optional # label)")
-                    visible: browseModeCombo.currentValue === "collection"
+                    visible: browseModeCombo.currentValue === "collection" && rowVisible(["collection", "rotate", "list"])
                     enabled: collectionRotationCheck.checked
                     text: root.collectionRotationText()
                     Binding on text {
@@ -1345,6 +1461,7 @@ ColumnLayout {
                     id: localSortingsCombo
 
                     Kirigami.FormData.label: i18n("Local sorting:")
+                    visible: rowVisible(["local", "sorting"])
                     textRole: "label"
                     valueRole: "value"
                     model: [{
@@ -1627,6 +1744,7 @@ ColumnLayout {
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Other")
+                    visible: rowVisible(["other"])
                     Kirigami.FormData.isSection: true
                 }
 
@@ -1642,11 +1760,13 @@ ColumnLayout {
                     id: dedupCheck
 
                     Kirigami.FormData.label: i18n("Duplicates:")
+                    visible: rowVisible(["duplicates"])
                     text: i18n("Avoid recent duplicates (saved across restarts, up to 2000 IDs)")
                 }
 
                 QtControls2.Label {
                     Kirigami.FormData.label: i18n("Seen history:")
+                    visible: rowVisible(["seen", "history"])
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     text: liveWallpaper
@@ -1668,6 +1788,7 @@ ColumnLayout {
                     id: preferSharpMatchesCheck
 
                     Kirigami.FormData.label: i18n("Image quality:")
+                    visible: rowVisible(["image", "quality"])
                     text: i18n("Prefer sharper matches (bias random picks toward images that fit your screen size and aspect ratio without heavy upscaling or cropping)")
                 }
 
@@ -1875,6 +1996,7 @@ ColumnLayout {
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Slideshow")
+                    visible: rowVisible(["slideshow"])
                     Kirigami.FormData.isSection: true
                 }
 
@@ -1882,6 +2004,7 @@ ColumnLayout {
                     id: intervalSpin
 
                     Kirigami.FormData.label: i18n("Interval (min):")
+                    visible: rowVisible(["interval", "min"])
                     from: 0
                     to: 10080
                 }
@@ -1890,6 +2013,7 @@ ColumnLayout {
                     id: slideshowPausedCheck
 
                     Kirigami.FormData.label: i18n("Pause:")
+                    visible: rowVisible(["pause"])
                     text: i18n("Pause automatic slideshow")
                     enabled: intervalSpin.value > 0
                 }
@@ -1905,6 +2029,7 @@ ColumnLayout {
                     id: jitterSpin
 
                     Kirigami.FormData.label: i18n("Interval jitter (%):")
+                    visible: rowVisible(["interval", "jitter"])
                     from: 0
                     to: 50
                 }
@@ -1913,6 +2038,7 @@ ColumnLayout {
                     id: dayIntervalSpin
 
                     Kirigami.FormData.label: i18n("Day interval (min):")
+                    visible: rowVisible(["day", "interval", "min"])
                     from: 0
                     to: 10080
                 }
@@ -1921,6 +2047,7 @@ ColumnLayout {
                     id: nightIntervalSpin
 
                     Kirigami.FormData.label: i18n("Night interval (min):")
+                    visible: rowVisible(["night", "interval", "min"])
                     from: 0
                     to: 10080
                 }
@@ -1934,6 +2061,7 @@ ColumnLayout {
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Effects")
+                    visible: rowVisible(["effects"])
                     Kirigami.FormData.isSection: true
                 }
 
@@ -1941,6 +2069,7 @@ ColumnLayout {
                     id: qualityCombo
 
                     Kirigami.FormData.label: i18n("Image quality:")
+                    visible: rowVisible(["image", "quality"])
                     textRole: "label"
                     valueRole: "value"
                     model: [{
@@ -1959,6 +2088,7 @@ ColumnLayout {
                     id: crossfadeSpin
 
                     Kirigami.FormData.label: i18n("Crossfade (ms):")
+                    visible: rowVisible(["crossfade", "ms"])
                     from: 0
                     to: 3000
                     stepSize: 100
@@ -1968,6 +2098,7 @@ ColumnLayout {
                     id: transitionCombo
 
                     Kirigami.FormData.label: i18n("Transition:")
+                    visible: rowVisible(["transition"])
                     textRole: "label"
                     valueRole: "value"
                     model: [{
@@ -1995,6 +2126,7 @@ ColumnLayout {
                     id: parallaxCheck
 
                     Kirigami.FormData.label: i18n("Parallax:")
+                    visible: rowVisible(["parallax"])
                     text: i18n("Slowly pan across the wallpaper")
                 }
 
@@ -2002,6 +2134,7 @@ ColumnLayout {
                     id: parallaxStrengthSpin
 
                     Kirigami.FormData.label: i18n("Parallax strength:")
+                    visible: rowVisible(["parallax", "strength"])
                     from: 0
                     to: 100
                     enabled: parallaxCheck.checked
@@ -2011,6 +2144,7 @@ ColumnLayout {
                     id: lockScreenCheck
 
                     Kirigami.FormData.label: i18n("Lock screen:")
+                    visible: rowVisible(["lock", "screen"])
                     text: i18n("Copy the current wallpaper to the lock screen")
                 }
 
@@ -2027,6 +2161,7 @@ ColumnLayout {
                     id: panelTintCheck
 
                     Kirigami.FormData.label: i18n("Panel tint hint:")
+                    visible: rowVisible(["panel", "tint", "hint"])
                     text: i18n("Write dominant color JSON for external theming tools")
                 }
 
@@ -2034,6 +2169,7 @@ ColumnLayout {
                     id: panelBlurStrengthSpin
 
                     Kirigami.FormData.label: i18n("Panel blur hint (%):")
+                    visible: rowVisible(["panel", "blur", "hint"])
                     from: 0
                     to: 100
                     enabled: panelTintCheck.checked
@@ -2052,6 +2188,7 @@ ColumnLayout {
                     id: autoPanelAccentCheck
 
                     Kirigami.FormData.label: i18n("Auto panel accent:")
+                    visible: rowVisible(["auto", "panel", "accent"])
                     text: i18n("Apply accent color via plasma-apply-colors when available")
                 }
 
@@ -2059,11 +2196,13 @@ ColumnLayout {
                     id: smartColorCheck
 
                     Kirigami.FormData.label: i18n("Smart color search:")
+                    visible: rowVisible(["smart", "color", "search"])
                     text: i18n("Set color filter from current wallpaper palette")
                 }
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Slideshow rules")
+                    visible: rowVisible(["slideshow", "rules"])
                     Kirigami.FormData.isSection: true
                 }
 
@@ -2071,6 +2210,7 @@ ColumnLayout {
                     id: pauseBatteryCheck
 
                     Kirigami.FormData.label: i18n("Battery pause:")
+                    visible: rowVisible(["battery", "pause"])
                     text: i18n("Pause slideshow on low battery")
                 }
 
@@ -2078,6 +2218,7 @@ ColumnLayout {
                     id: batteryThresholdSpin
 
                     Kirigami.FormData.label: i18n("Battery threshold (%):")
+                    visible: rowVisible(["battery", "threshold"])
                     from: 5
                     to: 80
                     enabled: pauseBatteryCheck.checked
@@ -2087,6 +2228,7 @@ ColumnLayout {
                     id: pauseInactiveCheck
 
                     Kirigami.FormData.label: i18n("Screen lock pause:")
+                    visible: rowVisible(["screen", "lock", "pause"])
                     text: i18n("Pause the slideshow while the screen is locked")
                 }
 
@@ -2094,6 +2236,7 @@ ColumnLayout {
                     id: pauseIdleCheck
 
                     Kirigami.FormData.label: i18n("Idle pause:")
+                    visible: rowVisible(["idle", "pause"])
                     text: i18n("Pause when the session has been idle for several minutes")
                 }
 
@@ -2101,6 +2244,7 @@ ColumnLayout {
                     id: idlePauseMinutesSpin
 
                     Kirigami.FormData.label: i18n("Idle threshold (min):")
+                    visible: rowVisible(["idle", "threshold", "min"])
                     from: 1
                     to: 120
                     enabled: pauseIdleCheck.checked
@@ -2110,6 +2254,7 @@ ColumnLayout {
                     id: preloadCountSpin
 
                     Kirigami.FormData.label: i18n("Preload count:")
+                    visible: rowVisible(["preload", "count"])
                     from: 0
                     to: 4
                     enabled: adaptivePreloadCheck.checked
@@ -2119,6 +2264,7 @@ ColumnLayout {
                     id: adaptivePreloadCheck
 
                     Kirigami.FormData.label: i18n("Adaptive preload:")
+                    visible: rowVisible(["adaptive", "preload"])
                     text: i18n("Reduce preloads when offline or metered")
                 }
 
@@ -2126,6 +2272,7 @@ ColumnLayout {
                     id: kenBurnsCheck
 
                     Kirigami.FormData.label: i18n("Ken Burns:")
+                    visible: rowVisible(["ken", "burns"])
                     text: i18n("Slow pan/zoom")
                 }
 
@@ -2133,6 +2280,7 @@ ColumnLayout {
                     id: kenBurnsSpeedSpin
 
                     Kirigami.FormData.label: i18n("Ken Burns speed:")
+                    visible: rowVisible(["ken", "burns", "speed"])
                     from: 1
                     to: 100
                     enabled: kenBurnsCheck.checked
@@ -2142,6 +2290,7 @@ ColumnLayout {
                     id: attributionCheck
 
                     Kirigami.FormData.label: i18n("Attribution:")
+                    visible: rowVisible(["attribution"])
                     text: i18n("Show overlay on desktop")
                 }
 
@@ -2149,6 +2298,7 @@ ColumnLayout {
                     id: attributionCornerCombo
 
                     Kirigami.FormData.label: i18n("Attribution corner:")
+                    visible: rowVisible(["attribution", "corner"])
                     textRole: "label"
                     valueRole: "value"
                     enabled: attributionCheck.checked
@@ -2171,6 +2321,7 @@ ColumnLayout {
                     id: attributionHideSpin
 
                     Kirigami.FormData.label: i18n("Auto-hide (sec):")
+                    visible: rowVisible(["auto", "hide", "sec"])
                     from: 0
                     to: 120
                     enabled: attributionCheck.checked
@@ -2180,6 +2331,7 @@ ColumnLayout {
                     id: attributionScaleSpin
 
                     Kirigami.FormData.label: i18n("Font scale (%):")
+                    visible: rowVisible(["font", "scale"])
                     from: 70
                     to: 150
                     enabled: attributionCheck.checked
@@ -2187,6 +2339,7 @@ ColumnLayout {
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Fun & Discovery")
+                    visible: rowVisible(["fun", "discovery"])
                     Kirigami.FormData.isSection: true
                 }
 
@@ -2194,6 +2347,7 @@ ColumnLayout {
                     id: musicReactiveCheck
 
                     Kirigami.FormData.label: i18n("Music-reactive pacing:")
+                    visible: rowVisible(["music", "reactive", "pacing"])
                     text: i18n("Speed up Ken Burns panning while music is playing (via MPRIS)")
                     enabled: kenBurnsCheck.checked
                 }
@@ -2211,6 +2365,7 @@ ColumnLayout {
                     id: musicReactiveIntensitySpin
 
                     Kirigami.FormData.label: i18n("Music reactivity (%):")
+                    visible: rowVisible(["music", "reactivity"])
                     from: 0
                     to: 100
                     enabled: musicReactiveCheck.checked && kenBurnsCheck.checked
@@ -2220,6 +2375,7 @@ ColumnLayout {
                     id: weatherReactiveCheck
 
                     Kirigami.FormData.label: i18n("Weather-reactive search:")
+                    visible: rowVisible(["weather", "reactive", "search"])
                     text: i18n("Bias search toward rain/snow/storm tags matching local weather")
                 }
 
@@ -2227,6 +2383,7 @@ ColumnLayout {
                     id: weatherLocationField
 
                     Kirigami.FormData.label: i18n("Weather location:")
+                    visible: rowVisible(["weather", "location"])
                     placeholderText: i18n("City name, or \"lat,lon\"")
                     enabled: weatherReactiveCheck.checked
                 }
@@ -2244,6 +2401,7 @@ ColumnLayout {
                     id: achievementsCheck
 
                     Kirigami.FormData.label: i18n("Milestone toasts:")
+                    visible: rowVisible(["milestone", "toasts"])
                     text: i18n("Notify on view-count milestones and daily streaks")
                 }
 
@@ -2251,6 +2409,7 @@ ColumnLayout {
                     id: systemThemeSyncCheck
 
                     Kirigami.FormData.label: i18n("System theme sync:")
+                    visible: rowVisible(["system", "theme", "sync"])
                     text: i18n("Also push the wallpaper accent to GTK apps and kdeglobals")
                 }
 
@@ -2258,6 +2417,7 @@ ColumnLayout {
                     id: imageEnhanceCheck
 
                     Kirigami.FormData.label: i18n("Image enhance:")
+                    visible: rowVisible(["image", "enhance"])
                     text: i18n("Apply brightness/contrast/saturation adjustments to the wallpaper")
                 }
 
@@ -2265,6 +2425,7 @@ ColumnLayout {
                     id: enhanceBrightnessSpin
 
                     Kirigami.FormData.label: i18n("Brightness:")
+                    visible: rowVisible(["brightness"])
                     from: -100
                     to: 100
                     stepSize: 5
@@ -2277,6 +2438,7 @@ ColumnLayout {
                     id: enhanceContrastSpin
 
                     Kirigami.FormData.label: i18n("Contrast:")
+                    visible: rowVisible(["contrast"])
                     from: -100
                     to: 100
                     stepSize: 5
@@ -2289,6 +2451,7 @@ ColumnLayout {
                     id: enhanceSaturationSpin
 
                     Kirigami.FormData.label: i18n("Saturation:")
+                    visible: rowVisible(["saturation"])
                     from: -100
                     to: 300
                     stepSize: 5
@@ -2330,6 +2493,7 @@ ColumnLayout {
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Network & Retries")
+                    visible: rowVisible(["network", "retries"])
                     Kirigami.FormData.isSection: true
                 }
 
@@ -2337,6 +2501,7 @@ ColumnLayout {
                     id: requestTimeoutSpin
 
                     Kirigami.FormData.label: i18n("Request timeout (sec):")
+                    visible: rowVisible(["request", "timeout", "sec"])
                     from: 5
                     to: 120
                 }
@@ -2345,6 +2510,7 @@ ColumnLayout {
                     id: retryDelaySpin
 
                     Kirigami.FormData.label: i18n("Retry delay (sec):")
+                    visible: rowVisible(["retry", "delay", "sec"])
                     from: 1
                     to: 300
                 }
@@ -2353,6 +2519,7 @@ ColumnLayout {
                     id: retryAttemptsSpin
 
                     Kirigami.FormData.label: i18n("Max retry attempts:")
+                    visible: rowVisible(["max", "retry", "attempts"])
                     from: 1
                     to: 20
                 }
@@ -2366,6 +2533,7 @@ ColumnLayout {
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Notifications")
+                    visible: rowVisible(["notifications"])
                     Kirigami.FormData.isSection: true
                 }
 
@@ -2373,6 +2541,7 @@ ColumnLayout {
                     id: notifyRefreshCheck
 
                     Kirigami.FormData.label: i18n("On refresh:")
+                    visible: rowVisible(["refresh"])
                     text: i18n("System notification when wallpaper changes")
                 }
 
@@ -2380,6 +2549,7 @@ ColumnLayout {
                     id: notifyErrorCheck
 
                     Kirigami.FormData.label: i18n("On errors:")
+                    visible: rowVisible(["errors"])
                     text: i18n("System notification for errors and warnings")
                 }
 
@@ -2387,11 +2557,13 @@ ColumnLayout {
                     id: statusBannerCheck
 
                     Kirigami.FormData.label: i18n("Desktop banner:")
+                    visible: rowVisible(["desktop", "banner"])
                     text: i18n("Show status messages on the wallpaper")
                 }
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Performance")
+                    visible: rowVisible(["performance"])
                     Kirigami.FormData.isSection: true
                 }
 
@@ -2399,6 +2571,7 @@ ColumnLayout {
                     id: diskCacheCheck
 
                     Kirigami.FormData.label: i18n("Disk cache:")
+                    visible: rowVisible(["disk", "cache"])
                     text: i18n("Cache recent wallpapers locally; oldest unused are replaced")
                 }
 
@@ -2406,6 +2579,7 @@ ColumnLayout {
                     id: diskCacheSlotsSpin
 
                     Kirigami.FormData.label: i18n("Max cache slots:")
+                    visible: rowVisible(["max", "cache", "slots"])
                     from: 5
                     to: 200
                     enabled: diskCacheCheck.checked
@@ -2415,12 +2589,14 @@ ColumnLayout {
                     id: cacheDownloadOriginalCheck
 
                     Kirigami.FormData.label: i18n("Cache original file:")
+                    visible: rowVisible(["cache", "original", "file"])
                     text: i18n("Download the full-resolution file from Wallhaven (requires curl)")
                     enabled: diskCacheCheck.checked
                 }
 
                 QtControls2.Label {
                     Kirigami.FormData.label: i18n("Per-monitor cache:")
+                    visible: rowVisible(["per", "monitor", "cache"])
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     opacity: 0.7
@@ -2433,6 +2609,7 @@ ColumnLayout {
                     id: offlineCacheCheck
 
                     Kirigami.FormData.label: i18n("Offline fallback:")
+                    visible: rowVisible(["offline", "fallback"])
                     text: i18n("Show cached wallpapers when the network fails")
                     enabled: diskCacheCheck.checked
                 }
@@ -2441,6 +2618,7 @@ ColumnLayout {
                     id: offlineOnlyCheck
 
                     Kirigami.FormData.label: i18n("Offline only:")
+                    visible: rowVisible(["offline", "only"])
                     text: i18n("Never use the network; cycle cached wallpapers only")
                     enabled: diskCacheCheck.checked
                 }
@@ -2449,6 +2627,7 @@ ColumnLayout {
                     id: meteredCacheCheck
 
                     Kirigami.FormData.label: i18n("Metered network:")
+                    visible: rowVisible(["metered", "network"])
                     text: i18n("Use cache only on cellular connections")
                     enabled: diskCacheCheck.checked
                 }
@@ -2457,6 +2636,7 @@ ColumnLayout {
                     id: upscaleCheck
 
                     Kirigami.FormData.label: i18n("Upscale low-res:")
+                    visible: rowVisible(["upscale", "low", "res"])
                     text: i18n("Use an external AI upscaler for wallpapers smaller than your screen, if installed")
                     enabled: diskCacheCheck.checked
                 }
@@ -2490,6 +2670,7 @@ ColumnLayout {
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Re-upscale:")
+                    visible: rowVisible(["re", "upscale"])
                     text: i18n("Re-upscale cached wallpapers")
                     enabled: liveWallpaper !== null && upscaleCheck.checked && diskCacheCheck.checked
                     onClicked: {
@@ -2511,6 +2692,7 @@ ColumnLayout {
                     id: varietyCheck
 
                     Kirigami.FormData.label: i18n("Variety metadata:")
+                    visible: rowVisible(["variety", "metadata"])
                     text: i18n("Write current wallpaper JSON for external tools")
                 }
 
@@ -2518,6 +2700,7 @@ ColumnLayout {
                     id: varietyFolderField
 
                     Kirigami.FormData.label: i18n("Variety folder:")
+                    visible: rowVisible(["variety", "folder"])
                     placeholderText: i18n("Optional path for Variety integration")
                 }
 
@@ -2525,12 +2708,14 @@ ColumnLayout {
                     id: varietySymlinkCheck
 
                     Kirigami.FormData.label: i18n("Variety symlink:")
+                    visible: rowVisible(["variety", "symlink"])
                     text: i18n("Symlink cached wallpaper as wallhaven-current.jpg")
                     enabled: varietyFolderField.text !== ""
                 }
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Variety bridge:")
+                    visible: rowVisible(["variety", "bridge"])
                     text: i18n("Preview Variety search")
                     enabled: liveWallpaper !== null
                     onClicked: {
@@ -2568,12 +2753,14 @@ ColumnLayout {
                     id: varietyWatchCheck
 
                     Kirigami.FormData.label: i18n("Variety watch:")
+                    visible: rowVisible(["variety", "watch"])
                     text: i18n("Watch Variety config for changes")
                     enabled: liveWallpaper !== null && root.dbusServiceOnline
                 }
 
                 QtControls2.Label {
                     Kirigami.FormData.label: i18n("Cache status:")
+                    visible: rowVisible(["cache", "status"])
                     wrapMode: Text.WordWrap
                     opacity: 0.7
                     text: liveWallpaper ? i18n("%1 cached wallpaper(s)", liveWallpaper.diskCacheEntryCount) : i18n("Apply Wallhaven as the wallpaper type to see cache stats.")
@@ -2581,6 +2768,7 @@ ColumnLayout {
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Clear cache:")
+                    visible: rowVisible(["clear", "cache"])
                     text: i18n("Clear disk cache")
                     enabled: liveWallpaper !== null && diskCacheCheck.checked
                     onClicked: {
@@ -2593,11 +2781,13 @@ ColumnLayout {
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Cache Manager")
+                    visible: rowVisible(["cache", "manager"])
                     Kirigami.FormData.isSection: true
                 }
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Refresh cache list:")
+                    visible: rowVisible(["refresh", "cache", "list"])
                     text: i18n("Refresh cached wallpapers")
                     onClicked: root.refreshCacheModel()
                 }
@@ -2657,6 +2847,32 @@ ColumnLayout {
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Diagnostics")
                     Kirigami.FormData.isSection: true
+                    visible: rowVisible(["debug", "diagnostics", "health", "api", "rate", "limit", "bug", "laptop"])
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("API health:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    visible: rowVisible(["api", "health", "rate", "limit", "status"])
+                    text: liveWallpaper && liveWallpaper.apiHealthSummary
+                        ? liveWallpaper.apiHealthSummary
+                        : i18n("Open settings while Wallhaven is the active wallpaper to see live API health.")
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: rowVisible(["api", "health", "rate", "limit"])
+                        && liveWallpaper && liveWallpaper.apiHealth
+                        && liveWallpaper.apiHealth.rateLimitCount > 0
+                    text: liveWallpaper && liveWallpaper.apiHealth
+                        ? i18n("Rate-limit hits this session: %1. Last at %2.",
+                               liveWallpaper.apiHealth.rateLimitCount,
+                               liveWallpaper.apiHealth.lastRateLimitAt || "—")
+                        : ""
                 }
 
                 QtControls2.CheckBox {
@@ -2664,10 +2880,12 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("Debug log:")
                     text: i18n("Write debug events to cache log file")
+                    visible: rowVisible(["debug", "log", "diagnostics"])
                 }
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Debug log:")
+                    visible: rowVisible(["debug", "log"])
                     text: i18n("Show recent log lines")
                     enabled: liveWallpaper !== null && debugLogCheck.checked
                     onClicked: {
@@ -2679,6 +2897,7 @@ ColumnLayout {
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Debug info:")
+                    visible: rowVisible(["debug", "info"])
                     text: i18n("Copy debug info")
                     enabled: liveWallpaper !== null
                     onClicked: {
@@ -2690,6 +2909,7 @@ ColumnLayout {
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("GitHub issue:")
+                    visible: rowVisible(["github", "issue"])
                     text: i18n("Copy GitHub issue template")
                     enabled: liveWallpaper !== null
                     onClicked: {
@@ -2701,6 +2921,7 @@ ColumnLayout {
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Bug report file:")
+                    visible: rowVisible(["bug", "report", "file"])
                     text: i18n("Export bug report JSON…")
                     enabled: liveWallpaper !== null
                     onClicked: bugReportExportDialog.open()
@@ -2708,6 +2929,7 @@ ColumnLayout {
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Laptop mode:")
+                    visible: rowVisible(["laptop", "mode"])
                     text: i18n("Apply laptop power-saving preset")
                     enabled: liveWallpaper !== null
                     onClicked: {
@@ -2726,6 +2948,7 @@ ColumnLayout {
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Setup wizard:")
+                    visible: rowVisible(["setup", "wizard"])
                     text: i18n("Show setup wizard again")
                     onClicked: root.resetSetupWizard()
                 }
@@ -2739,11 +2962,13 @@ ColumnLayout {
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Blocklist")
+                    visible: rowVisible(["blocklist"])
                     Kirigami.FormData.isSection: true
                 }
 
                 QtControls2.Label {
                     Kirigami.FormData.label: i18n("Blocked IDs:")
+                    visible: rowVisible(["blocked", "ids"])
                     wrapMode: Text.WordWrap
                     opacity: 0.7
                     text: wallpaperConfiguration ? i18n("%1 blocked wallpaper(s)", Wallhaven.parseBlockedIds(wallpaperConfiguration.BlockedIdsJson || "[]").length) : i18n("Apply Wallhaven as the wallpaper type to manage the blocklist.")
@@ -2751,6 +2976,7 @@ ColumnLayout {
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Clear blocklist:")
+                    visible: rowVisible(["clear", "blocklist"])
                     text: i18n("Clear blocklist")
                     enabled: liveWallpaper !== null
                     onClicked: {
@@ -2769,6 +2995,7 @@ ColumnLayout {
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("External Control")
+                    visible: rowVisible(["external", "control"])
                     Kirigami.FormData.isSection: true
                 }
 
@@ -2776,6 +3003,7 @@ ColumnLayout {
                     id: controlBusCheck
 
                     Kirigami.FormData.label: i18n("Control bus:")
+                    visible: rowVisible(["control", "bus"])
                     text: i18n("Accept commands from plasmoid/CLI")
                 }
 
@@ -2783,6 +3011,7 @@ ColumnLayout {
                     id: syncAdvanceCheck
 
                     Kirigami.FormData.label: i18n("Sync advance:")
+                    visible: rowVisible(["sync", "advance"])
                     text: i18n("Advance all monitors in the same group together")
                 }
 
@@ -2790,6 +3019,7 @@ ColumnLayout {
                     id: syncGroupField
 
                     Kirigami.FormData.label: i18n("Sync group:")
+                    visible: rowVisible(["sync", "group"])
                     placeholderText: i18n("default")
                     enabled: syncAdvanceCheck.checked
                 }
@@ -2798,12 +3028,14 @@ ColumnLayout {
                     id: syncProfilesCheck
 
                     Kirigami.FormData.label: i18n("Sync profiles:")
+                    visible: rowVisible(["sync", "profiles"])
                     text: i18n("Remember search settings per sync group")
                     enabled: syncAdvanceCheck.checked
                 }
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Save profile:")
+                    visible: rowVisible(["save", "profile"])
                     text: i18n("Save search profile for this sync group")
                     enabled: liveWallpaper !== null && syncProfilesCheck.checked
                     onClicked: {
@@ -2814,6 +3046,7 @@ ColumnLayout {
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("This screen:")
+                    visible: rowVisible(["screen"])
                     text: i18n("Use this screen’s name as sync group")
                     enabled: liveWallpaper !== null
                     onClicked: {
@@ -2838,11 +3071,13 @@ ColumnLayout {
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Global shortcuts")
+                    visible: rowVisible(["global", "shortcuts"])
                     Kirigami.FormData.isSection: true
                 }
 
                 QtControls2.Label {
                     Kirigami.FormData.label: i18n("Keyboard shortcuts:")
+                    visible: rowVisible(["keyboard", "shortcuts"])
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     text: i18n("Install Meta+Alt+arrow global shortcuts with: ./dev-helper.sh install-shortcuts")
@@ -2850,11 +3085,13 @@ ColumnLayout {
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Wallpaper History")
+                    visible: rowVisible(["wallpaper", "history"])
                     Kirigami.FormData.isSection: true
                 }
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Refresh history:")
+                    visible: rowVisible(["refresh", "history"])
                     text: i18n("Refresh history gallery")
                     onClicked: root.refreshHistoryModel()
                 }
@@ -2912,6 +3149,7 @@ ColumnLayout {
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Clear history:")
+                    visible: rowVisible(["clear", "history"])
                     text: i18n("Clear wallpaper history")
                     enabled: liveWallpaper !== null
                     onClicked: {
@@ -2924,17 +3162,20 @@ ColumnLayout {
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Settings Backup")
+                    visible: rowVisible(["settings", "backup"])
                     Kirigami.FormData.isSection: true
                 }
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Export:")
+                    visible: rowVisible(["export"])
                     text: i18n("Copy settings to clipboard")
                     onClicked: root.exportSettingsToClipboard()
                 }
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Export file:")
+                    visible: rowVisible(["export", "file"])
                     text: i18n("Save settings to file…")
                     enabled: liveWallpaper !== null
                     onClicked: exportSettingsDialog.open()
@@ -2942,12 +3183,14 @@ ColumnLayout {
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Import:")
+                    visible: rowVisible(["import"])
                     text: i18n("Import settings from file…")
                     onClicked: importSettingsDialog.open()
                 }
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Time of Day")
+                    visible: rowVisible(["time", "day"])
                     Kirigami.FormData.isSection: true
                 }
 
@@ -2962,6 +3205,7 @@ ColumnLayout {
                     id: timeOfDayCheck
 
                     Kirigami.FormData.label: i18n("Time of day:")
+                    visible: rowVisible(["time", "day"])
                     text: i18n("Use separate day/night searches")
                 }
 
@@ -2969,6 +3213,7 @@ ColumnLayout {
                     id: daySearchField
 
                     Kirigami.FormData.label: i18n("Day search:")
+                    visible: rowVisible(["day", "search"])
                     placeholderText: i18n("6am–8pm")
                     enabled: timeOfDayCheck.checked
                 }
@@ -2977,12 +3222,14 @@ ColumnLayout {
                     id: nightSearchField
 
                     Kirigami.FormData.label: i18n("Night search:")
+                    visible: rowVisible(["night", "search"])
                     placeholderText: i18n("8pm–6am")
                     enabled: timeOfDayCheck.checked
                 }
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Weekday Schedule")
+                    visible: rowVisible(["weekday", "schedule"])
                     Kirigami.FormData.isSection: true
                 }
 
@@ -2997,6 +3244,7 @@ ColumnLayout {
                     id: scheduleCheck
 
                     Kirigami.FormData.label: i18n("Week schedule:")
+                    visible: rowVisible(["week", "schedule"])
                     text: i18n("Use separate weekday/weekend searches")
                     enabled: !timeOfDayCheck.checked
                 }
@@ -3005,6 +3253,7 @@ ColumnLayout {
                     id: weekdaySearchField
 
                     Kirigami.FormData.label: i18n("Weekday search:")
+                    visible: rowVisible(["weekday", "search"])
                     placeholderText: i18n("Mon–Fri")
                     enabled: scheduleCheck.checked && !timeOfDayCheck.checked
                 }
@@ -3013,12 +3262,14 @@ ColumnLayout {
                     id: weekendSearchField
 
                     Kirigami.FormData.label: i18n("Weekend search:")
+                    visible: rowVisible(["weekend", "search"])
                     placeholderText: i18n("Sat–Sun")
                     enabled: scheduleCheck.checked && !timeOfDayCheck.checked
                 }
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Time Capsule")
+                    visible: rowVisible(["time", "capsule"])
                     Kirigami.FormData.isSection: true
                 }
 
@@ -3033,6 +3284,7 @@ ColumnLayout {
                     id: timeCapsuleField
 
                     Kirigami.FormData.label: i18n("Time capsules:")
+                    visible: rowVisible(["time", "capsules"])
                     placeholderText: i18n("12-25|christmas snow|Holiday surprise — 2026-09-01|back to school city")
                     text: root.timeCapsuleText()
                     Binding on text {

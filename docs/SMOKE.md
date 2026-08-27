@@ -47,11 +47,11 @@ Run after `./dev-helper.sh deploy` and before tagging a release.
 - [ ] Save profile for sync group A, switch group B, switch back — search settings restore
 - [ ] “Use this screen’s name as sync group” sets group to cache namespace
 
-## 2.8 extras
+## 2.9 extras
 
-- [ ] Collection mode: load by username (public) without only API-key owner list
-- [ ] Import preset from `https://…json`
-- [ ] Diagnostics → Apply laptop mode toggles metered/battery/idle and disables heavy effects
-- [ ] Clear seen history resets count; duplicates resume avoiding after new views
-- [ ] Export bug report JSON writes a file
-- [ ] Desktop Wallpaper Actions → Wallpaper Info
+- [ ] Browse mode **Offline playlist** cycles cache; pinned-only skips unpinned
+- [ ] Collection URL parse + filter-by-name on loaded collections
+- [ ] Wallpaper Info opens details sheet; plasmoid menu shows details popup
+- [ ] Diagnostics shows API health / rate-limit count
+- [ ] Save API key to KWallet; restart still loads it with the toggle on
+- [ ] Settings filter hides unrelated Form rows (try “playlist”, “kwallet”, “health”)

@@ -6,13 +6,21 @@ Wallhaven is published on OpenDesktop / KDE Store:
 
 ## Updating the listing
 
-When you ship a new release (current: **2.8.0**):
+When you ship a new release (current: **2.9.0**):
 
 1. Build/publish: `./dev-helper.sh release` → GitHub Release + `wallhaven-plasma-X.Y.Z.tar.xz`
 2. Upload the new file on the product **Files** tab at [opendesktop.org/p/2368647](https://www.opendesktop.org/p/2368647/)
-3. Paste release notes from `CHANGELOG.md` (2.8.0 section) into the store description / changelog field
+3. Paste release notes from `CHANGELOG.md` (2.9.0 section) into the store description / changelog field
 4. Replace screenshots if the UI changed (`./scripts/capture-screenshots.sh`)
 5. Confirm AppStream in git matches (`metainfo/org.robertsm.wallhaven.metainfo.xml` release entry)
+
+### 2.9.0 store blurb (copy/paste)
+
+```
+v2.9.0 — Settings filter that hides rows, offline playlist browse mode, collection URL
+parse + name filter, wallpaper details sheet, API health/rate-limit visibility, and
+KWallet save for API keys.
+```
 
 ### 2.8.0 store blurb (copy/paste)
 

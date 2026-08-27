@@ -65,8 +65,9 @@
         <entry name="DiskCacheMaxSlots" type="Int"><default>40</default></entry>
         <entry name="OfflineCacheFallback" type="Bool"><default>true</default></entry>
         <entry name="OfflineOnlyMode" type="Bool"><default>false</default></entry>
+        <entry name="OfflinePlaylistPinnedOnly" type="Bool"><default>false</default></entry>
         <entry name="MeteredCacheOnly" type="Bool"><default>false</default></entry>
-        <entry name="UseKWalletForApiKey" type="Bool"><default>false</default></entry>
+        <entry name="UseKWalletForApiKey" type="Bool"><default>true</default></entry>
         <entry name="ControlBusEnabled" type="Bool"><default>true</default></entry>
         <entry name="SyncAdvanceEnabled" type="Bool"><default>false</default></entry>
         <entry name="SyncAdvanceGroup" type="String"><default>default</default></entry>

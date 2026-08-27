@@ -1,6 +1,22 @@
 # Changelog
 
+## 2.9.0 — 2026-08-27
+
+Settings discovery, offline playlist, richer details, and safer API keys.
+
+### Added
+- **Settings filter** — Form rows hide via `rowVisible` / keyword match across Source, Filters, Playback, and Advanced
+- **Offline playlist** browse mode — cycle disk cache (optional pinned-only) with no network fetches
+- **Collection URL + name filter** — paste `wallhaven.cc/collections/user/id` and filter loaded collections by label
+- **Wallpaper details sheet** — desktop overlay (click attribution or Wallpaper Info); plasmoid details popup
+- **API health** — live status / rate-limit counters in Diagnostics and plasmoid
+- **KWallet save** — button to store the API key; new installs default to load-from-KWallet; `docs/KWALLET.md`
+
+### Changed
+- Status bus JSON includes details, resolution, purity, category, browseMode, and apiHealth
+
 ## 2.8.0 — 2026-08-26
+
 
 Distribution polish and the remaining 2.7 follow-ups.
 

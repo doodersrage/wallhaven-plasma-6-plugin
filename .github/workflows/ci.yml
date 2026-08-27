@@ -63,6 +63,7 @@ jobs:
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'po/it.po'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'docs/CONTROL.md'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'docs/KDE_STORE.md'
+          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'docs/KWALLET.md'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'screenshots/desktop-wallpaper.png'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'share/wallhaven-shortcuts.desktop.in'
           tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'metainfo/org.robertsm.wallhaven.metainfo.xml'

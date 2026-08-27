@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 2.8.0\n"
+"Project-Id-Version: org.robertsm.wallhaven 2.9.0\n"
 "Language: en\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -74,6 +74,12 @@ msgstr "Anime:"
 msgid "Any"
 msgstr "Any"
 
+msgid "API health:"
+msgstr "API health:"
+
+msgid "API idle"
+msgstr "API idle"
+
 msgid "API key:"
 msgstr "API key:"
 
@@ -86,11 +92,20 @@ msgstr "API key (optional)"
 msgid "API key required for favorites mode."
 msgstr "API key required for favorites mode."
 
+msgid "API key saved to KWallet (folder org.robertsm.wallhaven)."
+msgstr "API key saved to KWallet (folder org.robertsm.wallhaven)."
+
 msgid "API key validation failed (%1)."
 msgstr "API key validation failed (%1)."
 
+msgid "API OK"
+msgstr "API OK"
+
 msgid "API order:"
 msgstr "API order:"
+
+msgid "API rate-limited ×%1"
+msgstr "API rate-limited ×%1"
 
 msgid "API sorting:"
 msgstr "API sorting:"
@@ -115,6 +130,9 @@ msgstr "Apply preset:"
 
 msgid "Apply selected preset"
 msgstr "Apply selected preset"
+
+msgid "Apply URL:"
+msgstr "Apply URL:"
 
 msgid "Apply Variety search to Wallhaven"
 msgstr "Apply Variety search to Wallhaven"
@@ -284,6 +302,9 @@ msgstr "Clear wallpaper history"
 msgid "Click to open · drag right to like, left to mute tags"
 msgstr "Click to open · drag right to like, left to mute tags"
 
+msgid "Close"
+msgstr "Close"
+
 msgid "Collection"
 msgstr "Collection"
 
@@ -295,6 +316,9 @@ msgstr "Collection list:"
 
 msgid "Collections:"
 msgstr "Collections:"
+
+msgid "Collection URL:"
+msgstr "Collection URL:"
 
 msgid "Collection user:"
 msgstr "Collection user:"
@@ -389,6 +413,9 @@ msgstr "Could not load wallpaper #%1 — showing preview instead."
 msgid "Could not parse collections response."
 msgstr "Could not parse collections response."
 
+msgid "Could not parse collection URL. Use https://wallhaven.cc/collections/user/id"
+msgstr "Could not parse collection URL. Use https://wallhaven.cc/collections/user/id"
+
 msgid "Could not parse search response."
 msgstr "Could not parse search response."
 
@@ -409,6 +436,9 @@ msgstr "Current Wallpaper"
 
 msgid "Cyan Blue"
 msgstr "Cyan Blue"
+
+msgid "Cycles the disk cache (and optional pinned-only subset) with no network fetches. Pin wallpapers under Advanced → Cache."
+msgstr "Cycles the disk cache (and optional pinned-only subset) with no network fetches. Pin wallpapers under Advanced → Cache."
 
 msgid "Cycle through multiple collections on each advance"
 msgstr "Cycle through multiple collections on each advance"
@@ -584,6 +614,12 @@ msgstr "Favorite tags:"
 msgid "File type:"
 msgstr "File type:"
 
+msgid "Filter by name, id, or username"
+msgstr "Filter by name, id, or username"
+
+msgid "Filter collections:"
+msgstr "Filter collections:"
+
 msgid "Filters"
 msgstr "Filters"
 
@@ -622,6 +658,9 @@ msgstr "Gray"
 
 msgid "Green"
 msgstr "Green"
+
+msgid "https://wallhaven.cc/collections/user/12345"
+msgstr "https://wallhaven.cc/collections/user/12345"
 
 msgid "ID: %1"
 msgstr "ID: %1"
@@ -737,14 +776,17 @@ msgstr "Laptop mode enables metered-cache-only, battery pause, idle pause, and t
 msgid "Large (full wallpaper)"
 msgstr "Large (full wallpaper)"
 
+msgid "Last API error: HTTP %1"
+msgstr "Last API error: HTTP %1"
+
 msgid "Light Gray"
 msgstr "Light Gray"
 
 msgid "Like (boost these tags)"
 msgstr "Like (boost these tags)"
 
-msgid "Load API key from KWallet on startup"
-msgstr "Load API key from KWallet on startup"
+msgid "Load API key from KWallet on startup (recommended)"
+msgstr "Load API key from KWallet on startup (recommended)"
 
 msgid "Load collections"
 msgstr "Load collections"
@@ -860,6 +902,12 @@ msgstr "No cached wallpapers need upscaling right now."
 msgid "No collections found."
 msgstr "No collections found."
 
+msgid "No collections match “%1”."
+msgstr "No collections match “%1”."
+
+msgid "No details yet."
+msgstr "No details yet."
+
 msgid "No favorites collection found."
 msgstr "No favorites collection found."
 
@@ -923,14 +971,17 @@ msgstr "Offline mode — showing cached wallpaper."
 msgid "Offline only:"
 msgstr "Offline only:"
 
-msgid "Offline-only mode is on but the disk cache is empty."
-msgstr "Offline-only mode is on but the disk cache is empty."
+msgid "Offline playlist"
+msgstr "Offline playlist"
 
 msgid "Olive"
 msgstr "Olive"
 
 msgid "On errors:"
 msgstr "On errors:"
+
+msgid "Only play pinned cache entries"
+msgstr "Only play pinned cache entries"
 
 msgid "On refresh:"
 msgstr "On refresh:"
@@ -940,6 +991,9 @@ msgstr "Opened on Wallhaven — use the heart button to favorite (no public writ
 
 msgid "Open in Browser"
 msgstr "Open in Browser"
+
+msgid "Open settings while Wallhaven is the active wallpaper to see live API health."
+msgstr "Open settings while Wallhaven is the active wallpaper to see live API health."
 
 msgid "Open wallpaper page"
 msgstr "Open wallpaper page"
@@ -976,6 +1030,9 @@ msgstr "Parallax:"
 
 msgid "Parallax strength:"
 msgstr "Parallax strength:"
+
+msgid "Parse collection URL"
+msgstr "Parse collection URL"
 
 msgid "Pause:"
 msgstr "Pause:"
@@ -1028,6 +1085,18 @@ msgstr "Pink Red"
 msgid "Playback"
 msgstr "Playback"
 
+msgid "Playlist — cached wallpaper."
+msgstr "Playlist — cached wallpaper."
+
+msgid "Playlist is empty — enable disk cache and download some wallpapers first."
+msgstr "Playlist is empty — enable disk cache and download some wallpapers first."
+
+msgid "Playlist is empty — pin wallpapers in the disk cache first."
+msgstr "Playlist is empty — pin wallpapers in the disk cache first."
+
+msgid "Playlist pins:"
+msgstr "Playlist pins:"
+
 msgid "PNG image (*.png)"
 msgstr "PNG image (*.png)"
 
@@ -1070,8 +1139,14 @@ msgstr "Purple"
 msgid "Random"
 msgstr "Random"
 
+msgid "Rate limited (429) — %1 time(s)"
+msgstr "Rate limited (429) — %1 time(s)"
+
 msgid "Rate limited by Wallhaven. Retry %1/%2 in %3s…"
 msgstr "Rate limited by Wallhaven. Retry %1/%2 in %3s…"
+
+msgid "Rate-limit hits this session: %1. Last at %2."
+msgstr "Rate-limit hits this session: %1. Last at %2."
 
 msgid "Ratio:"
 msgstr "Ratio:"
@@ -1166,6 +1241,9 @@ msgstr "Sat–Sun"
 msgid "Saturation:"
 msgstr "Saturation:"
 
+msgid "Save current API key to KWallet"
+msgstr "Save current API key to KWallet"
+
 msgid "Save current search"
 msgstr "Save current search"
 
@@ -1186,6 +1264,9 @@ msgstr "Save search profile for this sync group"
 
 msgid "Save settings to file…"
 msgstr "Save settings to file…"
+
+msgid "Save to KWallet:"
+msgstr "Save to KWallet:"
 
 msgid "Save Wallpaper"
 msgstr "Save Wallpaper"
@@ -1348,6 +1429,9 @@ msgstr "Speed up Ken Burns panning while music is playing (via MPRIS)"
 
 msgid "Start D-Bus service"
 msgstr "Start D-Bus service"
+
+msgid "Stores the key in KWallet folder org.robertsm.wallhaven (entry apikey). Prefer this over leaving the key only in wallpaper settings."
+msgstr "Stores the key in KWallet folder org.robertsm.wallhaven (entry apikey). Prefer this over leaving the key only in wallpaper settings."
 
 msgid "Swipe the panel widget thumbnail left/right (or use its menu) to like/dislike the current wallpaper's tags."
 msgstr "Swipe the panel widget thumbnail left/right (or use its menu) to like/dislike the current wallpaper's tags."
@@ -1544,6 +1628,9 @@ msgstr "Wallpaper #%1"
 msgid "Wallpaper Actions: Reload / Next / Similar / Pause / Copy / Block / Save."
 msgstr "Wallpaper Actions: Reload / Next / Similar / Pause / Copy / Block / Save."
 
+msgid "Wallpaper details"
+msgstr "Wallpaper details"
+
 msgid "Wallpaper History"
 msgstr "Wallpaper History"
 
@@ -1592,8 +1679,8 @@ msgstr "Welcome to Wallhaven for Plasma"
 msgid "White"
 msgstr "White"
 
-msgid "With an API key, loads your collections. Or enter a username above to browse that user’s public collections."
-msgstr "With an API key, loads your collections. Or enter a username above to browse that user’s public collections."
+msgid "With an API key, loads your collections. Or enter a username / paste a collection URL to browse public collections, then filter by name."
+msgstr "With an API key, loads your collections. Or enter a username / paste a collection URL to browse public collections, then filter by name."
 
 msgid "Would apply search: %1"
 msgstr "Would apply search: %1"
