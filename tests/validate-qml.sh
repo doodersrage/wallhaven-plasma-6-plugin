@@ -40,6 +40,40 @@ if rg -q 'xhr\.open\("GET", fileUrl\)|xhr\.open\("GET", "file://|xhr\.open\("GET
 fi
 
 python3 - <<PY
+import re
+from pathlib import Path
+root = Path(r"""${ROOT}""")
+# Brace-aware duplicate \`visible:\` in the same QML object (blank Plasma config UI).
+src = (root / "contents/ui/config.qml").read_text()
+depth = 0
+frames = []
+prop_re = re.compile(r"^(\s*)([A-Za-z_][\w.]*)\s*:")
+issues = []
+for li, line in enumerate(src.splitlines(), 1):
+    stripped = line.split("//", 1)[0]
+    opens = stripped.count("{")
+    closes = stripped.count("}")
+    m = prop_re.match(line)
+    if m and frames and m.group(2) == "visible":
+        frames[-1].setdefault("visible", []).append(li)
+    for _ in range(opens):
+        depth += 1
+        frames.append({})
+    for _ in range(closes):
+        if frames:
+            fr = frames.pop()
+            if len(fr.get("visible", [])) > 1:
+                issues.append(fr["visible"])
+        depth = max(0, depth - 1)
+if issues:
+    raise SystemExit(
+        "config.qml: duplicate visible: in same object at lines "
+        + "; ".join(",".join(map(str, g)) for g in issues)
+        + " (Plasma shows a blank wallpaper config panel)"
+    )
+PY
+
+python3 - <<PY
 import xml.etree.ElementTree as ET
 path = "${ROOT}/contents/config/main.xml"
 tree = ET.parse(path)

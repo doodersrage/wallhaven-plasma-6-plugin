@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.9.1 — 2026-08-27
+
+### Fixed
+- **Blank wallpaper settings panel** — `config.qml` set `visible` twice on the browse-mode combo (QML aborts the whole config UI). CI now fails on duplicate `visible:` in the same object.
+
 ## 2.9.0 — 2026-08-27
 
 Settings discovery, offline playlist, richer details, and safer API keys.

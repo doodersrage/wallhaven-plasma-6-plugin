@@ -42,6 +42,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="2.9.1" date="2026-08-27">
+      <description>
+        <p>Fix blank wallpaper settings panel caused by a duplicate visible property on the browse-mode control.</p>
+      </description>
+    </release>
     <release version="2.9.0" date="2026-08-27">
       <description>
         <p>Settings filter hides non-matching rows; offline playlist browse mode; collection URL parse and name filter; wallpaper details sheet; API health and rate-limit visibility; KWallet save for API keys.</p>

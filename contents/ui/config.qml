@@ -1153,7 +1153,6 @@ ColumnLayout {
                         "label": i18n("Offline playlist"),
                         "value": "playlist"
                     }]
-                    visible: rowVisible(["browse", "mode", "source", "search", "collection", "playlist", "offline"])
                 }
 
                 QtControls2.Label {
