@@ -42,6 +42,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="3.0.1" date="2026-08-28">
+      <description>
+        <p>Hotfix: run config schema migration before KWallet API-key load; always scrub secrets from bug-report exports; CI asserts 3.0 config keys.</p>
+      </description>
+    </release>
     <release version="3.0.0" date="2026-08-28">
       <description>
         <p>Major settings refresh: Simple/Advanced UI, config schema v3 migration, local folder browse mode, smart offline cache picks, reduced-motion accessibility, secret-scrubbing exports, typed D-Bus status helpers, and per-monitor plasmoid control.</p>

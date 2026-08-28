@@ -189,6 +189,11 @@ function testV3MigrationExportAndSmartOffline() {
     var raw = JSON.parse(Wallhaven.exportSettingsSnapshot(cfg, { scrubSecrets: false }));
     assert(raw.settings.ApiKey === "secret-key", "can export with secrets when requested");
 
+    var issue = Wallhaven.buildGithubIssueBody(cfg, { version: "3.0.0" });
+    assert(issue.indexOf("secret-key") === -1, "github issue body never embeds api key");
+    var bundle = JSON.parse(Wallhaven.buildDebugBundle(cfg, { version: "3.0.0" }));
+    assert(String(bundle.settings).indexOf("secret-key") === -1, "debug bundle scrubs api key");
+
     var local = Wallhaven.listLocalImagePaths(["/tmp/a.jpg", "/tmp/b.txt", "/tmp/c.PNG"]);
     assert(local.length === 2, "local image filter");
 

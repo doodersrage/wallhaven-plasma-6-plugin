@@ -4134,12 +4134,13 @@ WallpaperItem {
         root.ensureCacheNamespace();
         root.loadDiskCacheIndex();
         root.loadWallpaperHistory();
-        root.loadApiKeyFromKWallet();
+        // Migrate before KWallet so upgrades that flip UseKWalletForApiKey load the key.
         var migration = Wallhaven.migrateConfigurationToV3(root.configuration);
         if (migration.migrated) {
             scheduleConfigWrite();
             logDebug("Migrated config schema " + migration.from + " → " + migration.to);
         }
+        root.loadApiKeyFromKWallet();
         engine.fetchFreshWallpaper(false);
         root._configured = true;
         scheduleConfigPreviewCapture();

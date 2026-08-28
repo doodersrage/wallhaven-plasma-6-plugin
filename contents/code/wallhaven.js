@@ -427,7 +427,7 @@ function pickSmartCachedId(index, cfg, cursor) {
 }
 
 function pluginVersion() {
-    return "3.0.0";
+    return "3.0.1";
 }
 
 function buildPresetFromConfig(name, cfg) {
@@ -1738,7 +1738,7 @@ function buildDebugBundle(cfg, extras) {
         plugin: "org.robertsm.wallhaven",
         version: extras.version || "",
         exportedAt: new Date().toISOString(),
-        settings: exportSettingsSnapshot(cfg),
+        settings: exportSettingsSnapshot(cfg, { scrubSecrets: true }),
         status: extras.status || null,
         metrics: extras.metrics || null,
         logTail: extras.logTail || "",
@@ -1769,7 +1769,7 @@ function buildGithubIssueBody(cfg, extras) {
         "<details><summary>Settings snapshot</summary>",
         "",
         "```json",
-        exportSettingsSnapshot(cfg),
+        exportSettingsSnapshot(cfg, { scrubSecrets: true }),
         "```",
         "",
         "</details>",

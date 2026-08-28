@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.0.1 — 2026-08-28
+
+### Fixed
+- **KWallet after schema migrate** — upgrades that enable `UseKWalletForApiKey` now load the key after migration
+- **Bug-report exports** — GitHub issue / debug bundle always scrub the API key
+- **CI** — `validate-qml.sh` requires 3.0 config keys (`ConfigSchemaVersion`, `SettingsUiMode`, …)
+
 ## 3.0.0 — 2026-08-28
 
 Major UX and distribution milestone.
