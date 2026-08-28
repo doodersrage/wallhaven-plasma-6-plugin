@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 2.9.0\n"
+"Project-Id-Version: org.robertsm.wallhaven 3.0.0\n"
 "Language: en\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -55,6 +55,9 @@ msgstr "Advance all monitors in the same group together"
 
 msgid "Advanced"
 msgstr "Advanced"
+
+msgid "Advanced mode shows all tabs and options."
+msgstr "Advanced mode shows all tabs and options."
 
 msgid "All portrait"
 msgstr "All portrait"
@@ -239,6 +242,9 @@ msgstr "Bright Yellow"
 msgid "Brown"
 msgstr "Brown"
 
+msgid "Browse…"
+msgstr "Browse…"
+
 msgid "Browse mode:"
 msgstr "Browse mode:"
 
@@ -271,6 +277,9 @@ msgstr "Category, purity, ratio, color, blacklist, and time-of-day filters apply
 
 msgid "Checking…"
 msgstr "Checking…"
+
+msgid "Choose local wallpaper folder"
+msgstr "Choose local wallpaper folder"
 
 msgid "City name, or \\"
 msgstr "City name, or \\"
@@ -437,6 +446,9 @@ msgstr "Current Wallpaper"
 msgid "Cyan Blue"
 msgstr "Cyan Blue"
 
+msgid "Cycles JPG/PNG/WebP files under this folder (home directory only). No Wallhaven network requests."
+msgstr "Cycles JPG/PNG/WebP files under this folder (home directory only). No Wallhaven network requests."
+
 msgid "Cycles the disk cache (and optional pinned-only subset) with no network fetches. Pin wallpapers under Advanced → Cache."
 msgstr "Cycles the disk cache (and optional pinned-only subset) with no network fetches. Pin wallpapers under Advanced → Cache."
 
@@ -494,6 +506,9 @@ msgstr "Debug log is empty."
 msgid "default"
 msgstr "default"
 
+msgid "Default sync group:"
+msgstr "Default sync group:"
+
 msgid "Delete preset:"
 msgstr "Delete preset:"
 
@@ -508,6 +523,9 @@ msgstr "Desktop banner:"
 
 msgid "Diagnostics"
 msgstr "Diagnostics"
+
+msgid "Disable Ken Burns and parallax motion (accessibility / battery)"
+msgstr "Disable Ken Burns and parallax motion (accessibility / battery)"
 
 msgid "Disk cache:"
 msgstr "Disk cache:"
@@ -578,6 +596,9 @@ msgstr "Exported bug report bundle."
 msgid "Export file:"
 msgstr "Export file:"
 
+msgid "Export privacy:"
+msgstr "Export privacy:"
+
 msgid "Export Wallhaven Bug Report"
 msgstr "Export Wallhaven Bug Report"
 
@@ -623,6 +644,9 @@ msgstr "Filter collections:"
 msgid "Filters"
 msgstr "Filters"
 
+msgid "Filters are in Advanced settings mode. Switch Settings mode to Advanced on the Source tab."
+msgstr "Filters are in Advanced settings mode. Switch Settings mode to Advanced on the Source tab."
+
 msgid "Filter settings…"
 msgstr "Filter settings…"
 
@@ -658,6 +682,12 @@ msgstr "Gray"
 
 msgid "Green"
 msgstr "Green"
+
+msgid "Group: %1"
+msgstr "Group: %1"
+
+msgid "/home/you/Pictures/Wallpapers"
+msgstr "/home/you/Pictures/Wallpapers"
 
 msgid "https://wallhaven.cc/collections/user/12345"
 msgstr "https://wallhaven.cc/collections/user/12345"
@@ -806,6 +836,15 @@ msgstr "Loading wallpaper #%1 from history…"
 msgid "Loading wallpapers similar to %1…"
 msgstr "Loading wallpapers similar to %1…"
 
+msgid "Local folder"
+msgstr "Local folder"
+
+msgid "Local folder:"
+msgstr "Local folder:"
+
+msgid "Local folder wallpaper."
+msgstr "Local folder wallpaper."
+
 msgid "Local sorting:"
 msgstr "Local sorting:"
 
@@ -817,6 +856,9 @@ msgstr "Lock screen uses a static Plasma image copy. Ken Burns, enhance, and par
 
 msgid "Manual"
 msgstr "Manual"
+
+msgid "Match wallpaper Advanced → Sync group. With multiple monitors, the plasmoid lists each screen and routes next/prev to that group."
+msgstr "Match wallpaper Advanced → Sync group. With multiple monitors, the plasmoid lists each screen and routes next/prev to that group."
 
 msgid "Max cache slots:"
 msgstr "Max cache slots:"
@@ -836,8 +878,29 @@ msgstr "Min height:"
 msgid "Min width:"
 msgstr "Min width:"
 
+msgid "Mode: %1"
+msgstr "Mode: %1"
+
+msgid "Mode: collection"
+msgstr "Mode: collection"
+
+msgid "Mode: favorites"
+msgstr "Mode: favorites"
+
+msgid "Mode: local folder"
+msgstr "Mode: local folder"
+
+msgid "Mode: more like current"
+msgstr "Mode: more like current"
+
+msgid "Mode: offline playlist"
+msgstr "Mode: offline playlist"
+
 msgid "Mon–Fri"
 msgstr "Mon–Fri"
+
+msgid "Monitor: %1"
+msgstr "Monitor: %1"
 
 msgid "More actions"
 msgstr "More actions"
@@ -848,14 +911,14 @@ msgstr "More like current"
 msgid "More-like-current mode needs a wallpaper on screen first."
 msgstr "More-like-current mode needs a wallpaper on screen first."
 
+msgid "Most advanced options are hidden in Simple mode. Switch Settings mode to Advanced on the Source tab."
+msgstr "Most advanced options are hidden in Simple mode. Switch Settings mode to Advanced on the Source tab."
+
 msgid "Music-reactive pacing:"
 msgstr "Music-reactive pacing:"
 
 msgid "Music reactivity (%):"
 msgstr "Music reactivity (%):"
-
-msgid "Must match wallpaper Advanced → Sync group"
-msgstr "Must match wallpaper Advanced → Sync group"
 
 msgid "Muted tags: %1"
 msgstr "Muted tags: %1"
@@ -917,6 +980,9 @@ msgstr "No history yet."
 msgid "No image_fetch_search in Variety config."
 msgstr "No image_fetch_search in Variety config."
 
+msgid "No images found in the local folder."
+msgstr "No images found in the local folder."
+
 msgid "No more wallpapers match your current filters."
 msgstr "No more wallpapers match your current filters."
 
@@ -976,6 +1042,9 @@ msgstr "Offline playlist"
 
 msgid "Olive"
 msgstr "Olive"
+
+msgid "Omit API key from settings / bug-report exports (recommended)"
+msgstr "Omit API key from settings / bug-report exports (recommended)"
 
 msgid "On errors:"
 msgstr "On errors:"
@@ -1100,6 +1169,9 @@ msgstr "Playlist pins:"
 msgid "PNG image (*.png)"
 msgstr "PNG image (*.png)"
 
+msgid "Prefer pinned / higher-resolution cache entries when offline or in playlist mode"
+msgstr "Prefer pinned / higher-resolution cache entries when offline or in playlist mode"
+
 msgid "Prefer sharper matches (bias random picks toward images that fit your screen size and aspect ratio without heavy upscaling or cropping)"
 msgstr "Prefer sharper matches (bias random picks toward images that fit your screen size and aspect ratio without heavy upscaling or cropping)"
 
@@ -1165,6 +1237,9 @@ msgstr "Recent wallpapers…"
 
 msgid "Red"
 msgstr "Red"
+
+msgid "Reduced motion:"
+msgstr "Reduced motion:"
 
 msgid "Reduce preloads when offline or metered"
 msgstr "Reduce preloads when offline or metered"
@@ -1310,6 +1385,9 @@ msgstr "Seen history:"
 msgid "Sent preset import request."
 msgstr "Sent preset import request."
 
+msgid "Set a local folder path in Source settings."
+msgstr "Set a local folder path in Source settings."
+
 msgid "Set color filter from current wallpaper palette"
 msgstr "Set color filter from current wallpaper palette"
 
@@ -1327,6 +1405,9 @@ msgstr "Settings exported to file."
 
 msgid "Settings imported."
 msgstr "Settings imported."
+
+msgid "Settings mode:"
+msgstr "Settings mode:"
 
 msgid "Setup status:"
 msgstr "Setup status:"
@@ -1372,6 +1453,12 @@ msgstr "Similar wallpapers"
 
 msgid "Similar Wallpapers"
 msgstr "Similar Wallpapers"
+
+msgid "Simple"
+msgstr "Simple"
+
+msgid "Simple mode shows Source and Playback essentials. Switch to Advanced for filters, sync, diagnostics, and power tools."
+msgstr "Simple mode shows Source and Playback essentials. Switch to Advanced for filters, sync, diagnostics, and power tools."
 
 msgid "Sketchy:"
 msgstr "Sketchy:"
@@ -1420,6 +1507,9 @@ msgstr "Small (thumbnail, low bandwidth)"
 
 msgid "Smart color search:"
 msgstr "Smart color search:"
+
+msgid "Smart offline:"
+msgstr "Smart offline:"
 
 msgid "Source"
 msgstr "Source"
@@ -1552,6 +1642,9 @@ msgstr "Use an external AI upscaler for wallpapers smaller than your screen, if 
 
 msgid "Use cache only on cellular connections"
 msgstr "Use cache only on cellular connections"
+
+msgid "Used when no monitor is selected"
+msgstr "Used when no monitor is selected"
 
 msgid "Username for collection/favorites override"
 msgstr "Username for collection/favorites override"

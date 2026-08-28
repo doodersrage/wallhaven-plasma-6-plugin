@@ -275,6 +275,72 @@ class WallhavenControl(dbus.service.Object):
     def Ping(self) -> str:
         return "ok"
 
+    @dbus.service.method(INTERFACE, out_signature="s")
+    def GetStatus(self) -> str:
+        """Return wallhaven-status.json contents (typed status bus helper for 3.0)."""
+        try:
+            with open(STATUS_FILE, encoding="utf-8") as handle:
+                return handle.read()
+        except OSError:
+            return "{}"
+
+    @dbus.service.method(INTERFACE, out_signature="s")
+    def GetPluginVersion(self) -> str:
+        return "3.0.0"
+
+    @dbus.service.method(INTERFACE, out_signature="s")
+    def ListMonitorStatuses(self) -> str:
+        """Return JSON array of per-monitor status snapshots (wallhaven-status-*.json)."""
+        out: list[dict] = []
+        try:
+            for name in sorted(os.listdir(PLASMA_CACHE)):
+                if not (name.startswith("wallhaven-status-") and name.endswith(".json")):
+                    continue
+                if name == "wallhaven-status.json":
+                    continue
+                path = os.path.join(PLASMA_CACHE, name)
+                try:
+                    with open(path, encoding="utf-8") as handle:
+                        data = json.loads(handle.read() or "{}")
+                    if isinstance(data, dict):
+                        data["_statusFile"] = name
+                        out.append(data)
+                except (OSError, json.JSONDecodeError):
+                    continue
+        except OSError:
+            return "[]"
+        return json.dumps(out)
+
+    @dbus.service.method(INTERFACE, in_signature="s", out_signature="s")
+    def ListImageFiles(self, folder: str) -> str:
+        """List image files under a user folder (JSON array of absolute paths)."""
+        raw = os.path.expanduser(str(folder or "").strip())
+        if not raw:
+            return "[]"
+        home = os.path.expanduser("~")
+        target = os.path.realpath(raw)
+        if not (target == home or target.startswith(home + os.sep)):
+            raise dbus.exceptions.DBusException(
+                "org.freedesktop.DBus.Error.InvalidArgs: folder must be under home",
+            )
+        if not os.path.isdir(target):
+            return "[]"
+        exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+        found: list[str] = []
+        for root, _dirs, files in os.walk(target):
+            # Stay shallow-ish for plasmashell responsiveness.
+            rel = os.path.relpath(root, target)
+            depth = 0 if rel == "." else rel.count(os.sep) + 1
+            if depth > 3:
+                continue
+            for name in files:
+                ext = os.path.splitext(name)[1].lower()
+                if ext in exts:
+                    found.append(os.path.join(root, name))
+                    if len(found) >= 400:
+                        return json.dumps(found)
+        return json.dumps(found)
+
     @dbus.service.method(INTERFACE, in_signature="s")
     def Command(self, cmd: str) -> None:
         write_command(cmd, self.group)

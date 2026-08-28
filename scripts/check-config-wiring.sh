@@ -18,6 +18,7 @@ INTERNAL_KEYS=(
     TimeCapsuleLastAppliedDate
     TotalWallpapersViewed CurrentStreakDays LastViewDateStr
     BlockedIdsJson PinnedCacheIdsJson
+    ConfigSchemaVersion
 )
 
 # Must appear in engine.configObject() or search/effects silently no-op.
@@ -27,6 +28,7 @@ CONFIG_OBJECT_REQUIRED=(
     BrowseMode CollectionRotationEnabled CollectionRotationJson
     ScheduleEnabled WeekdaySearch WeekendSearch
     OfflineOnlyMode MeteredCacheOnly WallpaperOfDayEnabled
+    SmartOfflineEnabled OfflinePlaylistPinnedOnly PinnedCacheIdsJson
 )
 
 extract_xml_keys() {

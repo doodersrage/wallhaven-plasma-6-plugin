@@ -167,6 +167,40 @@ function testCollectionUrlFilterAndApiHealth() {
     assert(snap.apiHealth.rateLimitCount === 3, "status api health");
 }
 
+function testV3MigrationExportAndSmartOffline() {
+    var cfg = {
+        ConfigSchemaVersion: 1,
+        ApiKey: "secret-key",
+        ScrubSecretsOnExport: true,
+        SearchText: "mountains",
+    };
+    var migration = Wallhaven.migrateConfigurationToV3(cfg);
+    assert(migration.migrated === true, "migrates from v1");
+    assert(cfg.ConfigSchemaVersion === 3, "schema set to 3");
+    assert(cfg.SettingsUiMode === "simple", "default simple UI");
+    assert(cfg.UseKWalletForApiKey === true, "wallet preferred when key present");
+
+    var scrubbed = JSON.parse(Wallhaven.exportSettingsSnapshot(cfg));
+    assert(scrubbed.version === 6, "export snapshot v6");
+    assert(scrubbed.secretsScrubbed === true, "secrets scrubbed flag");
+    assert(scrubbed.settings.ApiKey === undefined, "api key omitted");
+    assert(scrubbed.settings.SearchText === "mountains", "search kept");
+
+    var raw = JSON.parse(Wallhaven.exportSettingsSnapshot(cfg, { scrubSecrets: false }));
+    assert(raw.settings.ApiKey === "secret-key", "can export with secrets when requested");
+
+    var local = Wallhaven.listLocalImagePaths(["/tmp/a.jpg", "/tmp/b.txt", "/tmp/c.PNG"]);
+    assert(local.length === 2, "local image filter");
+
+    var index = { ids: ["a", "b"], dimensions: { a: [800, 600], b: [3840, 2160] } };
+    var smart = Wallhaven.pickSmartCachedId(index, {
+        SmartOfflineEnabled: true,
+        BrowseMode: "playlist",
+        PinnedCacheIdsJson: "[]",
+    }, -1);
+    assert(smart.id === "b", "smart offline prefers larger resolution");
+}
+
 function testCollectionRotation() {
     var lines = "alice/42 # fav\nbob/7";
     var entries = Wallhaven.parseCollectionRotationLines(lines);
@@ -601,6 +635,7 @@ function testPickRandomIndexWeighting() {
     testPresetSnapshotAndSimilarMode,
     testLaptopModeAndRemotePreset,
     testCollectionUrlFilterAndApiHealth,
+    testV3MigrationExportAndSmartOffline,
     testCollectionRotation,
     testHistory,
     testTransitionPick,

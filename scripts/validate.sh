@@ -38,6 +38,10 @@ grep -q "return \"${version}\"" contents/code/wallhaven.js || {
     echo "wallhaven.js pluginVersion() must match metadata.json (${version})" >&2
     exit 1
 }
+grep -q "return \"${version}\"" tools/wallhaven-dbus.py || {
+    echo "wallhaven-dbus.py GetPluginVersion must match metadata.json (${version})" >&2
+    exit 1
+}
 grep -q "version=\"${version}\"" metainfo/org.robertsm.wallhaven.metainfo.xml || {
     echo "metainfo.xml missing release entry for ${version}" >&2
     exit 1

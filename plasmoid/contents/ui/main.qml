@@ -24,11 +24,17 @@ PlasmoidItem {
         resolution: "",
         purity: "",
         category: "",
+        browseMode: "",
+        screenName: "",
+        cacheNamespace: "",
+        syncGroup: "default",
         paused: false,
         slideshowActive: false,
         nextChangeMs: 0,
         apiHealth: null,
     })
+    property var monitorStatuses: []
+    property int selectedMonitorIndex: -1
     property bool dbusOffline: false
     property int countdownMs: 0
     property real swipeOffset: 0
@@ -37,7 +43,7 @@ PlasmoidItem {
     property var historyEntries: []
 
     function sendCommand(cmd, query) {
-        var group = Plasmoid.configuration.syncGroup || "default";
+        var group = root.effectiveSyncGroup();
         var msg;
         if (query) {
             msg = new PDBus.dbusMessage({
@@ -63,8 +69,115 @@ PlasmoidItem {
         });
     }
 
+    function effectiveSyncGroup() {
+        if (selectedMonitorIndex >= 0 && selectedMonitorIndex < monitorStatuses.length) {
+            var mon = monitorStatuses[selectedMonitorIndex];
+            if (mon && mon.syncGroup)
+                return String(mon.syncGroup);
+        }
+        if (statusData.syncGroup)
+            return String(statusData.syncGroup);
+        return Plasmoid.configuration.syncGroup || "default";
+    }
+
+    function applyParsedStatus(parsed) {
+        if (!parsed)
+            return;
+        statusData = {
+            id: parsed.id || "",
+            thumbUrl: parsed.thumbUrl || "",
+            localThumbUrl: parsed.localThumbUrl || "",
+            pageUrl: parsed.pageUrl || "",
+            tags: parsed.tags || "",
+            details: parsed.details || "",
+            resolution: parsed.resolution || "",
+            purity: parsed.purity || "",
+            category: parsed.category || "",
+            browseMode: parsed.browseMode || "",
+            screenName: parsed.screenName || "",
+            cacheNamespace: parsed.cacheNamespace || "",
+            syncGroup: parsed.syncGroup || "default",
+            paused: !!parsed.paused,
+            slideshowActive: !!parsed.slideshowActive,
+            nextChangeMs: Math.max(0, parseInt(parsed.nextChangeMs, 10) || 0),
+            apiHealth: parsed.apiHealth || null,
+        };
+        countdownMs = statusData.nextChangeMs;
+    }
+
+    function loadMonitorStatuses() {
+        var msg = new PDBus.dbusMessage({
+            service: "org.robertsm.Wallhaven",
+            path: "/Wallhaven",
+            iface: "org.robertsm.Wallhaven",
+            member: "ListMonitorStatuses",
+            signature: "",
+            arguments: [],
+        });
+        PDBus.SessionBus.asyncCall(msg, function(text) {
+            root.dbusOffline = false;
+            text = dbusReplyAsString(text);
+            try {
+                var list = JSON.parse(text || "[]");
+                monitorStatuses = Array.isArray(list) ? list : [];
+                if (selectedMonitorIndex >= monitorStatuses.length)
+                    selectedMonitorIndex = monitorStatuses.length ? 0 : -1;
+                if (selectedMonitorIndex < 0 && monitorStatuses.length)
+                    selectedMonitorIndex = 0;
+                if (selectedMonitorIndex >= 0 && selectedMonitorIndex < monitorStatuses.length)
+                    applyParsedStatus(monitorStatuses[selectedMonitorIndex]);
+            } catch (e) {
+                monitorStatuses = [];
+            }
+        }, function() {});
+    }
+
+    function loadStatus() {
+        var msg = new PDBus.dbusMessage({
+            service: "org.robertsm.Wallhaven",
+            path: "/Wallhaven",
+            iface: "org.robertsm.Wallhaven",
+            member: "GetStatus",
+            signature: "",
+            arguments: [],
+        });
+        PDBus.SessionBus.asyncCall(msg, function(text) {
+            root.dbusOffline = false;
+            text = dbusReplyAsString(text);
+            // Prefer a selected per-monitor snapshot when present.
+            if (!(selectedMonitorIndex >= 0 && selectedMonitorIndex < monitorStatuses.length)) {
+                try {
+                    applyParsedStatus(JSON.parse(text || "{}"));
+                } catch (e) {
+                }
+            }
+        }, function(err) {
+            var fallback = new PDBus.dbusMessage({
+                service: "org.robertsm.Wallhaven",
+                path: "/Wallhaven",
+                iface: "org.robertsm.Wallhaven",
+                member: "ReadTextFile",
+                signature: "s",
+                arguments: [statusFile],
+            });
+            PDBus.SessionBus.asyncCall(fallback, function(text) {
+                root.dbusOffline = false;
+                if (!(selectedMonitorIndex >= 0 && selectedMonitorIndex < monitorStatuses.length)) {
+                    try {
+                        applyParsedStatus(JSON.parse(dbusReplyAsString(text) || "{}"));
+                    } catch (e2) {
+                    }
+                }
+            }, function(err2) {
+                root.dbusOffline = true;
+                console.warn("Wallhaven plasmoid status read failed:", err2 || err);
+            });
+        });
+        loadMonitorStatuses();
+    }
+
     function sendHistoryCommand(id) {
-        var group = Plasmoid.configuration.syncGroup || "default";
+        var group = root.effectiveSyncGroup();
         var msg = new PDBus.dbusMessage({
             service: "org.robertsm.Wallhaven",
             path: "/Wallhaven",
@@ -121,50 +234,6 @@ PlasmoidItem {
                 historyEntries = [];
             }
         }, function() {});
-    }
-
-    function loadStatus() {
-        var msg = new PDBus.dbusMessage({
-            service: "org.robertsm.Wallhaven",
-            path: "/Wallhaven",
-            iface: "org.robertsm.Wallhaven",
-            member: "ReadTextFile",
-            signature: "s",
-            arguments: [statusFile],
-        });
-        PDBus.SessionBus.asyncCall(msg, function(text) {
-            root.dbusOffline = false;
-            text = dbusReplyAsString(text);
-            if (!text) {
-                return;
-            }
-            try {
-                var parsed = JSON.parse(text);
-                if (!parsed) {
-                    return;
-                }
-                statusData = {
-                    id: parsed.id || "",
-                    thumbUrl: parsed.thumbUrl || "",
-                    localThumbUrl: parsed.localThumbUrl || "",
-                    pageUrl: parsed.pageUrl || "",
-                    tags: parsed.tags || "",
-                    details: parsed.details || "",
-                    resolution: parsed.resolution || "",
-                    purity: parsed.purity || "",
-                    category: parsed.category || "",
-                    paused: !!parsed.paused,
-                    slideshowActive: !!parsed.slideshowActive,
-                    nextChangeMs: Math.max(0, parseInt(parsed.nextChangeMs, 10) || 0),
-                    apiHealth: parsed.apiHealth || null,
-                };
-                countdownMs = statusData.nextChangeMs;
-            } catch (e) {
-            }
-        }, function(err) {
-            root.dbusOffline = true;
-            console.warn("Wallhaven plasmoid status read failed:", err);
-        });
     }
 
     function plasmoidThumbSource() {
@@ -428,6 +497,63 @@ PlasmoidItem {
             font.pointSize: 7
             opacity: 0.75
             text: statusData.tags
+        }
+
+        QtControls2.ComboBox {
+            Layout.fillWidth: true
+            visible: root.monitorStatuses.length > 1
+            model: {
+                var labels = [];
+                for (var i = 0; i < root.monitorStatuses.length; i++) {
+                    var m = root.monitorStatuses[i] || {};
+                    var screen = m.screenName || m.cacheNamespace || ("#" + (i + 1));
+                    var group = m.syncGroup || "default";
+                    labels.push(screen + " · " + group);
+                }
+                return labels;
+            }
+            currentIndex: Math.max(0, root.selectedMonitorIndex)
+            onActivated: function(index) {
+                root.selectedMonitorIndex = index;
+                if (index >= 0 && index < root.monitorStatuses.length)
+                    root.applyParsedStatus(root.monitorStatuses[index]);
+            }
+        }
+
+        QtControls2.Label {
+            Layout.fillWidth: true
+            visible: statusData.screenName !== "" || statusData.syncGroup !== ""
+            font.pointSize: 7
+            opacity: 0.7
+            text: {
+                var parts = [];
+                if (statusData.screenName)
+                    parts.push(i18n("Monitor: %1", statusData.screenName));
+                if (statusData.syncGroup)
+                    parts.push(i18n("Group: %1", statusData.syncGroup));
+                return parts.join(" · ");
+            }
+        }
+
+        QtControls2.Label {
+            Layout.fillWidth: true
+            visible: statusData.browseMode !== undefined && statusData.browseMode !== ""
+            font.pointSize: 7
+            opacity: 0.7
+            text: {
+                var mode = statusData.browseMode || "";
+                if (mode === "playlist")
+                    return i18n("Mode: offline playlist");
+                if (mode === "local")
+                    return i18n("Mode: local folder");
+                if (mode === "similar")
+                    return i18n("Mode: more like current");
+                if (mode === "collection")
+                    return i18n("Mode: collection");
+                if (mode === "favorites")
+                    return i18n("Mode: favorites");
+                return mode ? i18n("Mode: %1", mode) : "";
+            }
         }
 
         QtControls2.Label {

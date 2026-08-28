@@ -58,7 +58,12 @@ WallpaperItem {
     function effectiveOfflineOnly() {
         return cfg.OfflineOnlyMode
             || cfg.BrowseMode === "playlist"
+            || cfg.BrowseMode === "local"
             || (cfg.MeteredCacheOnly && root.meteredConnection);
+    }
+
+    function effectsMotionAllowed() {
+        return !cfg.ReducedMotion;
     }
 
     function slideshowActive() {
@@ -73,11 +78,11 @@ WallpaperItem {
     readonly property size wallpaperSourceSize: {
         var w = Math.max(640, Math.round(width) || 1920);
         var h = Math.max(360, Math.round(height) || 1080);
-        if (cfg.KenBurnsEnabled) {
+        if (cfg.KenBurnsEnabled && root.effectsMotionAllowed()) {
             w = Math.round(w * 1.25);
             h = Math.round(h * 1.25);
         }
-        if (cfg.ParallaxEnabled) {
+        if (cfg.ParallaxEnabled && root.effectsMotionAllowed()) {
             var extra = Wallhaven.parallaxScaleForStrength(true, cfg.ParallaxStrength);
             w = Math.round(w * extra);
             h = Math.round(h * extra);
@@ -133,6 +138,8 @@ WallpaperItem {
     property bool _needsReconnectFetch: false
     property string _currentTags: ""
     property int _offlineCacheCursor: -1
+    property var _localImagePaths: []
+    property int _localCursor: -1
     property string _pendingFadeUrl: ""
     property int _lastControlTs: 0
     property int _lastSyncAdvanceTs: 0
@@ -192,11 +199,12 @@ WallpaperItem {
         }
         return Wallhaven.parallaxScreenPhase(virtualX);
     }
-    readonly property real parallaxScale: Wallhaven.parallaxScaleForStrength(cfg.ParallaxEnabled, cfg.ParallaxStrength)
+    readonly property real parallaxScale: Wallhaven.parallaxScaleForStrength(
+        cfg.ParallaxEnabled && root.effectsMotionAllowed(), cfg.ParallaxStrength)
     readonly property real parallaxOffsetX: Wallhaven.parallaxOffsetX(
-        cfg.ParallaxEnabled, cfg.ParallaxStrength, root.width, parallaxPhase, parallaxScreenPhase)
+        cfg.ParallaxEnabled && root.effectsMotionAllowed(), cfg.ParallaxStrength, root.width, parallaxPhase, parallaxScreenPhase)
     readonly property real parallaxOffsetY: Wallhaven.parallaxOffsetY(
-        cfg.ParallaxEnabled, cfg.ParallaxStrength, root.height, parallaxPhase, parallaxScreenPhase)
+        cfg.ParallaxEnabled && root.effectsMotionAllowed(), cfg.ParallaxStrength, root.height, parallaxPhase, parallaxScreenPhase)
 
     readonly property bool meteredConnection: cfg.MeteredCacheOnly
         && NetworkInformation.transportMedium === NetworkInformation.Cellular
@@ -839,29 +847,40 @@ WallpaperItem {
         }
         var layerSource = activeIsForeground ? foregroundImage.source : backgroundImage.source;
         var localThumb = String(layerSource || "").indexOf("file://") === 0 ? String(layerSource) : "";
+        var screenName = "";
+        try {
+            screenName = String(Screen.name || "");
+        } catch (e) {
+            screenName = "";
+        }
+        var statusJson = Wallhaven.buildStatusSnapshot({
+            id: currentWallpaperId !== "wallpaper" ? currentWallpaperId : "",
+            thumbUrl: currentWallpaperId !== "wallpaper"
+                ? Wallhaven.thumbUrlForId(currentWallpaperId) : "",
+            localThumbUrl: localThumb,
+            pageUrl: currentPageUrl,
+            tags: _currentTags,
+            details: wallpaperDetailsText,
+            resolution: wallpaperDetailsResolution,
+            purity: wallpaperDetailsPurity,
+            category: wallpaperDetailsCategory,
+            paused: cfg.SlideshowPaused,
+            slideshowActive: slideshowActive(),
+            nextChangeMs: nextMs,
+            attribution: attributionText,
+            syncGroup: cfg.SyncAdvanceGroup || "default",
+            browseMode: cfg.BrowseMode || "",
+            screenName: screenName,
+            cacheNamespace: diskCacheNamespace,
+            varietyWatchEnabled: cfg.VarietyWatchEnabled,
+            metrics: _metrics,
+            apiHealth: root.apiHealth,
+        });
+        settingsFileWriter.writeFile(statusBusFile, statusJson);
+        // Per-monitor copy so the plasmoid can list / target each screen.
         settingsFileWriter.writeFile(
-            statusBusFile,
-            Wallhaven.buildStatusSnapshot({
-                id: currentWallpaperId !== "wallpaper" ? currentWallpaperId : "",
-                thumbUrl: currentWallpaperId !== "wallpaper"
-                    ? Wallhaven.thumbUrlForId(currentWallpaperId) : "",
-                localThumbUrl: localThumb,
-                pageUrl: currentPageUrl,
-                tags: _currentTags,
-                details: wallpaperDetailsText,
-                resolution: wallpaperDetailsResolution,
-                purity: wallpaperDetailsPurity,
-                category: wallpaperDetailsCategory,
-                paused: cfg.SlideshowPaused,
-                slideshowActive: slideshowActive(),
-                nextChangeMs: nextMs,
-                attribution: attributionText,
-                syncGroup: cfg.SyncAdvanceGroup || "default",
-                browseMode: cfg.BrowseMode || "",
-                varietyWatchEnabled: cfg.VarietyWatchEnabled,
-                metrics: _metrics,
-                apiHealth: root.apiHealth,
-            }),
+            diskCacheDir + "/wallhaven-status-" + diskCacheNamespace + ".json",
+            statusJson,
         );
         publishDbusConfig();
     }
@@ -1878,6 +1897,10 @@ WallpaperItem {
                 WeatherTagCache: cfg.WeatherTagCache,
                 SimilarSourceId: (cfg.BrowseMode === "similar" && root.currentWallpaperId !== "wallpaper")
                     ? String(root.currentWallpaperId) : "",
+                SmartOfflineEnabled: cfg.SmartOfflineEnabled,
+                OfflinePlaylistPinnedOnly: cfg.OfflinePlaylistPinnedOnly,
+                PinnedCacheIdsJson: cfg.PinnedCacheIdsJson,
+                LocalFolderPath: cfg.LocalFolderPath,
             };
         }
 
@@ -2098,7 +2121,7 @@ WallpaperItem {
             var config = configObject();
             var fetchRequestId = expectedRequestId !== undefined ? expectedRequestId : requestId;
 
-            if (config.OfflineOnlyMode || config.BrowseMode === "playlist"
+            if (config.OfflineOnlyMode || config.BrowseMode === "playlist" || config.BrowseMode === "local"
                     || (config.MeteredCacheOnly && root.meteredConnection)) {
                 onDone(null);
                 return;
@@ -2340,18 +2363,16 @@ WallpaperItem {
 
         function showNextCachedWallpaper(immediate, fromHistory) {
             var config = configObject();
-            var ids = Wallhaven.listCachedIds(root._diskCacheIndex, config);
-            if (cfg.BrowseMode === "playlist" && cfg.OfflinePlaylistPinnedOnly) {
-                var pinned = Wallhaven.parsePinnedCacheIds(cfg.PinnedCacheIdsJson || "[]");
-                ids = ids.filter(function(id) {
-                    return pinned.indexOf(id) !== -1;
-                });
-            }
-            if (!ids.length) {
+            var pick = Wallhaven.pickSmartCachedId(
+                root._diskCacheIndex,
+                config,
+                root._offlineCacheCursor,
+            );
+            if (!pick.id) {
                 return false;
             }
-            root._offlineCacheCursor = (root._offlineCacheCursor + 1) % ids.length;
-            var id = ids[root._offlineCacheCursor];
+            root._offlineCacheCursor = pick.cursor;
+            var id = pick.id;
             var wp = Wallhaven.makeCachedWallpaper(id);
             var remote = Wallhaven.thumbUrlForId(id);
             if (cfg.BrowseMode === "playlist") {
@@ -2378,6 +2399,10 @@ WallpaperItem {
             if (busy) {
                 return;
             }
+            if (cfg.BrowseMode === "local") {
+                showLocalFolderWallpaper(fromHistory, immediate);
+                return;
+            }
             busy = true;
             root.loading = true;
             if (!showNextCachedWallpaper(immediate, fromHistory)) {
@@ -2396,6 +2421,58 @@ WallpaperItem {
                 }
             }
             endBusy();
+        }
+
+        function showLocalFolderWallpaper(fromHistory, immediate) {
+            if (busy) {
+                return;
+            }
+            busy = true;
+            root.loading = true;
+            var folder = String(cfg.LocalFolderPath || "").trim();
+            if (!folder) {
+                showStatus(i18n("Set a local folder path in Source settings."), "warn");
+                endBusy();
+                return;
+            }
+            dbusHelper.listImageFiles(folder, function(raw) {
+                var paths = [];
+                try {
+                    paths = Wallhaven.listLocalImagePaths(JSON.parse(raw || "[]"));
+                } catch (e) {
+                    paths = [];
+                }
+                root._localImagePaths = paths;
+                if (!paths.length) {
+                    showStatus(i18n("No images found in the local folder."), "warn");
+                    endBusy();
+                    return;
+                }
+                root._localCursor = (root._localCursor + 1) % paths.length;
+                var path = paths[root._localCursor];
+                var id = "local-" + String(root._localCursor);
+                var wp = {
+                    id: id,
+                    path: path,
+                    url: "file://" + path,
+                    category: "local",
+                    purity: "sfw",
+                    dimension_x: 0,
+                    dimension_y: 0,
+                };
+                showStatus(i18n("Local folder wallpaper."), "info");
+                if (!fromHistory) {
+                    pushHistory({
+                        wallpaper: wp,
+                        url: "file://" + path,
+                        index: index,
+                        page: page,
+                    });
+                }
+                displayWallpaper(wp, "file://" + path, immediate !== false);
+                notifyRefresh(wp);
+                endBusy();
+            });
         }
 
         function retryAfterReconnect() {
@@ -2855,6 +2932,14 @@ WallpaperItem {
 
         function runArgv(argv, callback) {
             wallhavenMessage("RunArgv", "s", [JSON.stringify(argv)], callback);
+        }
+
+        function listImageFiles(folder, callback) {
+            wallhavenMessage("ListImageFiles", "s", [folder || ""], function(reply) {
+                if (callback) {
+                    callback(Wallhaven.dbusReplyAsString(reply));
+                }
+            });
         }
 
         // callback(binaryPath) -- binaryPath is "" when no upscaler is installed
@@ -3641,7 +3726,7 @@ WallpaperItem {
 
         function restart() {
             stopAll();
-            if (!cfg.KenBurnsEnabled) {
+            if (!cfg.KenBurnsEnabled || !root.effectsMotionAllowed()) {
                 bgScale = fgScale = 1;
                 bgX = bgY = fgX = fgY = 0;
                 return;
@@ -4050,6 +4135,11 @@ WallpaperItem {
         root.loadDiskCacheIndex();
         root.loadWallpaperHistory();
         root.loadApiKeyFromKWallet();
+        var migration = Wallhaven.migrateConfigurationToV3(root.configuration);
+        if (migration.migrated) {
+            scheduleConfigWrite();
+            logDebug("Migrated config schema " + migration.from + " → " + migration.to);
+        }
         engine.fetchFreshWallpaper(false);
         root._configured = true;
         scheduleConfigPreviewCapture();

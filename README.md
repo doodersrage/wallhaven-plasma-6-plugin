@@ -2,7 +2,7 @@
 
 Fetch and cycle wallpapers from [wallhaven.cc](https://wallhaven.cc) on KDE Plasma 6: search, collections, favorites, slideshow effects, offline cache, presets, and full control from the panel, keyboard, KRunner, or D-Bus.
 
-**Current version:** 2.9.1  
+**Current version:** 3.0.0  
 **KDE Store / OpenDesktop:** [Wallhaven Extended (p/2368647)](https://www.opendesktop.org/p/2368647/)  
 **Releases:** [GitHub Releases](https://github.com/doodersrage/wallhaven-plasma-6-plugin/releases)
 
@@ -12,13 +12,13 @@ Fetch and cycle wallpapers from [wallhaven.cc](https://wallhaven.cc) on KDE Plas
 
 | Area | What you get |
 |------|----------------|
-| **Browse** | Search, more-like-current (`like:id`), collections (URL paste + name filter), favorites, offline playlist |
+| **Browse** | Search, more-like-current (`like:id`), collections (URL paste + name filter), favorites, offline playlist, **local folder** |
 | **Filters** | Categories, purity, resolution, ratio, color, file type, tag blocklist / favorites, prefer sharper matches |
 | **Slideshow** | Interval + jitter, day/night and weekday/weekend searches, time capsules, pause on lock / idle / low battery |
-| **Effects** | Crossfade and other transitions, Ken Burns (optional music-reactive pacing), parallax, image enhance, panel tint / accent |
-| **Cache** | Rolling LRU disk cache, per-monitor namespaces, pin/evict, optional original download, AI upscaler hook |
-| **Control** | Panel plasmoid, Meta+Alt shortcuts, KRunner, D-Bus / CLI, multi-monitor sync groups + search profiles |
-| **Extras** | Curated/community presets, HTTPS preset import, Variety bridge, lock-screen image sync, KWallet API key, DE/FR/ES/IT UI |
+| **Effects** | Crossfade and other transitions, Ken Burns (optional music-reactive pacing), parallax, image enhance, panel tint / accent, **reduced motion** |
+| **Cache** | Rolling LRU disk cache, per-monitor namespaces, pin/evict, optional original download, AI upscaler hook, **smart offline** picks |
+| **Control** | Panel plasmoid (per-monitor picker), Meta+Alt shortcuts, KRunner, D-Bus / CLI, multi-monitor sync groups + search profiles |
+| **Extras** | Simple/Advanced settings UI, curated/community presets, HTTPS preset import, Variety bridge, lock-screen image sync, KWallet API key, secret-scrubbing exports, DE/FR/ES/IT UI |
 
 Almost everything beyond basic search is **opt-in** and off by default.
 
@@ -109,6 +109,13 @@ Full guide: [docs/CONTROL.md](docs/CONTROL.md).
 | [packaging/README.md](packaging/README.md) | Downstream packaging |
 
 ---
+
+## What's new in 3.0.0
+
+- **Simple / Advanced** settings mode (Filters & Advanced tabs hide in Simple)
+- **Local folder** browse mode + smart offline cache picks
+- Config schema **v3** migration, export secret scrubbing, reduced motion
+- Typed D-Bus status helpers and **per-monitor** plasmoid control
 
 ## What's new in 2.9.1
 

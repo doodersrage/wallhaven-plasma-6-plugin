@@ -1,5 +1,23 @@
 # Changelog
 
+## 3.0.0 — 2026-08-28
+
+Major UX and distribution milestone.
+
+### Added
+- **Simple / Advanced settings** — Filters and Advanced tabs hide in Simple mode; Playback keeps interval, pause, and reduced motion
+- **Config schema v3** — `ConfigSchemaVersion` migration sets Simple UI, scrub-on-export, and smart-offline defaults for upgrades
+- **Local folder** browse mode — cycle JPG/PNG/WebP under a home folder (folder picker + D-Bus `ListImageFiles`)
+- **Smart offline** — prefer pinned / higher-resolution cache entries in playlist and offline modes
+- **Reduced motion** — accessibility toggle disables Ken Burns and parallax
+- **Export privacy** — scrub API key from settings / bug-report exports by default (`ScrubSecretsOnExport`)
+- **Typed D-Bus status** — `GetStatus`, `GetPluginVersion`, `ListMonitorStatuses`, `ListImageFiles`
+- **Per-monitor plasmoid** — status files per cache namespace; monitor picker routes next/prev to that sync group
+
+### Changed
+- Settings export snapshot version **6**
+- Plugin version **3.0.0** across metadata, packaging, AppStream, and D-Bus
+
 ## 2.9.1 — 2026-08-27
 
 ### Fixed

@@ -42,6 +42,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="3.0.0" date="2026-08-28">
+      <description>
+        <p>Major settings refresh: Simple/Advanced UI, config schema v3 migration, local folder browse mode, smart offline cache picks, reduced-motion accessibility, secret-scrubbing exports, typed D-Bus status helpers, and per-monitor plasmoid control.</p>
+      </description>
+    </release>
     <release version="2.9.1" date="2026-08-27">
       <description>
         <p>Fix blank wallpaper settings panel caused by a duplicate visible property on the browse-mode control.</p>

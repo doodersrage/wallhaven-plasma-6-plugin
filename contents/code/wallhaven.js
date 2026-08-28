@@ -241,6 +241,8 @@ var EXPORTABLE_SETTINGS_KEYS = [
     "EnhanceSaturation", "UpscaleEnabled", "CacheDownloadOriginal",
     "PauseOnIdleEnabled", "IdlePauseMinutes", "SyncProfilesEnabled", "SyncProfilesJson",
     "PanelBlurStrength", "SettingsFilterHint",
+    "SettingsUiMode", "LocalFolderPath", "ReducedMotion",
+    "ScrubSecretsOnExport", "SmartOfflineEnabled",
 ];
 
 // Fields captured when saving/applying search presets or sync-group profiles.
@@ -303,9 +305,14 @@ function applySyncProfile(profile, configuration) {
     return true;
 }
 
-function exportSettingsSnapshot(cfg) {
+function exportSettingsSnapshot(cfg, options) {
+    options = options || {};
+    var scrub = options.scrubSecrets !== undefined
+        ? !!options.scrubSecrets
+        : (cfg && cfg.ScrubSecretsOnExport !== false);
     var snapshot = {
-        version: 5,
+        version: 6,
+        schemaVersion: 3,
         plugin: "org.robertsm.wallhaven",
         exportedAt: new Date().toISOString(),
         settings: {},
@@ -313,8 +320,14 @@ function exportSettingsSnapshot(cfg) {
     for (var i = 0; i < EXPORTABLE_SETTINGS_KEYS.length; i++) {
         var key = EXPORTABLE_SETTINGS_KEYS[i];
         if (cfg && cfg[key] !== undefined) {
+            if (scrub && (key === "ApiKey" || key === "PreviewAttribution")) {
+                continue;
+            }
             snapshot.settings[key] = cfg[key];
         }
+    }
+    if (scrub) {
+        snapshot.secretsScrubbed = true;
     }
     return JSON.stringify(snapshot, null, 2);
 }
@@ -325,6 +338,96 @@ function importSettingsSnapshot(raw) {
         throw new Error("invalid snapshot");
     }
     return parsed.settings;
+}
+
+function migrateConfigurationToV3(configuration) {
+    if (!configuration) {
+        return { migrated: false, from: 0, to: 3 };
+    }
+    var from = parseInt(configuration.ConfigSchemaVersion, 10) || 0;
+    if (from >= 3) {
+        return { migrated: false, from: from, to: 3 };
+    }
+    // v3 defaults: prefer KWallet, scrub exports, settings UI simple, smart offline on.
+    if (configuration.UseKWalletForApiKey === undefined || configuration.UseKWalletForApiKey === false) {
+        // Only force-enable wallet load when an API key is already present in config
+        // or wallet was never considered; keep false if user explicitly cleared key+wallet.
+        if (String(configuration.ApiKey || "").trim() !== "") {
+            configuration.UseKWalletForApiKey = true;
+        }
+    }
+    if (configuration.ScrubSecretsOnExport === undefined) {
+        configuration.ScrubSecretsOnExport = true;
+    }
+    if (!configuration.SettingsUiMode) {
+        configuration.SettingsUiMode = "simple";
+    }
+    if (configuration.SmartOfflineEnabled === undefined) {
+        configuration.SmartOfflineEnabled = true;
+    }
+    if (from < 2 && configuration.PauseWhenInactive === true && configuration.PauseOnIdleEnabled === false) {
+        // Historical rename hint: keep lock-pause semantics; idle stays separate.
+    }
+    configuration.ConfigSchemaVersion = 3;
+    return { migrated: true, from: from, to: 3 };
+}
+
+function isLocalBrowseMode(cfg) {
+    return cfg && cfg.BrowseMode === "local";
+}
+
+function listLocalImagePaths(entries) {
+    entries = entries || [];
+    var out = [];
+    for (var i = 0; i < entries.length; i++) {
+        var path = String(entries[i] || "").trim();
+        if (!path) {
+            continue;
+        }
+        var lower = path.toLowerCase();
+        if (lower.indexOf(".jpg") > 0 || lower.indexOf(".jpeg") > 0
+                || lower.indexOf(".png") > 0 || lower.indexOf(".webp") > 0
+                || lower.indexOf(".bmp") > 0) {
+            out.push(path);
+        }
+    }
+    return out;
+}
+
+function pickSmartCachedId(index, cfg, cursor) {
+    var ids = listCachedIds(index, cfg);
+    if (cfg && cfg.BrowseMode === "playlist" && cfg.OfflinePlaylistPinnedOnly) {
+        var pinned = parsePinnedCacheIds(cfg.PinnedCacheIdsJson);
+        ids = ids.filter(function(id) {
+            return pinned.indexOf(id) !== -1;
+        });
+    }
+    if (!ids.length) {
+        return { id: "", cursor: cursor || 0 };
+    }
+    if (!(cfg && cfg.SmartOfflineEnabled)) {
+        var next = ((cursor || 0) + 1) % ids.length;
+        return { id: ids[next], cursor: next };
+    }
+    // Prefer higher-resolution / pinned entries when available; else rotate.
+    var pinnedAll = parsePinnedCacheIds(cfg && cfg.PinnedCacheIdsJson);
+    var scored = ids.map(function(id, idx) {
+        var dims = diskCacheDimensionsForId(index, id);
+        var area = dims ? (dims.dimension_x * dims.dimension_y) : 0;
+        var pinBoost = pinnedAll.indexOf(id) !== -1 ? 1e12 : 0;
+        return { id: id, idx: idx, score: pinBoost + area };
+    });
+    scored.sort(function(a, b) {
+        return b.score - a.score;
+    });
+    // Walk from last cursor through smart order for variety.
+    var start = Math.max(0, (cursor || 0) + 1) % scored.length;
+    var pick = scored[start % scored.length];
+    return { id: pick.id, cursor: start };
+}
+
+function pluginVersion() {
+    return "3.0.0";
 }
 
 function buildPresetFromConfig(name, cfg) {
@@ -1355,6 +1458,8 @@ function buildStatusSnapshot(data) {
         varietyWatchEnabled: !!data.varietyWatchEnabled,
         syncGroup: data.syncGroup || "default",
         browseMode: data.browseMode || "",
+        screenName: data.screenName || "",
+        cacheNamespace: data.cacheNamespace || "",
         metrics: data.metrics || null,
         apiHealth: data.apiHealth || null,
         updatedAt: new Date().toISOString(),
@@ -1615,10 +1720,6 @@ function atobPolyfill(input) {
 function buildPresetShareUrl(preset) {
     var payload = encodePresetSharePayload(preset);
     return "wallhaven://preset/" + payload;
-}
-
-function pluginVersion() {
-    return "2.9.1";
 }
 
 function appendDebugLogLine(existing, line, maxLines) {
