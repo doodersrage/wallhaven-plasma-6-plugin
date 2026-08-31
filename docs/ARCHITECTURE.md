@@ -25,7 +25,7 @@ Logic stays in a **single** `wallhaven.js` pragma library so Plasma QML can impo
 4. **Settings**: Plasma binds `cfg_Foo` ↔ `main.xml`; engine listens on `root.configuration` `onFooChanged` → `resetSlideshow()`.
 5. **Schema**: `migrateConfigurationToV3()` runs once when `ConfigSchemaVersion < 3` (XML default is `0` so upgrades migrate).
 
-## D-Bus helpers (3.0)
+## D-Bus helpers (3.1)
 
 | Method | Purpose |
 |--------|---------|
