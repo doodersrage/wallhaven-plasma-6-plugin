@@ -29,6 +29,7 @@ CONFIG_OBJECT_REQUIRED=(
     ScheduleEnabled WeekdaySearch WeekendSearch
     OfflineOnlyMode MeteredCacheOnly WallpaperOfDayEnabled
     SmartOfflineEnabled OfflinePlaylistPinnedOnly PinnedCacheIdsJson
+    SmartOfflineDayAware
 )
 
 extract_xml_keys() {

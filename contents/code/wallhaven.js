@@ -242,7 +242,8 @@ var EXPORTABLE_SETTINGS_KEYS = [
     "PauseOnIdleEnabled", "IdlePauseMinutes", "SyncProfilesEnabled", "SyncProfilesJson",
     "PanelBlurStrength", "SettingsFilterHint",
     "SettingsUiMode", "LocalFolderPath", "ReducedMotion",
-    "ScrubSecretsOnExport", "SmartOfflineEnabled",
+    "ScrubSecretsOnExport", "SmartOfflineEnabled", "SmartOfflineDayAware",
+    "LocalFolderMaxDepth", "LocalFolderExclude",
 ];
 
 // Fields captured when saving/applying search presets or sync-group profiles.
@@ -365,6 +366,9 @@ function migrateConfigurationToV3(configuration) {
     if (configuration.SmartOfflineEnabled === undefined) {
         configuration.SmartOfflineEnabled = true;
     }
+    if (configuration.SmartOfflineDayAware === undefined) {
+        configuration.SmartOfflineDayAware = true;
+    }
     if (from < 2 && configuration.PauseWhenInactive === true && configuration.PauseOnIdleEnabled === false) {
         // Historical rename hint: keep lock-pause semantics; idle stays separate.
     }
@@ -376,8 +380,11 @@ function isLocalBrowseMode(cfg) {
     return cfg && cfg.BrowseMode === "local";
 }
 
-function listLocalImagePaths(entries) {
+function listLocalImagePaths(entries, excludeRaw) {
     entries = entries || [];
+    var excludes = String(excludeRaw || "").split(/[,;\n]/).map(function(part) {
+        return String(part || "").trim().toLowerCase();
+    }).filter(function(part) { return part.length > 0; });
     var out = [];
     for (var i = 0; i < entries.length; i++) {
         var path = String(entries[i] || "").trim();
@@ -385,6 +392,16 @@ function listLocalImagePaths(entries) {
             continue;
         }
         var lower = path.toLowerCase();
+        var excluded = false;
+        for (var e = 0; e < excludes.length; e++) {
+            if (lower.indexOf(excludes[e]) !== -1) {
+                excluded = true;
+                break;
+            }
+        }
+        if (excluded) {
+            continue;
+        }
         if (lower.indexOf(".jpg") > 0 || lower.indexOf(".jpeg") > 0
                 || lower.indexOf(".png") > 0 || lower.indexOf(".webp") > 0
                 || lower.indexOf(".bmp") > 0) {
@@ -392,6 +409,60 @@ function listLocalImagePaths(entries) {
         }
     }
     return out;
+}
+
+function orderLocalImagePaths(paths, localSortings) {
+    paths = (paths || []).slice();
+    var mode = String(localSortings || "ascending");
+    if (mode === "random") {
+        for (var i = paths.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var tmp = paths[i];
+            paths[i] = paths[j];
+            paths[j] = tmp;
+        }
+        return paths;
+    }
+    paths.sort(function(a, b) {
+        var left = String(a).toLowerCase();
+        var right = String(b).toLowerCase();
+        if (left < right) {
+            return mode === "descending" ? 1 : -1;
+        }
+        if (left > right) {
+            return mode === "descending" ? -1 : 1;
+        }
+        return 0;
+    });
+    return paths;
+}
+
+function presetAccentColor(preset) {
+    if (preset && preset.ColorFilter) {
+        var hex = String(preset.ColorFilter).replace("#", "").trim();
+        if (/^[0-9a-fA-F]{6}$/.test(hex)) {
+            return "#" + hex.toLowerCase();
+        }
+    }
+    var name = String((preset && preset.name) || "preset");
+    var hash = 0;
+    for (var i = 0; i < name.length; i++) {
+        hash = ((hash << 5) - hash) + name.charCodeAt(i);
+        hash |= 0;
+    }
+    var hue = Math.abs(hash) % 360;
+    return "hsl(" + hue + ", 45%, 42%)";
+}
+
+function presetPreviewThumbUrl(preset) {
+    if (!preset) {
+        return "";
+    }
+    var sample = String(preset.SampleWallpaperId || preset.sampleId || "").trim();
+    if (sample) {
+        return thumbUrlForId(sample);
+    }
+    return "";
 }
 
 function pickSmartCachedId(index, cfg, cursor) {
@@ -411,11 +482,40 @@ function pickSmartCachedId(index, cfg, cursor) {
     }
     // Prefer higher-resolution / pinned entries when available; else rotate.
     var pinnedAll = parsePinnedCacheIds(cfg && cfg.PinnedCacheIdsJson);
+    var dayAware = !!(cfg && cfg.SmartOfflineDayAware);
+    var preferDay = dayAware && isDayPeriod();
+    var periodNeedle = "";
+    if (dayAware) {
+        periodNeedle = String(preferDay
+            ? (cfg.DaySearch || cfg.SearchText || "")
+            : (cfg.NightSearch || cfg.SearchText || "")).toLowerCase();
+    }
     var scored = ids.map(function(id, idx) {
         var dims = diskCacheDimensionsForId(index, id);
         var area = dims ? (dims.dimension_x * dims.dimension_y) : 0;
         var pinBoost = pinnedAll.indexOf(id) !== -1 ? 1e12 : 0;
-        return { id: id, idx: idx, score: pinBoost + area };
+        var dayBoost = 0;
+        if (dayAware) {
+            var cat = index.categories ? String(index.categories[id] || "").toLowerCase() : "";
+            // Soft preference: daytime leans general; night leans anime/people when no query.
+            if (periodNeedle) {
+                if (periodNeedle.indexOf(cat) !== -1 || (cat && periodNeedle.indexOf(cat) >= 0)) {
+                    dayBoost = 5e9;
+                }
+                // Match category tokens from day/night query loosely.
+                if (preferDay && cat.indexOf("general") !== -1) {
+                    dayBoost += 1e9;
+                }
+                if (!preferDay && (cat.indexOf("anime") !== -1 || cat.indexOf("people") !== -1)) {
+                    dayBoost += 1e9;
+                }
+            } else if (preferDay && cat === "general") {
+                dayBoost = 2e9;
+            } else if (!preferDay && (cat === "anime" || cat === "people")) {
+                dayBoost = 2e9;
+            }
+        }
+        return { id: id, idx: idx, score: pinBoost + dayBoost + area };
     });
     scored.sort(function(a, b) {
         return b.score - a.score;
@@ -427,7 +527,7 @@ function pickSmartCachedId(index, cfg, cursor) {
 }
 
 function pluginVersion() {
-    return "3.0.1";
+    return "3.1.0";
 }
 
 function buildPresetFromConfig(name, cfg) {
@@ -1460,6 +1560,9 @@ function buildStatusSnapshot(data) {
         browseMode: data.browseMode || "",
         screenName: data.screenName || "",
         cacheNamespace: data.cacheNamespace || "",
+        lockScreenSyncAt: data.lockScreenSyncAt || "",
+        lockScreenSyncPath: data.lockScreenSyncPath || "",
+        lockScreenSyncOk: !!data.lockScreenSyncOk,
         metrics: data.metrics || null,
         apiHealth: data.apiHealth || null,
         updatedAt: new Date().toISOString(),
@@ -1586,6 +1689,7 @@ var BUNDLED_CURATED_PRESETS = [
         CategoryGeneral: true,
         CategoryAnime: false,
         CategoryPeople: false,
+        SampleWallpaperId: "85k258",
     },
     {
         name: "Cyberpunk",
@@ -1594,6 +1698,7 @@ var BUNDLED_CURATED_PRESETS = [
         CategoryGeneral: true,
         CategoryAnime: true,
         CategoryPeople: false,
+        SampleWallpaperId: "6k3oox",
     },
     {
         name: "Space",
@@ -1603,6 +1708,7 @@ var BUNDLED_CURATED_PRESETS = [
         CategoryGeneral: true,
         CategoryAnime: false,
         CategoryPeople: false,
+        SampleWallpaperId: "28jdg9",
     },
 ];
 

@@ -32,7 +32,7 @@ Logic stays in a **single** `wallhaven.js` pragma library so Plasma QML can impo
 | `GetStatus` | Primary `wallhaven-status.json` text |
 | `ListMonitorStatuses` | JSON array of per-monitor status snapshots |
 | `GetPluginVersion` | Semver string matching `metadata.json` |
-| `ListImageFiles(folder)` | Image paths under `$HOME` (local browse mode) |
+| `ListImageFiles(folder, optionsJson)` | Image paths under `$HOME` (depth/exclude options) |
 
 ## Wiring rules (avoid silent no-ops)
 

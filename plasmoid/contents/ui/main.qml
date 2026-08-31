@@ -289,6 +289,45 @@ PlasmoidItem {
     }
 
     preferredRepresentation: fullRepresentation
+    switchWidth: Kirigami.Units.gridUnit * 12
+    switchHeight: Kirigami.Units.gridUnit * 8
+
+    compactRepresentation: RowLayout {
+        spacing: Kirigami.Units.smallSpacing
+
+        Image {
+            Layout.preferredWidth: Kirigami.Units.iconSizes.medium
+            Layout.preferredHeight: Kirigami.Units.iconSizes.medium
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            visible: root.plasmoidThumbSource() !== ""
+            source: root.plasmoidThumbSource()
+        }
+        PlasmaCore.IconItem {
+            Layout.preferredWidth: Kirigami.Units.iconSizes.medium
+            Layout.preferredHeight: Kirigami.Units.iconSizes.medium
+            visible: root.plasmoidThumbSource() === ""
+            source: root.dbusOffline ? "network-disconnect" : "preferences-desktop-wallpaper"
+        }
+        QtControls2.ToolButton {
+            display: QtControls2.AbstractButton.IconOnly
+            icon.name: "go-previous"
+            enabled: !root.dbusOffline
+            onClicked: root.sendCommand("prev")
+        }
+        QtControls2.ToolButton {
+            display: QtControls2.AbstractButton.IconOnly
+            icon.name: "go-next"
+            enabled: !root.dbusOffline
+            onClicked: root.sendCommand("next")
+        }
+        QtControls2.ToolButton {
+            display: QtControls2.AbstractButton.IconOnly
+            icon.name: statusData.paused ? "media-playback-start" : "media-playback-pause"
+            enabled: !root.dbusOffline
+            onClicked: root.sendCommand(statusData.paused ? "resume" : "pause")
+        }
+    }
 
     fullRepresentation: ColumnLayout {
         spacing: Kirigami.Units.smallSpacing
@@ -481,10 +520,50 @@ PlasmoidItem {
         }
         QtControls2.ToolButton {
             display: QtControls2.AbstractButton.IconOnly
+            icon.name: "pin"
+            ToolTip.text: i18n("Pin current wallpaper in cache")
+            enabled: !root.dbusOffline && statusData.id !== ""
+            onClicked: root.sendCommand("pin")
+        }
+        QtControls2.ToolButton {
+            display: QtControls2.AbstractButton.IconOnly
+            icon.name: "unpin"
+            ToolTip.text: i18n("Unpin current wallpaper")
+            enabled: !root.dbusOffline && statusData.id !== ""
+            onClicked: root.sendCommand("unpin")
+        }
+        QtControls2.ToolButton {
+            display: QtControls2.AbstractButton.IconOnly
             icon.name: "open-menu-symbolic"
             ToolTip.text: i18n("More actions")
             onClicked: plasmoidMenu.open()
         }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Kirigami.Units.smallSpacing
+            QtControls2.TextField {
+                id: plasmoidSearchField
+                Layout.fillWidth: true
+                placeholderText: i18n("Search wallhaven…")
+                enabled: !root.dbusOffline
+                onAccepted: {
+                    var q = text.trim();
+                    if (q)
+                        root.sendCommand("search", q);
+                }
+            }
+            QtControls2.ToolButton {
+                display: QtControls2.AbstractButton.IconOnly
+                icon.name: "edit-find"
+                enabled: !root.dbusOffline && plasmoidSearchField.text.trim() !== ""
+                onClicked: {
+                    var q = plasmoidSearchField.text.trim();
+                    if (q)
+                        root.sendCommand("search", q);
+                }
+            }
         }
 
         QtControls2.Label {
@@ -687,6 +766,18 @@ PlasmoidItem {
             text: i18n("Like (boost these tags)")
             enabled: statusData.tags !== "" && !root.dbusOffline
             onTriggered: root.sendCommand("like")
+        }
+        QtControls2.MenuItem {
+            icon.name: "pin"
+            text: i18n("Pin in cache")
+            enabled: statusData.id !== "" && !root.dbusOffline
+            onTriggered: root.sendCommand("pin")
+        }
+        QtControls2.MenuItem {
+            icon.name: "unpin"
+            text: i18n("Unpin from cache")
+            enabled: statusData.id !== "" && !root.dbusOffline
+            onTriggered: root.sendCommand("unpin")
         }
         QtControls2.MenuItem {
             icon.name: "emblem-remove"

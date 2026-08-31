@@ -12,7 +12,7 @@ usage() {
     cat <<EOF
 Send commands to the Wallhaven wallpaper plugin.
 
-Usage: $(basename "$0") <next|prev|reload|pause|resume|like|dislike|info|search query...|importpreset url|history id>
+Usage: $(basename "$0") <next|prev|reload|pause|resume|like|dislike|pin|unpin|info|search query...|importpreset url|history id>
 
 Environment:
   WALLHAVEN_SYNC_GROUP   Control/sync group name (default: default)
@@ -98,7 +98,7 @@ if [[ "${CMD}" == "history" ]]; then
 fi
 
 case "${CMD}" in
-    next|prev|reload|pause|resume|like|dislike) ;;
+    next|prev|reload|pause|resume|like|dislike|pin|unpin) ;;
     -h|--help|help) usage; exit 0 ;;
     *) echo "Unknown command: ${CMD}"; usage; exit 1 ;;
 esac

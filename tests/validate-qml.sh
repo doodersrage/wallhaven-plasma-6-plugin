@@ -81,7 +81,8 @@ entries = [e.attrib["name"] for e in tree.findall(".//{http://www.kde.org/standa
 required = ["SetupWizardCompleted", "WallpaperOfDayEnabled", "PinnedCacheIdsJson", "DebugLogEnabled",
             "AutoPanelAccentEnabled", "PauseOnBatteryLow", "TagFavoritesJson", "CacheNamespace",
             "ConfigSchemaVersion", "SettingsUiMode", "SmartOfflineEnabled", "ScrubSecretsOnExport",
-            "LocalFolderPath", "ReducedMotion"]
+            "LocalFolderPath", "ReducedMotion", "LocalFolderMaxDepth", "LocalFolderExclude",
+            "SmartOfflineDayAware"]
 missing = [k for k in required if k not in entries]
 if missing:
     raise SystemExit("main.xml missing: " + ", ".join(missing))

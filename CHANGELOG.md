@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.1.0 — 2026-08-31
+
+Daily-driver control and local/offline polish.
+
+### Added
+- **Plasmoid compact mode** — prev/next/pause on the panel; full view adds search box and pin/unpin
+- **Local folder options** — max depth, exclude substrings, ascending/descending/shuffle via Local sorting
+- **Day-aware smart offline** — bias cache picks by day/night categories (`SmartOfflineDayAware`)
+- **Preset gallery tiles** — accent/sample thumbs in the Filters preset browser
+- **Lock-screen sync status** — last sync time/path in Playback settings
+- **pin / unpin** control-bus commands (`wallhaven-ctl`, plasmoid)
+
+### Changed
+- Simple mode hides API sorting, KWallet helpers, and Test search (API key stays available)
+- `ListImageFiles` accepts depth/exclude options JSON; AUR workflow default version updated
+- Flathub / Store docs updated for 3.1.0
+
 ## 3.0.1 — 2026-08-28
 
 ### Fixed

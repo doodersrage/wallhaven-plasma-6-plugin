@@ -131,8 +131,11 @@
         <entry name="ConfigSchemaVersion" type="Int"><default>0</default></entry>
         <entry name="SettingsUiMode" type="String"><default>simple</default></entry>
         <entry name="LocalFolderPath" type="String"><default></default></entry>
+        <entry name="LocalFolderMaxDepth" type="Int"><default>3</default></entry>
+        <entry name="LocalFolderExclude" type="String"><default></default></entry>
         <entry name="ReducedMotion" type="Bool"><default>false</default></entry>
         <entry name="ScrubSecretsOnExport" type="Bool"><default>true</default></entry>
         <entry name="SmartOfflineEnabled" type="Bool"><default>true</default></entry>
+        <entry name="SmartOfflineDayAware" type="Bool"><default>true</default></entry>
     </group>
 </kcfg>

@@ -194,12 +194,21 @@ function testV3MigrationExportAndSmartOffline() {
     var bundle = JSON.parse(Wallhaven.buildDebugBundle(cfg, { version: "3.0.0" }));
     assert(String(bundle.settings).indexOf("secret-key") === -1, "debug bundle scrubs api key");
 
-    var local = Wallhaven.listLocalImagePaths(["/tmp/a.jpg", "/tmp/b.txt", "/tmp/c.PNG"]);
-    assert(local.length === 2, "local image filter");
+    var local = Wallhaven.listLocalImagePaths(
+        ["/tmp/a.jpg", "/tmp/b.txt", "/tmp/c.PNG", "/tmp/thumbs/x.jpg"],
+        "thumbs",
+    );
+    assert(local.length === 2, "local image filter with exclude");
+    var ordered = Wallhaven.orderLocalImagePaths(["/z.png", "/a.png"], "ascending");
+    assert(ordered[0] === "/a.png", "local ascending sort");
+    var accent = Wallhaven.presetAccentColor({ ColorFilter: "ff00aa", name: "x" });
+    assert(accent === "#ff00aa", "preset accent from color filter");
+    assert(Wallhaven.presetPreviewThumbUrl({ SampleWallpaperId: "abc12" }).indexOf("abc12") !== -1, "preset sample thumb");
 
-    var index = { ids: ["a", "b"], dimensions: { a: [800, 600], b: [3840, 2160] } };
+    var index = { ids: ["a", "b"], dimensions: { a: [800, 600], b: [3840, 2160] }, categories: { a: "general", b: "anime" } };
     var smart = Wallhaven.pickSmartCachedId(index, {
         SmartOfflineEnabled: true,
+        SmartOfflineDayAware: false,
         BrowseMode: "playlist",
         PinnedCacheIdsJson: "[]",
     }, -1);

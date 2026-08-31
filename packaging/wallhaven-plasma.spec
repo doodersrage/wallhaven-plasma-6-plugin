@@ -1,5 +1,5 @@
 Name:           wallhaven-plasma
-Version:        3.0.1
+Version:        3.1.0
 Release:        1%{?dist}
 Summary:        Wallhaven wallpaper plugin for KDE Plasma 6
 License:        GPL-2.0-or-later
@@ -61,6 +61,9 @@ sed -i 's|/home/USER/.local/share/wallhaven-plasma/tools|%{_datadir}/wallhaven-p
 %{_datadir}/applications/wallhaven-preset.desktop
 
 %changelog
+* Mon Aug 31 2026 Wallhaven Plasma Port <wallhaven@local> - 3.1.0-1
+- 3.1.0 release
+
 * Fri Aug 28 2026 Wallhaven Plasma Port <wallhaven@local> - 3.0.1-1
 - 3.0.1 hotfix
 

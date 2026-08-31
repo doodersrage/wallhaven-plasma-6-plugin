@@ -156,6 +156,9 @@ msgstr ""
 msgid "Apply Wallhaven as the wallpaper type to see recent wallpapers."
 msgstr ""
 
+msgid "Apply Wallhaven as the wallpaper type to see sync status."
+msgstr ""
+
 msgid "Apply Wallhaven tag blacklist (Search + API key)"
 msgstr ""
 
@@ -184,6 +187,9 @@ msgid "Battery pause:"
 msgstr ""
 
 msgid "Battery threshold (%):"
+msgstr ""
+
+msgid "Bias cached picks toward day/night categories when Smart offline is on"
 msgstr ""
 
 msgid "Bias search toward rain/snow/storm tags matching local weather"
@@ -474,6 +480,9 @@ msgstr ""
 msgid "Date added"
 msgstr ""
 
+msgid "Day-aware offline:"
+msgstr ""
+
 msgid "Day interval (min):"
 msgstr ""
 
@@ -585,6 +594,9 @@ msgstr ""
 msgid "Exact resolutions:"
 msgstr ""
 
+msgid "Exclude paths:"
+msgstr ""
+
 msgid "Export:"
 msgstr ""
 
@@ -652,6 +664,9 @@ msgid "Filter settings…"
 msgstr ""
 
 msgid "Finish"
+msgstr ""
+
+msgid "Folder depth:"
 msgstr ""
 
 msgid "Font scale (%):"
@@ -810,6 +825,12 @@ msgstr ""
 msgid "Last API error: HTTP %1"
 msgstr ""
 
+msgid "Last sync failed at %1"
+msgstr ""
+
+msgid "Last sync OK at %1 — %2"
+msgstr ""
+
 msgid "Light Gray"
 msgstr ""
 
@@ -853,6 +874,9 @@ msgid "Lock screen:"
 msgstr ""
 
 msgid "Lock screen uses a static Plasma image copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer enabling disk cache (and optional original download) so the lock screen gets a full-resolution file."
+msgstr ""
+
+msgid "Lock sync status:"
 msgstr ""
 
 msgid "Manual"
@@ -1011,6 +1035,9 @@ msgstr ""
 msgid "Notify on view-count milestones and daily streaks"
 msgstr ""
 
+msgid "Not synced yet this session."
+msgstr ""
+
 msgid "No upscaler installed (realesrgan-ncnn-vulkan not found on PATH)."
 msgstr ""
 
@@ -1144,6 +1171,12 @@ msgid "Pick collection:"
 msgstr ""
 
 msgid "Pin"
+msgstr ""
+
+msgid "Pin current wallpaper in cache"
+msgstr ""
+
+msgid "Pin in cache"
 msgstr ""
 
 msgid "Pink"
@@ -1380,6 +1413,9 @@ msgstr ""
 msgid "Search test failed (%1)."
 msgstr ""
 
+msgid "Search wallhaven…"
+msgstr ""
+
 msgid "Seen history:"
 msgstr ""
 
@@ -1581,6 +1617,9 @@ msgstr ""
 msgid "This screen:"
 msgstr ""
 
+msgid "thumbnails, .git, Screenshots"
+msgstr ""
+
 msgid "Time Capsule"
 msgstr ""
 
@@ -1621,6 +1660,12 @@ msgid "Transition:"
 msgstr ""
 
 msgid "Unpin"
+msgstr ""
+
+msgid "Unpin current wallpaper"
+msgstr ""
+
+msgid "Unpin from cache"
 msgstr ""
 
 msgid "Upscale low-res:"

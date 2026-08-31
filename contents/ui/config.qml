@@ -132,9 +132,12 @@ ColumnLayout {
     property alias cfg_UseKWalletForApiKey: kwalletCheck.checked
     property alias cfg_SettingsUiMode: settingsUiModeCombo.currentValue
     property alias cfg_LocalFolderPath: localFolderField.text
+    property alias cfg_LocalFolderMaxDepth: localFolderDepthSpin.value
+    property alias cfg_LocalFolderExclude: localFolderExcludeField.text
     property alias cfg_ReducedMotion: reducedMotionCheck.checked
     property alias cfg_ScrubSecretsOnExport: scrubSecretsCheck.checked
     property alias cfg_SmartOfflineEnabled: smartOfflineCheck.checked
+    property alias cfg_SmartOfflineDayAware: smartOfflineDayCheck.checked
     property string collectionSearchQuery: ""
     property string collectionUrlFieldText: ""
     readonly property bool uiSimple: String(cfg_SettingsUiMode || "simple") !== "advanced"
@@ -185,7 +188,8 @@ ColumnLayout {
         "laptop", "metered", "seen", "duplicate", "info", "bug", "github", "http",
         "playlist", "pinned", "health", "rate", "limit", "kwallet", "wallet", "secret",
         "details", "collection", "url", "simple", "advanced", "local", "folder", "motion",
-        "accessibility", "scrub", "schema",
+        "accessibility", "scrub", "schema", "depth", "exclude", "day", "night", "gallery",
+        "compact", "pin", "unpin",
     ]
 
     function rowVisible(keywords) {
@@ -1247,12 +1251,36 @@ ColumnLayout {
                     text: i18n("Cycles JPG/PNG/WebP files under this folder (home directory only). No Wallhaven network requests.")
                 }
 
+                QtControls2.SpinBox {
+                    id: localFolderDepthSpin
+                    Kirigami.FormData.label: i18n("Folder depth:")
+                    from: 0
+                    to: 8
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "folder", "depth"])
+                }
+
+                QtControls2.TextField {
+                    id: localFolderExcludeField
+                    Kirigami.FormData.label: i18n("Exclude paths:")
+                    placeholderText: i18n("thumbnails, .git, Screenshots")
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "folder", "exclude"])
+                }
+
                 QtControls2.CheckBox {
                     id: smartOfflineCheck
                     Kirigami.FormData.label: i18n("Smart offline:")
                     text: i18n("Prefer pinned / higher-resolution cache entries when offline or in playlist mode")
                     visible: (browseModeCombo.currentValue === "playlist" || offlineOnlyCheck.checked || root.uiSimple === false)
                         && rowVisible(["smart", "offline", "playlist", "cache"])
+                }
+
+                QtControls2.CheckBox {
+                    id: smartOfflineDayCheck
+                    Kirigami.FormData.label: i18n("Day-aware offline:")
+                    text: i18n("Bias cached picks toward day/night categories when Smart offline is on")
+                    visible: smartOfflineCheck.visible && smartOfflineCheck.checked
+                        && rowVisible(["smart", "offline", "day", "night", "playlist", "cache"])
+                    enabled: smartOfflineCheck.checked
                 }
 
                 QtControls2.Label {
@@ -1292,7 +1320,7 @@ ColumnLayout {
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Test search:")
                     text: searchValidator.checking ? i18n("Testing…") : i18n("Test search")
-                    visible: browseModeCombo.currentValue === "search"
+                    visible: !root.uiSimple && browseModeCombo.currentValue === "search"
                     enabled: !searchValidator.checking
                     onClicked: searchValidator.testSearch()
                 }
@@ -1317,7 +1345,7 @@ ColumnLayout {
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Validate key:")
-                    visible: rowVisible(["validate", "key"])
+                    visible: !root.uiSimple && rowVisible(["validate", "key"])
                     text: apiKeyValidator.checking ? i18n("Checking…") : i18n("Test API key")
                     enabled: apiKeyField.text !== "" && !apiKeyValidator.checking
                     onClicked: apiKeyValidator.validate()
@@ -1337,13 +1365,13 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("KWallet:")
                     text: i18n("Load API key from KWallet on startup (recommended)")
-                    visible: rowVisible(["kwallet", "wallet", "api", "key", "secret", "security"])
+                    visible: !root.uiSimple && rowVisible(["kwallet", "wallet", "api", "key", "secret", "security"])
                 }
 
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Save to KWallet:")
                     text: i18n("Save current API key to KWallet")
-                    visible: rowVisible(["kwallet", "wallet", "api", "key", "secret", "security"])
+                    visible: !root.uiSimple && rowVisible(["kwallet", "wallet", "api", "key", "secret", "security"])
                     enabled: liveWallpaper !== null && apiKeyField.text.trim() !== ""
                     onClicked: {
                         if (liveWallpaper && liveWallpaper.saveApiKeyToKWallet)
@@ -1477,7 +1505,7 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("API sorting:")
                     textRole: "label"
                     valueRole: "value"
-                    visible: browseModeCombo.currentValue === "search"
+                    visible: !root.uiSimple && browseModeCombo.currentValue === "search"
                     model: [{
                         "label": i18n("Random"),
                         "value": "random"
@@ -1505,7 +1533,7 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Toplist range:")
                     textRole: "label"
                     valueRole: "value"
-                    visible: browseModeCombo.currentValue === "search" && sortingsCombo.currentValue === "toplist"
+                    visible: browseModeCombo.currentValue === "search" && !root.uiSimple && sortingsCombo.currentValue === "toplist"
                     model: [{
                         "label": "1d",
                         "value": "1d"
@@ -1530,7 +1558,7 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("API order:")
                     textRole: "label"
                     valueRole: "value"
-                    visible: browseModeCombo.currentValue === "search"
+                    visible: !root.uiSimple && browseModeCombo.currentValue === "search"
                     model: [{
                         "label": i18n("Descending"),
                         "value": "desc"
@@ -1544,7 +1572,7 @@ ColumnLayout {
                     id: localSortingsCombo
 
                     Kirigami.FormData.label: i18n("Local sorting:")
-                    visible: rowVisible(["local", "sorting"])
+                    visible: (browseModeCombo.currentValue === "local" || !root.uiSimple) && rowVisible(["local", "sorting"])
                     textRole: "label"
                     valueRole: "value"
                     model: [{
@@ -1990,12 +2018,50 @@ ColumnLayout {
                     Repeater {
                         model: Wallhaven.bundledCuratedPresets().concat(Wallhaven.bundledCommunityPresets())
 
-                        delegate: QtControls2.Button {
-                            text: modelData.name
+                        delegate: QtControls2.ItemDelegate {
+                            width: 104
+                            height: 88
+                            padding: 4
                             onClicked: {
                                 var merged = Wallhaven.mergePresetLists(root.currentPresets(), [modelData]);
                                 root.persistPresets(merged);
                                 importExportStatus.text = i18n("Imported preset \"%1\".", modelData.name);
+                            }
+
+                            contentItem: Column {
+                                spacing: 2
+                                Item {
+                                    width: 96
+                                    height: 54
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: 4
+                                        color: Wallhaven.presetAccentColor(modelData)
+                                    }
+                                    Image {
+                                        id: presetThumb
+                                        anchors.fill: parent
+                                        fillMode: Image.PreserveAspectCrop
+                                        asynchronous: true
+                                        source: Wallhaven.presetPreviewThumbUrl(modelData)
+                                        visible: status === Image.Ready
+                                    }
+                                    QtControls2.Label {
+                                        anchors.centerIn: parent
+                                        visible: presetThumb.status !== Image.Ready
+                                        color: "#ffffff"
+                                        font.pointSize: 8
+                                        text: (modelData.CategoryAnime ? "A" : "")
+                                            + (modelData.CategoryPeople ? "P" : "")
+                                            + (modelData.CategoryGeneral !== false ? "G" : "")
+                                    }
+                                }
+                                QtControls2.Label {
+                                    width: 96
+                                    elide: Text.ElideRight
+                                    font.pointSize: 7
+                                    text: modelData.name
+                                }
                             }
                         }
                     }
@@ -2246,6 +2312,27 @@ ColumnLayout {
                     opacity: 0.7
                     visible: lockScreenCheck.checked
                     text: i18n("Lock screen uses a static Plasma image copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer enabling disk cache (and optional original download) so the lock screen gets a full-resolution file.")
+                }
+
+                QtControls2.Label {
+                    id: lockScreenStatusLabel
+                    Kirigami.FormData.label: i18n("Lock sync status:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.8
+                    visible: lockScreenCheck.checked && advancedVisible(["lock", "screen", "status"])
+                    text: {
+                        if (!liveWallpaper)
+                            return i18n("Apply Wallhaven as the wallpaper type to see sync status.");
+                        if (!liveWallpaper.lockScreenLastSyncAt)
+                            return i18n("Not synced yet this session.");
+                        var ok = liveWallpaper.lockScreenLastSyncOk;
+                        var when = liveWallpaper.lockScreenLastSyncAt;
+                        var path = liveWallpaper.lockScreenLastSyncPath || "";
+                        return ok
+                            ? i18n("Last sync OK at %1 — %2", when, path)
+                            : i18n("Last sync failed at %1", when);
+                    }
                 }
 
                 QtControls2.CheckBox {

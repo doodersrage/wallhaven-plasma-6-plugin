@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 3.0.1\n"
+"Project-Id-Version: org.robertsm.wallhaven 3.1.0\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -155,6 +155,9 @@ msgstr "Seleccione Wallhaven como tipo de fondo de escritorio para ver las estad
 msgid "Apply Wallhaven as the wallpaper type to see recent wallpapers."
 msgstr "Apply Wallhaven as the wallpaper type to see recent wallpapers."
 
+msgid "Apply Wallhaven as the wallpaper type to see sync status."
+msgstr "Apply Wallhaven as the wallpaper type to see sync status."
+
 msgid "Apply Wallhaven tag blacklist (Search + API key)"
 msgstr "Aplicar lista negra de etiquetas de Wallhaven (Búsqueda + clave API)"
 
@@ -184,6 +187,9 @@ msgstr "Pausa con batería:"
 
 msgid "Battery threshold (%):"
 msgstr "Umbral de batería (%):"
+
+msgid "Bias cached picks toward day/night categories when Smart offline is on"
+msgstr "Bias cached picks toward day/night categories when Smart offline is on"
 
 msgid "Bias search toward rain/snow/storm tags matching local weather"
 msgstr "Bias search toward rain/snow/storm tags matching local weather"
@@ -473,6 +479,9 @@ msgstr "Rojo oscuro"
 msgid "Date added"
 msgstr "Fecha de adición"
 
+msgid "Day-aware offline:"
+msgstr "Day-aware offline:"
+
 msgid "Day interval (min):"
 msgstr "Intervalo diurno (min):"
 
@@ -584,6 +593,9 @@ msgstr "Expulsar"
 msgid "Exact resolutions:"
 msgstr "Resoluciones exactas:"
 
+msgid "Exclude paths:"
+msgstr "Exclude paths:"
+
 msgid "Export:"
 msgstr "Exportar:"
 
@@ -652,6 +664,9 @@ msgstr "Filtrar configuración…"
 
 msgid "Finish"
 msgstr "Finalizar"
+
+msgid "Folder depth:"
+msgstr "Folder depth:"
 
 msgid "Font scale (%):"
 msgstr "Escala de fuente (%):"
@@ -809,6 +824,12 @@ msgstr "Grande (fondo de escritorio completo)"
 msgid "Last API error: HTTP %1"
 msgstr "Last API error: HTTP %1"
 
+msgid "Last sync failed at %1"
+msgstr "Last sync failed at %1"
+
+msgid "Last sync OK at %1 — %2"
+msgstr "Last sync OK at %1 — %2"
+
 msgid "Light Gray"
 msgstr "Gris claro"
 
@@ -853,6 +874,9 @@ msgstr "Pantalla de bloqueo:"
 
 msgid "Lock screen uses a static Plasma image copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer enabling disk cache (and optional original download) so the lock screen gets a full-resolution file."
 msgstr "Lock screen uses a static Plasma image copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer enabling disk cache (and optional original download) so the lock screen gets a full-resolution file."
+
+msgid "Lock sync status:"
+msgstr "Lock sync status:"
 
 msgid "Manual"
 msgstr "Manual"
@@ -1010,6 +1034,9 @@ msgstr "Notificaciones"
 msgid "Notify on view-count milestones and daily streaks"
 msgstr "Notify on view-count milestones and daily streaks"
 
+msgid "Not synced yet this session."
+msgstr "Not synced yet this session."
+
 msgid "No upscaler installed (realesrgan-ncnn-vulkan not found on PATH)."
 msgstr "No upscaler installed (realesrgan-ncnn-vulkan not found on PATH)."
 
@@ -1144,6 +1171,12 @@ msgstr "Elegir colección:"
 
 msgid "Pin"
 msgstr "Anclar"
+
+msgid "Pin current wallpaper in cache"
+msgstr "Pin current wallpaper in cache"
+
+msgid "Pin in cache"
+msgstr "Pin in cache"
 
 msgid "Pink"
 msgstr "Rosa"
@@ -1379,6 +1412,9 @@ msgstr "Prueba de búsqueda: %1 resultado(s)."
 msgid "Search test failed (%1)."
 msgstr "Prueba de búsqueda fallida (%1)."
 
+msgid "Search wallhaven…"
+msgstr "Search wallhaven…"
+
 msgid "Seen history:"
 msgstr "Seen history:"
 
@@ -1580,6 +1616,9 @@ msgstr "Probar búsqueda:"
 msgid "This screen:"
 msgstr "This screen:"
 
+msgid "thumbnails, .git, Screenshots"
+msgstr "thumbnails, .git, Screenshots"
+
 msgid "Time Capsule"
 msgstr "Time Capsule"
 
@@ -1621,6 +1660,12 @@ msgstr "Transición:"
 
 msgid "Unpin"
 msgstr "Desanclar"
+
+msgid "Unpin current wallpaper"
+msgstr "Unpin current wallpaper"
+
+msgid "Unpin from cache"
+msgstr "Unpin from cache"
 
 msgid "Upscale low-res:"
 msgstr "Upscale low-res:"

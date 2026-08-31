@@ -266,6 +266,62 @@ def metadata_from(status: dict) -> dbus.Dictionary:
     )
 
 
+def list_image_files_under(folder: str, options_json: str = "") -> str:
+    """List image files under a home-relative folder. Returns JSON array of paths."""
+    raw = os.path.expanduser(str(folder or "").strip())
+    if not raw:
+        return "[]"
+    home = os.path.expanduser("~")
+    target = os.path.realpath(raw)
+    if not (target == home or target.startswith(home + os.sep)):
+        raise dbus.exceptions.DBusException(
+            "org.freedesktop.DBus.Error.InvalidArgs: folder must be under home",
+        )
+    if not os.path.isdir(target):
+        return "[]"
+    max_depth = 3
+    excludes: list[str] = []
+    try:
+        opts = json.loads(options_json or "{}") if options_json else {}
+        if isinstance(opts, dict):
+            if opts.get("maxDepth") is not None:
+                max_depth = max(0, min(8, int(opts["maxDepth"])))
+            raw_ex = opts.get("exclude", "")
+            if isinstance(raw_ex, list):
+                excludes = [str(x).strip().lower() for x in raw_ex if str(x).strip()]
+            else:
+                excludes = [
+                    part.strip().lower()
+                    for part in str(raw_ex).replace(";", ",").split(",")
+                    if part.strip()
+                ]
+    except (TypeError, ValueError, json.JSONDecodeError):
+        max_depth = 3
+        excludes = []
+    exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+    found: list[str] = []
+    for root, dirs, files in os.walk(target):
+        rel = os.path.relpath(root, target)
+        depth = 0 if rel == "." else rel.count(os.sep) + 1
+        if depth > max_depth:
+            dirs[:] = []
+            continue
+        # Do not descend past max_depth.
+        if depth >= max_depth:
+            dirs[:] = []
+        for name in files:
+            path = os.path.join(root, name)
+            lower = path.lower()
+            if any(token in lower for token in excludes):
+                continue
+            ext = os.path.splitext(name)[1].lower()
+            if ext in exts:
+                found.append(path)
+                if len(found) >= 400:
+                    return json.dumps(found)
+    return json.dumps(found)
+
+
 class WallhavenControl(dbus.service.Object):
     def __init__(self, bus, group: str) -> None:
         self.group = group
@@ -286,7 +342,7 @@ class WallhavenControl(dbus.service.Object):
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def GetPluginVersion(self) -> str:
-        return "3.0.1"
+        return "3.1.0"
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def ListMonitorStatuses(self) -> str:
@@ -311,35 +367,13 @@ class WallhavenControl(dbus.service.Object):
             return "[]"
         return json.dumps(out)
 
-    @dbus.service.method(INTERFACE, in_signature="s", out_signature="s")
-    def ListImageFiles(self, folder: str) -> str:
-        """List image files under a user folder (JSON array of absolute paths)."""
-        raw = os.path.expanduser(str(folder or "").strip())
-        if not raw:
-            return "[]"
-        home = os.path.expanduser("~")
-        target = os.path.realpath(raw)
-        if not (target == home or target.startswith(home + os.sep)):
-            raise dbus.exceptions.DBusException(
-                "org.freedesktop.DBus.Error.InvalidArgs: folder must be under home",
-            )
-        if not os.path.isdir(target):
-            return "[]"
-        exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-        found: list[str] = []
-        for root, _dirs, files in os.walk(target):
-            # Stay shallow-ish for plasmashell responsiveness.
-            rel = os.path.relpath(root, target)
-            depth = 0 if rel == "." else rel.count(os.sep) + 1
-            if depth > 3:
-                continue
-            for name in files:
-                ext = os.path.splitext(name)[1].lower()
-                if ext in exts:
-                    found.append(os.path.join(root, name))
-                    if len(found) >= 400:
-                        return json.dumps(found)
-        return json.dumps(found)
+    @dbus.service.method(INTERFACE, in_signature="ss", out_signature="s")
+    def ListImageFiles(self, folder: str, options_json: str = "") -> str:
+        """List image files under a user folder (JSON array of absolute paths).
+
+        options_json may include maxDepth (int) and exclude (comma-separated substrings).
+        """
+        return list_image_files_under(folder, options_json)
 
     @dbus.service.method(INTERFACE, in_signature="s")
     def Command(self, cmd: str) -> None:
@@ -672,6 +706,7 @@ def main() -> int:
     group = os.environ.get("WALLHAVEN_SYNC_GROUP", "default")
     if len(sys.argv) > 1 and sys.argv[1] in {
         "next", "prev", "reload", "pause", "resume", "open", "block", "copytags", "like", "dislike",
+        "pin", "unpin",
     }:
         write_command(sys.argv[1], group)
         print(f"Sent '{sys.argv[1]}' via control bus")

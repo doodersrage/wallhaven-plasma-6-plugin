@@ -140,6 +140,9 @@ WallpaperItem {
     property int _offlineCacheCursor: -1
     property var _localImagePaths: []
     property int _localCursor: -1
+    property string lockScreenLastSyncAt: ""
+    property string lockScreenLastSyncPath: ""
+    property bool lockScreenLastSyncOk: false
     property string _pendingFadeUrl: ""
     property int _lastControlTs: 0
     property int _lastSyncAdvanceTs: 0
@@ -872,6 +875,9 @@ WallpaperItem {
             browseMode: cfg.BrowseMode || "",
             screenName: screenName,
             cacheNamespace: diskCacheNamespace,
+            lockScreenSyncAt: lockScreenLastSyncAt,
+            lockScreenSyncPath: lockScreenLastSyncPath,
+            lockScreenSyncOk: lockScreenLastSyncOk,
             varietyWatchEnabled: cfg.VarietyWatchEnabled,
             metrics: _metrics,
             apiHealth: root.apiHealth,
@@ -976,14 +982,26 @@ WallpaperItem {
         }
         var source = urlToLocalPath(localPath);
         if (!source) {
+            lockScreenLastSyncOk = false;
+            lockScreenLastSyncAt = new Date().toISOString();
+            lockScreenLastSyncPath = "";
+            publishStatus();
             return;
         }
         var dest = lockScreenImagePath();
         var command = Wallhaven.buildLockScreenSyncCommand(source, dest);
         if (!command) {
+            lockScreenLastSyncOk = false;
+            lockScreenLastSyncAt = new Date().toISOString();
+            lockScreenLastSyncPath = dest;
+            publishStatus();
             return;
         }
         dbusHelper.runArgv(["bash", "-lc", command]);
+        lockScreenLastSyncOk = true;
+        lockScreenLastSyncAt = new Date().toISOString();
+        lockScreenLastSyncPath = dest;
+        publishStatus();
     }
 
     function maybeSyncSidecars(img) {
@@ -1898,9 +1916,12 @@ WallpaperItem {
                 SimilarSourceId: (cfg.BrowseMode === "similar" && root.currentWallpaperId !== "wallpaper")
                     ? String(root.currentWallpaperId) : "",
                 SmartOfflineEnabled: cfg.SmartOfflineEnabled,
+                SmartOfflineDayAware: cfg.SmartOfflineDayAware,
                 OfflinePlaylistPinnedOnly: cfg.OfflinePlaylistPinnedOnly,
                 PinnedCacheIdsJson: cfg.PinnedCacheIdsJson,
                 LocalFolderPath: cfg.LocalFolderPath,
+                LocalFolderMaxDepth: cfg.LocalFolderMaxDepth,
+                LocalFolderExclude: cfg.LocalFolderExclude,
             };
         }
 
@@ -2438,7 +2459,11 @@ WallpaperItem {
             dbusHelper.listImageFiles(folder, function(raw) {
                 var paths = [];
                 try {
-                    paths = Wallhaven.listLocalImagePaths(JSON.parse(raw || "[]"));
+                    paths = Wallhaven.listLocalImagePaths(
+                        JSON.parse(raw || "[]"),
+                        cfg.LocalFolderExclude,
+                    );
+                    paths = Wallhaven.orderLocalImagePaths(paths, cfg.LocalSortings);
                 } catch (e) {
                     paths = [];
                 }
@@ -2448,7 +2473,11 @@ WallpaperItem {
                     endBusy();
                     return;
                 }
-                root._localCursor = (root._localCursor + 1) % paths.length;
+                if (cfg.LocalSortings === "random") {
+                    root._localCursor = Math.floor(Math.random() * paths.length);
+                } else {
+                    root._localCursor = (root._localCursor + 1) % paths.length;
+                }
                 var path = paths[root._localCursor];
                 var id = "local-" + String(root._localCursor);
                 var wp = {
@@ -2935,7 +2964,11 @@ WallpaperItem {
         }
 
         function listImageFiles(folder, callback) {
-            wallhavenMessage("ListImageFiles", "s", [folder || ""], function(reply) {
+            var options = JSON.stringify({
+                maxDepth: Math.max(0, Math.min(8, parseInt(cfg.LocalFolderMaxDepth, 10) || 3)),
+                exclude: String(cfg.LocalFolderExclude || ""),
+            });
+            wallhavenMessage("ListImageFiles", "ss", [folder || "", options], function(reply) {
                 if (callback) {
                     callback(Wallhaven.dbusReplyAsString(reply));
                 }
@@ -3433,6 +3466,16 @@ WallpaperItem {
                 case "history":
                     if (cmd.query) {
                         root.showHistoryWallpaper(cmd.query);
+                    }
+                    break;
+                case "pin":
+                    if (root.currentWallpaperId && root.currentWallpaperId !== "wallpaper") {
+                        root.pinCacheId(root.currentWallpaperId);
+                    }
+                    break;
+                case "unpin":
+                    if (root.currentWallpaperId && root.currentWallpaperId !== "wallpaper") {
+                        root.unpinCacheId(root.currentWallpaperId);
                     }
                     break;
                 default: break;

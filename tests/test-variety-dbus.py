@@ -63,5 +63,39 @@ class VarietyParseTests(unittest.TestCase):
         self.assertEqual(self.mod.parse_variety_search(ini), "anime")
 
 
+class ListImageFilesTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.mod = load_module()
+
+    def test_list_respects_depth_and_exclude(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        home = Path.home()
+        with tempfile.TemporaryDirectory(dir=home) as tmp:
+            root = Path(tmp)
+            (root / "keep.jpg").write_bytes(b"x")
+            nested = root / "deep" / "nested"
+            nested.mkdir(parents=True)
+            (nested / "skip.jpg").write_bytes(b"x")
+            thumbs = root / "thumbs"
+            thumbs.mkdir()
+            (thumbs / "no.jpg").write_bytes(b"x")
+            shallow = self.mod.list_image_files_under(
+                str(root),
+                '{"maxDepth": 0, "exclude": "thumbs"}',
+            )
+            paths = __import__("json").loads(shallow)
+            self.assertEqual(len(paths), 1)
+            self.assertTrue(paths[0].endswith("keep.jpg"))
+            deep = self.mod.list_image_files_under(
+                str(root),
+                '{"maxDepth": 3, "exclude": "thumbs"}',
+            )
+            deep_paths = __import__("json").loads(deep)
+            self.assertEqual(len(deep_paths), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
