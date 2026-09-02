@@ -243,7 +243,7 @@ var EXPORTABLE_SETTINGS_KEYS = [
     "PanelBlurStrength", "SettingsFilterHint",
     "SettingsUiMode", "LocalFolderPath", "ReducedMotion",
     "ScrubSecretsOnExport", "SmartOfflineEnabled", "SmartOfflineDayAware",
-    "LocalFolderMaxDepth", "LocalFolderExclude",
+    "LocalFolderMaxDepth", "LocalFolderExclude", "LocalPlaylistsJson",
 ];
 
 // Fields captured when saving/applying search presets or sync-group profiles.
@@ -437,6 +437,54 @@ function orderLocalImagePaths(paths, localSortings) {
     return paths;
 }
 
+function parseLocalPlaylists(raw) {
+    try {
+        var parsed = JSON.parse(raw || "[]");
+        if (!parsed || !parsed.length) {
+            return [];
+        }
+        var out = [];
+        for (var i = 0; i < parsed.length; i++) {
+            var entry = parsed[i];
+            if (!entry || !entry.name || !entry.path) {
+                continue;
+            }
+            out.push({
+                name: String(entry.name).trim(),
+                path: String(entry.path).trim(),
+                maxDepth: Math.max(0, Math.min(8, parseInt(entry.maxDepth, 10) || 3)),
+                exclude: String(entry.exclude || ""),
+                sortings: String(entry.sortings || "ascending"),
+            });
+        }
+        return out;
+    } catch (e) {
+        return [];
+    }
+}
+
+function serializeLocalPlaylists(entries) {
+    return JSON.stringify(entries || []);
+}
+
+function applyLocalPlaylist(playlist, configuration) {
+    if (!playlist || !configuration) {
+        return false;
+    }
+    configuration.BrowseMode = "local";
+    configuration.LocalFolderPath = String(playlist.path || "");
+    if (playlist.maxDepth !== undefined) {
+        configuration.LocalFolderMaxDepth = playlist.maxDepth;
+    }
+    if (playlist.exclude !== undefined) {
+        configuration.LocalFolderExclude = String(playlist.exclude || "");
+    }
+    if (playlist.sortings) {
+        configuration.LocalSortings = String(playlist.sortings);
+    }
+    return true;
+}
+
 function presetAccentColor(preset) {
     if (preset && preset.ColorFilter) {
         var hex = String(preset.ColorFilter).replace("#", "").trim();
@@ -497,12 +545,17 @@ function pickSmartCachedId(index, cfg, cursor) {
         var dayBoost = 0;
         if (dayAware) {
             var cat = index.categories ? String(index.categories[id] || "").toLowerCase() : "";
-            // Soft preference: daytime leans general; night leans anime/people when no query.
+            var tagStr = diskCacheTagsForId(index, id).toLowerCase();
             if (periodNeedle) {
-                if (periodNeedle.indexOf(cat) !== -1 || (cat && periodNeedle.indexOf(cat) >= 0)) {
-                    dayBoost = 5e9;
+                var tokens = periodNeedle.split(/\s+/).filter(function(t) { return t.length > 2; });
+                var hits = 0;
+                for (var t = 0; t < tokens.length; t++) {
+                    if ((tagStr && tagStr.indexOf(tokens[t]) !== -1)
+                            || (cat && (cat.indexOf(tokens[t]) !== -1 || tokens[t].indexOf(cat) !== -1))) {
+                        hits += 1;
+                    }
                 }
-                // Match category tokens from day/night query loosely.
+                dayBoost = hits * 5e9;
                 if (preferDay && cat.indexOf("general") !== -1) {
                     dayBoost += 1e9;
                 }
@@ -527,7 +580,7 @@ function pickSmartCachedId(index, cfg, cursor) {
 }
 
 function pluginVersion() {
-    return "3.1.0";
+    return "3.2.0";
 }
 
 function buildPresetFromConfig(name, cfg) {
@@ -694,7 +747,7 @@ function diskCacheSlotCount() {
 }
 
 function parseDiskCacheIndex(raw) {
-    var empty = { ids: [], next: 0, categories: {}, purities: {}, dimensions: {}, usedAt: {} };
+    var empty = { ids: [], next: 0, categories: {}, purities: {}, dimensions: {}, usedAt: {}, tags: {} };
     if (!raw) {
         return empty;
     }
@@ -704,6 +757,7 @@ function parseDiskCacheIndex(raw) {
         var purities = {};
         var dimensions = {};
         var usedAt = {};
+        var tags = {};
         if (parsed && parsed.categories && typeof parsed.categories === "object") {
             categories = parsed.categories;
         }
@@ -716,6 +770,9 @@ function parseDiskCacheIndex(raw) {
         if (parsed && parsed.usedAt && typeof parsed.usedAt === "object") {
             usedAt = parsed.usedAt;
         }
+        if (parsed && parsed.tags && typeof parsed.tags === "object") {
+            tags = parsed.tags;
+        }
         if (!parsed || !parsed.ids || !parsed.ids.length) {
             return {
                 ids: [],
@@ -724,6 +781,7 @@ function parseDiskCacheIndex(raw) {
                 purities: purities,
                 dimensions: dimensions,
                 usedAt: usedAt,
+                tags: tags,
             };
         }
         return {
@@ -733,6 +791,7 @@ function parseDiskCacheIndex(raw) {
             purities: purities,
             dimensions: dimensions,
             usedAt: usedAt,
+            tags: tags,
         };
     } catch (e) {
         return empty;
@@ -741,7 +800,7 @@ function parseDiskCacheIndex(raw) {
 
 function serializeDiskCacheIndex(index) {
     if (!index) {
-        return "{\"ids\":[],\"next\":0,\"categories\":{},\"purities\":{},\"dimensions\":{}}";
+        return "{\"ids\":[],\"next\":0,\"categories\":{},\"purities\":{},\"dimensions\":{},\"tags\":{}}";
     }
     return JSON.stringify({
         ids: index.ids || [],
@@ -750,6 +809,7 @@ function serializeDiskCacheIndex(index) {
         purities: index.purities || {},
         dimensions: index.dimensions || {},
         usedAt: index.usedAt || {},
+        tags: index.tags || {},
     });
 }
 
@@ -758,6 +818,26 @@ function diskCacheSlotForId(index, id) {
         return -1;
     }
     return index.ids.indexOf(String(id));
+}
+
+function setDiskCacheTags(index, id, tagsRaw) {
+    if (!index || !id) {
+        return;
+    }
+    if (!index.tags) {
+        index.tags = {};
+    }
+    var tags = String(tagsRaw || "").trim();
+    if (tags) {
+        index.tags[String(id)] = tags;
+    }
+}
+
+function diskCacheTagsForId(index, id) {
+    if (!index || !index.tags || !id) {
+        return "";
+    }
+    return String(index.tags[String(id)] || "");
 }
 
 function setDiskCacheCategory(index, id, category, purity) {
@@ -840,6 +920,9 @@ function evictDiskCacheOccupant(index, occupant) {
     }
     if (index.usedAt) {
         delete index.usedAt[occupant];
+    }
+    if (index.tags) {
+        delete index.tags[occupant];
     }
 }
 
@@ -1941,6 +2024,7 @@ function listCacheEntries(index, pinnedIds) {
             thumbUrl: thumbUrlForId(id),
             dimensionX: dims ? dims.dimension_x : 0,
             dimensionY: dims ? dims.dimension_y : 0,
+            tags: diskCacheTagsForId(index, id),
         });
     }
     return entries;

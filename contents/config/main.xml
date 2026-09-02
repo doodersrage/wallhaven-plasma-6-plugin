@@ -74,7 +74,7 @@
         <entry name="VarietyMetadataEnabled" type="Bool"><default>false</default></entry>
         <entry name="BlockedIdsJson" type="String"><default>[]</default></entry>
         <entry name="SearchPresetsJson" type="String"><default>[]</default></entry>
-        <entry name="DiskCacheIndexJson" type="String"><default>{"ids":[],"next":0,"categories":{},"purities":{}}</default></entry>
+        <entry name="DiskCacheIndexJson" type="String"><default>{"ids":[],"next":0,"categories":{},"purities":{},"tags":{}}</default></entry>
         <entry name="CacheNamespace" type="String"><default></default></entry>
         <entry name="TimeOfDayEnabled" type="Bool"><default>false</default></entry>
         <entry name="DaySearch" type="String"><default></default></entry>
@@ -133,6 +133,7 @@
         <entry name="LocalFolderPath" type="String"><default></default></entry>
         <entry name="LocalFolderMaxDepth" type="Int"><default>3</default></entry>
         <entry name="LocalFolderExclude" type="String"><default></default></entry>
+        <entry name="LocalPlaylistsJson" type="String"><default>[]</default></entry>
         <entry name="ReducedMotion" type="Bool"><default>false</default></entry>
         <entry name="ScrubSecretsOnExport" type="Bool"><default>true</default></entry>
         <entry name="SmartOfflineEnabled" type="Bool"><default>true</default></entry>

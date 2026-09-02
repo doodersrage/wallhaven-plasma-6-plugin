@@ -131,7 +131,7 @@ WallpaperItem {
     property string _pendingWallpaperId: ""
     property bool _pendingUsedCache: false
     property bool _configWritePending: false
-    property var _diskCacheIndex: ({ ids: [], next: 0, categories: {}, purities: {}, dimensions: {} })
+    property var _diskCacheIndex: ({ ids: [], next: 0, categories: {}, purities: {}, dimensions: {}, tags: {} })
     property var _diskCacheSaveRequest: null
     property int _fetchRetryCount: 0
     property bool _connectivityOnline: true
@@ -535,6 +535,7 @@ WallpaperItem {
             wallpaperForUpscale && wallpaperForUpscale.dimension_x,
             wallpaperForUpscale && wallpaperForUpscale.dimension_y,
         );
+        Wallhaven.setDiskCacheTags(_diskCacheIndex, req.id, root._currentTags);
         var originalUrl = String(req.remoteUrl || "");
         if (cfg.CacheDownloadOriginal && originalUrl.indexOf("http") === 0) {
             dbusHelper.runArgv([

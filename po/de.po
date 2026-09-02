@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 3.1.0\n"
+"Project-Id-Version: org.robertsm.wallhaven 3.2.0\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -57,7 +57,7 @@ msgid "Advanced"
 msgstr "Erweitert"
 
 msgid "Advanced mode shows all tabs and options."
-msgstr "Advanced mode shows all tabs and options."
+msgstr "Der erweiterte Modus zeigt alle Registerkarten und Optionen."
 
 msgid "All portrait"
 msgstr "Alle Hochformat"
@@ -113,6 +113,9 @@ msgstr "API rate-limited ×%1"
 msgid "API sorting:"
 msgstr "API-Sortierung:"
 
+msgid "Applied local playlist \\"
+msgstr "Applied local playlist \\"
+
 msgid "Applied Variety search: %1"
 msgstr "Variety-Suche angewendet: %1"
 
@@ -127,6 +130,9 @@ msgstr "Apply brightness/contrast/saturation adjustments to the wallpaper"
 
 msgid "Apply laptop power-saving preset"
 msgstr "Apply laptop power-saving preset"
+
+msgid "Apply local playlist"
+msgstr "Lokale Playlist anwenden"
 
 msgid "Apply preset:"
 msgstr "Voreinstellung anwenden:"
@@ -156,7 +162,7 @@ msgid "Apply Wallhaven as the wallpaper type to see recent wallpapers."
 msgstr "Apply Wallhaven as the wallpaper type to see recent wallpapers."
 
 msgid "Apply Wallhaven as the wallpaper type to see sync status."
-msgstr "Apply Wallhaven as the wallpaper type to see sync status."
+msgstr "Wallhaven als Hintergrundtyp wählen, um den Sync-Status zu sehen."
 
 msgid "Apply Wallhaven tag blacklist (Search + API key)"
 msgstr "Wallhaven-Tag-Sperrliste anwenden (Suche + API-Schlüssel)"
@@ -188,8 +194,8 @@ msgstr "Akku-Pause:"
 msgid "Battery threshold (%):"
 msgstr "Akku-Schwellwert (%):"
 
-msgid "Bias cached picks toward day/night categories when Smart offline is on"
-msgstr "Bias cached picks toward day/night categories when Smart offline is on"
+msgid "Bias cached picks using day/night search words and stored cache tags"
+msgstr "Bevorzuge Cache-Einträge anhand von Tag-/Nacht-Suchwörtern und gespeicherten Tags"
 
 msgid "Bias search toward rain/snow/storm tags matching local weather"
 msgstr "Bias search toward rain/snow/storm tags matching local weather"
@@ -249,7 +255,7 @@ msgid "Brown"
 msgstr "Braun"
 
 msgid "Browse…"
-msgstr "Browse…"
+msgstr "Durchsuchen…"
 
 msgid "Browse mode:"
 msgstr "Durchsuchmodus:"
@@ -480,7 +486,7 @@ msgid "Date added"
 msgstr "Hinzugefügt am"
 
 msgid "Day-aware offline:"
-msgstr "Day-aware offline:"
+msgstr "Tageszeit-Offline:"
 
 msgid "Day interval (min):"
 msgstr "Tag-Intervall (Min.):"
@@ -518,6 +524,12 @@ msgstr "Standard"
 msgid "Default sync group:"
 msgstr "Default sync group:"
 
+msgid "Deleted local playlist \\"
+msgstr "Deleted local playlist \\"
+
+msgid "Delete local playlist"
+msgstr "Lokale Playlist löschen"
+
 msgid "Delete preset:"
 msgstr "Voreinstellung löschen:"
 
@@ -526,6 +538,9 @@ msgstr "Ausgewählte Voreinstellung löschen"
 
 msgid "Descending"
 msgstr "Absteigend"
+
+msgid "Desktop Art"
+msgstr "Desktop-Kunst"
 
 msgid "Desktop banner:"
 msgstr "Desktop-Banner:"
@@ -594,7 +609,7 @@ msgid "Exact resolutions:"
 msgstr "Exakte Auflösungen:"
 
 msgid "Exclude paths:"
-msgstr "Exclude paths:"
+msgstr "Pfade ausschließen:"
 
 msgid "Export:"
 msgstr "Exportieren:"
@@ -609,7 +624,7 @@ msgid "Export file:"
 msgstr "Exportdatei:"
 
 msgid "Export privacy:"
-msgstr "Export privacy:"
+msgstr "Export-Datenschutz:"
 
 msgid "Export Wallhaven Bug Report"
 msgstr "Export Wallhaven Bug Report"
@@ -666,7 +681,7 @@ msgid "Finish"
 msgstr "Fertigstellen"
 
 msgid "Folder depth:"
-msgstr "Folder depth:"
+msgstr "Ordnertiefe:"
 
 msgid "Font scale (%):"
 msgstr "Schriftgröße (%):"
@@ -825,10 +840,10 @@ msgid "Last API error: HTTP %1"
 msgstr "Last API error: HTTP %1"
 
 msgid "Last sync failed at %1"
-msgstr "Last sync failed at %1"
+msgstr "Letzter Sync fehlgeschlagen um %1"
 
 msgid "Last sync OK at %1 — %2"
-msgstr "Last sync OK at %1 — %2"
+msgstr "Letzter Sync OK um %1 — %2"
 
 msgid "Light Gray"
 msgstr "Hellgrau"
@@ -861,10 +876,13 @@ msgid "Local folder"
 msgstr "Local folder"
 
 msgid "Local folder:"
-msgstr "Local folder:"
+msgstr "Lokaler Ordner:"
 
 msgid "Local folder wallpaper."
 msgstr "Local folder wallpaper."
+
+msgid "Local playlists:"
+msgstr "Lokale Playlists:"
 
 msgid "Local sorting:"
 msgstr "Lokale Sortierung:"
@@ -875,8 +893,20 @@ msgstr "Sperrbildschirm:"
 msgid "Lock screen uses a static Plasma image copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer enabling disk cache (and optional original download) so the lock screen gets a full-resolution file."
 msgstr "Lock screen uses a static Plasma image copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer enabling disk cache (and optional original download) so the lock screen gets a full-resolution file."
 
+msgid "lock sync failed"
+msgstr "Sperrbildschirm-Sync fehlgeschlagen"
+
+msgid "Lock sync failed · %1"
+msgstr "Sperrbildschirm-Sync fehlgeschlagen · %1"
+
+msgid "lock sync OK"
+msgstr "Sperrbildschirm-Sync OK"
+
+msgid "Lock sync OK · %1"
+msgstr "Sperrbildschirm-Sync OK · %1"
+
 msgid "Lock sync status:"
-msgstr "Lock sync status:"
+msgstr "Sperrbildschirm-Sync-Status:"
 
 msgid "Manual"
 msgstr "Manuell"
@@ -946,6 +976,9 @@ msgstr "Music reactivity (%):"
 
 msgid "Muted tags: %1"
 msgstr "Muted tags: %1"
+
+msgid "Name and folder path are required to save a local playlist."
+msgstr "Name und Ordnerpfad sind erforderlich, um eine lokale Playlist zu speichern."
 
 msgid "Network error during search test."
 msgstr "Netzwerkfehler beim Suchtest."
@@ -1035,7 +1068,7 @@ msgid "Notify on view-count milestones and daily streaks"
 msgstr "Notify on view-count milestones and daily streaks"
 
 msgid "Not synced yet this session."
-msgstr "Not synced yet this session."
+msgstr "In dieser Sitzung noch nicht synchronisiert."
 
 msgid "No upscaler installed (realesrgan-ncnn-vulkan not found on PATH)."
 msgstr "No upscaler installed (realesrgan-ncnn-vulkan not found on PATH)."
@@ -1173,10 +1206,10 @@ msgid "Pin"
 msgstr "Anheften"
 
 msgid "Pin current wallpaper in cache"
-msgstr "Pin current wallpaper in cache"
+msgstr "Aktuelles Hintergrundbild im Cache anheften"
 
 msgid "Pin in cache"
-msgstr "Pin in cache"
+msgstr "Im Cache anheften"
 
 msgid "Pink"
 msgstr "Rosa"
@@ -1244,6 +1277,9 @@ msgstr "Violett"
 msgid "Random"
 msgstr "Zufällig"
 
+msgid "rate-limited ×%1"
+msgstr "ratenbegrenzt ×%1"
+
 msgid "Rate limited (429) — %1 time(s)"
 msgstr "Rate limited (429) — %1 time(s)"
 
@@ -1272,7 +1308,7 @@ msgid "Red"
 msgstr "Rot"
 
 msgid "Reduced motion:"
-msgstr "Reduced motion:"
+msgstr "Reduzierte Bewegung:"
 
 msgid "Reduce preloads when offline or metered"
 msgstr "Vorladen bei Offline oder getaktetem Netz reduzieren"
@@ -1355,11 +1391,20 @@ msgstr "Save current API key to KWallet"
 msgid "Save current search"
 msgstr "Aktuelle Suche speichern"
 
+msgid "Saved local playlist \\"
+msgstr "Saved local playlist \\"
+
 msgid "Saved presets:"
 msgstr "Gespeicherte Voreinstellungen:"
 
 msgid "Saved search profile for sync group \\"
 msgstr "Saved search profile for sync group \\"
+
+msgid "Save local playlist"
+msgstr "Lokale Playlist speichern"
+
+msgid "Save playlist as:"
+msgstr "Playlist speichern als:"
 
 msgid "Save preset:"
 msgstr "Voreinstellung speichern:"
@@ -1413,7 +1458,7 @@ msgid "Search test failed (%1)."
 msgstr "Suchtest fehlgeschlagen (%1)."
 
 msgid "Search wallhaven…"
-msgstr "Search wallhaven…"
+msgstr "Wallhaven durchsuchen…"
 
 msgid "Seen history:"
 msgstr "Seen history:"
@@ -1443,7 +1488,7 @@ msgid "Settings imported."
 msgstr "Einstellungen importiert."
 
 msgid "Settings mode:"
-msgstr "Settings mode:"
+msgstr "Einstellungsmodus:"
 
 msgid "Setup status:"
 msgstr "Setup status:"
@@ -1491,7 +1536,7 @@ msgid "Similar Wallpapers"
 msgstr "Ähnliche Hintergrundbilder"
 
 msgid "Simple"
-msgstr "Simple"
+msgstr "Einfach"
 
 msgid "Simple mode shows Source and Playback essentials. Switch to Advanced for filters, sync, diagnostics, and power tools."
 msgstr "Simple mode shows Source and Playback essentials. Switch to Advanced for filters, sync, diagnostics, and power tools."
@@ -1545,7 +1590,7 @@ msgid "Smart color search:"
 msgstr "Intelligente Farbsuche:"
 
 msgid "Smart offline:"
-msgstr "Smart offline:"
+msgstr "Intelligenter Offline-Modus:"
 
 msgid "Source"
 msgstr "Quelle"
@@ -1662,10 +1707,10 @@ msgid "Unpin"
 msgstr "Loslösen"
 
 msgid "Unpin current wallpaper"
-msgstr "Unpin current wallpaper"
+msgstr "Aktuelles Hintergrundbild lösen"
 
 msgid "Unpin from cache"
-msgstr "Unpin from cache"
+msgstr "Aus Cache lösen"
 
 msgid "Upscale low-res:"
 msgstr "Upscale low-res:"
@@ -1786,6 +1831,9 @@ msgstr "Hintergrundbild des Tages:"
 
 msgid "Wallpaper saved."
 msgstr "Hintergrundbild gespeichert."
+
+msgid "Wallpaper settings…"
+msgstr "Hintergrundbild-Einstellungen…"
 
 msgid "Watch Variety config for changes"
 msgstr "Variety-Konfiguration auf Änderungen überwachen"

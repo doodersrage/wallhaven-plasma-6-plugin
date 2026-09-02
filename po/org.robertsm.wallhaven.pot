@@ -114,6 +114,9 @@ msgstr ""
 msgid "API sorting:"
 msgstr ""
 
+msgid "Applied local playlist \"
+msgstr ""
+
 msgid "Applied Variety search: %1"
 msgstr ""
 
@@ -127,6 +130,9 @@ msgid "Apply brightness/contrast/saturation adjustments to the wallpaper"
 msgstr ""
 
 msgid "Apply laptop power-saving preset"
+msgstr ""
+
+msgid "Apply local playlist"
 msgstr ""
 
 msgid "Apply preset:"
@@ -189,7 +195,7 @@ msgstr ""
 msgid "Battery threshold (%):"
 msgstr ""
 
-msgid "Bias cached picks toward day/night categories when Smart offline is on"
+msgid "Bias cached picks using day/night search words and stored cache tags"
 msgstr ""
 
 msgid "Bias search toward rain/snow/storm tags matching local weather"
@@ -519,6 +525,12 @@ msgstr ""
 msgid "Default sync group:"
 msgstr ""
 
+msgid "Deleted local playlist \"
+msgstr ""
+
+msgid "Delete local playlist"
+msgstr ""
+
 msgid "Delete preset:"
 msgstr ""
 
@@ -526,6 +538,9 @@ msgid "Delete selected preset"
 msgstr ""
 
 msgid "Descending"
+msgstr ""
+
+msgid "Desktop Art"
 msgstr ""
 
 msgid "Desktop banner:"
@@ -867,6 +882,9 @@ msgstr ""
 msgid "Local folder wallpaper."
 msgstr ""
 
+msgid "Local playlists:"
+msgstr ""
+
 msgid "Local sorting:"
 msgstr ""
 
@@ -874,6 +892,18 @@ msgid "Lock screen:"
 msgstr ""
 
 msgid "Lock screen uses a static Plasma image copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer enabling disk cache (and optional original download) so the lock screen gets a full-resolution file."
+msgstr ""
+
+msgid "lock sync failed"
+msgstr ""
+
+msgid "Lock sync failed · %1"
+msgstr ""
+
+msgid "lock sync OK"
+msgstr ""
+
+msgid "Lock sync OK · %1"
 msgstr ""
 
 msgid "Lock sync status:"
@@ -946,6 +976,9 @@ msgid "Music reactivity (%):"
 msgstr ""
 
 msgid "Muted tags: %1"
+msgstr ""
+
+msgid "Name and folder path are required to save a local playlist."
 msgstr ""
 
 msgid "Network error during search test."
@@ -1245,6 +1278,9 @@ msgstr ""
 msgid "Random"
 msgstr ""
 
+msgid "rate-limited ×%1"
+msgstr ""
+
 msgid "Rate limited (429) — %1 time(s)"
 msgstr ""
 
@@ -1356,10 +1392,19 @@ msgstr ""
 msgid "Save current search"
 msgstr ""
 
+msgid "Saved local playlist \"
+msgstr ""
+
 msgid "Saved presets:"
 msgstr ""
 
 msgid "Saved search profile for sync group \"
+msgstr ""
+
+msgid "Save local playlist"
+msgstr ""
+
+msgid "Save playlist as:"
 msgstr ""
 
 msgid "Save preset:"
@@ -1786,6 +1831,9 @@ msgid "Wallpaper of the day:"
 msgstr ""
 
 msgid "Wallpaper saved."
+msgstr ""
+
+msgid "Wallpaper settings…"
 msgstr ""
 
 msgid "Watch Variety config for changes"

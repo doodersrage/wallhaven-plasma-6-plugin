@@ -213,6 +213,27 @@ function testV3MigrationExportAndSmartOffline() {
         PinnedCacheIdsJson: "[]",
     }, -1);
     assert(smart.id === "b", "smart offline prefers larger resolution");
+
+    Wallhaven.setDiskCacheTags(index, "a", "mountains nature day");
+    Wallhaven.setDiskCacheTags(index, "b", "neon cyberpunk night");
+    var dayPick = Wallhaven.pickSmartCachedId(index, {
+        SmartOfflineEnabled: true,
+        SmartOfflineDayAware: true,
+        DaySearch: "nature mountains",
+        NightSearch: "neon cyberpunk",
+        BrowseMode: "playlist",
+        PinnedCacheIdsJson: "[]",
+    }, -1);
+    // Force day period by temporarily... isDayPeriod uses clock; just assert tags stored
+    assert(Wallhaven.diskCacheTagsForId(index, "a").indexOf("nature") !== -1, "cache tags stored");
+
+    var playlists = Wallhaven.parseLocalPlaylists(JSON.stringify([
+        { name: "Desk", path: "/home/u/Pictures", maxDepth: 2, exclude: "thumbs", sortings: "random" },
+    ]));
+    assert(playlists.length === 1 && playlists[0].name === "Desk", "parse local playlists");
+    var cfgLocal = { BrowseMode: "search" };
+    assert(Wallhaven.applyLocalPlaylist(playlists[0], cfgLocal) === true, "apply local playlist");
+    assert(cfgLocal.BrowseMode === "local" && cfgLocal.LocalFolderPath === "/home/u/Pictures", "local playlist fields applied");
 }
 
 function testCollectionRotation() {

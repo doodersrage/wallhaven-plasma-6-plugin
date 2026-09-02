@@ -134,6 +134,7 @@ ColumnLayout {
     property alias cfg_LocalFolderPath: localFolderField.text
     property alias cfg_LocalFolderMaxDepth: localFolderDepthSpin.value
     property alias cfg_LocalFolderExclude: localFolderExcludeField.text
+    property string cfg_LocalPlaylistsJson
     property alias cfg_ReducedMotion: reducedMotionCheck.checked
     property alias cfg_ScrubSecretsOnExport: scrubSecretsCheck.checked
     property alias cfg_SmartOfflineEnabled: smartOfflineCheck.checked
@@ -189,7 +190,7 @@ ColumnLayout {
         "playlist", "pinned", "health", "rate", "limit", "kwallet", "wallet", "secret",
         "details", "collection", "url", "simple", "advanced", "local", "folder", "motion",
         "accessibility", "scrub", "schema", "depth", "exclude", "day", "night", "gallery",
-        "compact", "pin", "unpin",
+        "compact", "pin", "unpin", "playlist",
     ]
 
     function rowVisible(keywords) {
@@ -488,6 +489,43 @@ ColumnLayout {
         if (liveWallpaper && liveWallpaper.reloadWallpaper)
             liveWallpaper.reloadWallpaper();
 
+    }
+
+    function currentLocalPlaylists() {
+        return Wallhaven.parseLocalPlaylists(cfg_LocalPlaylistsJson || "[]");
+    }
+
+    function persistLocalPlaylists(entries) {
+        cfg_LocalPlaylistsJson = Wallhaven.serializeLocalPlaylists(entries || []);
+    }
+
+    function saveCurrentLocalPlaylist() {
+        var name = localPlaylistNameField.text.trim();
+        var folder = localFolderField.text.trim();
+        if (!name || !folder) {
+            importExportStatus.text = i18n("Name and folder path are required to save a local playlist.");
+            return;
+        }
+        var entries = currentLocalPlaylists().slice();
+        var playlist = {
+            name: name,
+            path: folder,
+            maxDepth: localFolderDepthSpin.value,
+            exclude: localFolderExcludeField.text,
+            sortings: localSortingsCombo.currentValue || "ascending",
+        };
+        var replaced = false;
+        for (var i = 0; i < entries.length; i++) {
+            if (entries[i].name === name) {
+                entries[i] = playlist;
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced)
+            entries.push(playlist);
+        persistLocalPlaylists(entries);
+        importExportStatus.text = i18n("Saved local playlist \"%1\".", name);
     }
 
     function persistPresets(presets) {
@@ -1277,10 +1315,72 @@ ColumnLayout {
                 QtControls2.CheckBox {
                     id: smartOfflineDayCheck
                     Kirigami.FormData.label: i18n("Day-aware offline:")
-                    text: i18n("Bias cached picks toward day/night categories when Smart offline is on")
+                    text: i18n("Bias cached picks using day/night search words and stored cache tags")
                     visible: smartOfflineCheck.visible && smartOfflineCheck.checked
                         && rowVisible(["smart", "offline", "day", "night", "playlist", "cache"])
                     enabled: smartOfflineCheck.checked
+                }
+
+                QtControls2.TextField {
+                    id: localPlaylistNameField
+                    Kirigami.FormData.label: i18n("Save playlist as:")
+                    placeholderText: i18n("Desktop Art")
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "playlist", "folder"])
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    text: i18n("Save local playlist")
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "playlist", "folder"])
+                    enabled: localPlaylistNameField.text.trim() !== "" && localFolderField.text.trim() !== ""
+                    onClicked: root.saveCurrentLocalPlaylist()
+                }
+
+                QtControls2.ComboBox {
+                    id: localPlaylistCombo
+                    Kirigami.FormData.label: i18n("Local playlists:")
+                    textRole: "name"
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "playlist", "folder"])
+                    model: root.currentLocalPlaylists()
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    text: i18n("Apply local playlist")
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "playlist", "folder"])
+                    enabled: localPlaylistCombo.currentIndex >= 0
+                    onClicked: {
+                        var entries = root.currentLocalPlaylists();
+                        if (localPlaylistCombo.currentIndex < 0 || localPlaylistCombo.currentIndex >= entries.length)
+                            return;
+                        var pl = entries[localPlaylistCombo.currentIndex];
+                        Wallhaven.applyLocalPlaylist(pl, wallpaperConfiguration);
+                        localFolderField.text = pl.path || "";
+                        localFolderDepthSpin.value = pl.maxDepth || 3;
+                        localFolderExcludeField.text = pl.exclude || "";
+                        root.setComboValue(localSortingsCombo, pl.sortings || "ascending");
+                        root.setComboValue(browseModeCombo, "local");
+                        localPlaylistCombo.model = root.currentLocalPlaylists();
+                        importExportStatus.text = i18n("Applied local playlist \"%1\".", pl.name);
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    text: i18n("Delete local playlist")
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "playlist", "folder"])
+                    enabled: localPlaylistCombo.currentIndex >= 0
+                    onClicked: {
+                        var entries = root.currentLocalPlaylists().slice();
+                        if (localPlaylistCombo.currentIndex < 0 || localPlaylistCombo.currentIndex >= entries.length)
+                            return;
+                        var name = entries[localPlaylistCombo.currentIndex].name;
+                        entries.splice(localPlaylistCombo.currentIndex, 1);
+                        root.persistLocalPlaylists(entries);
+                        localPlaylistCombo.model = entries;
+                        localPlaylistCombo.currentIndex = -1;
+                        importExportStatus.text = i18n("Deleted local playlist \"%1\".", name);
+                    }
                 }
 
                 QtControls2.Label {

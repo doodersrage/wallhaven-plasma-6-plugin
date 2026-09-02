@@ -2,7 +2,7 @@
 
 Fetch and cycle wallpapers from [wallhaven.cc](https://wallhaven.cc) on KDE Plasma 6: search, collections, favorites, slideshow effects, offline cache, presets, and full control from the panel, keyboard, KRunner, or D-Bus.
 
-**Current version:** 3.1.0  
+**Current version:** 3.2.0  
 **KDE Store / OpenDesktop:** [Wallhaven Extended (p/2368647)](https://www.opendesktop.org/p/2368647/)  
 **Releases:** [GitHub Releases](https://github.com/doodersrage/wallhaven-plasma-6-plugin/releases)
 
@@ -109,6 +109,13 @@ Full guide: [docs/CONTROL.md](docs/CONTROL.md).
 | [packaging/README.md](packaging/README.md) | Downstream packaging |
 
 ---
+
+## What's new in 3.2.0
+
+- Cache tags power day/night smart offline
+- Named local folder playlists
+- Plasmoid settings shortcut + richer status tips
+- More DE/FR/ES/IT translations
 
 ## What's new in 3.1.0
 

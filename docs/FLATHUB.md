@@ -20,7 +20,7 @@ flatpak-builder --user --repo=repo build-dir flatpak/org.robertsm.wallhaven.yaml
 Use screenshots from `screenshots/` and metainfo from `metainfo/org.robertsm.wallhaven.metainfo.xml`.
 OpenDesktop: https://www.opendesktop.org/p/2368647/
 
-## Checklist (3.1.0)
+## Checklist (3.2.0)
 
 - [x] Manifest includes ScreenSaver + login1 talk-names for idle/lock
 - [x] AppStream release entry for current version in `metainfo/`

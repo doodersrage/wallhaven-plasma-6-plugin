@@ -28,6 +28,9 @@ PlasmoidItem {
         screenName: "",
         cacheNamespace: "",
         syncGroup: "default",
+        lockScreenSyncAt: "",
+        lockScreenSyncPath: "",
+        lockScreenSyncOk: false,
         paused: false,
         slideshowActive: false,
         nextChangeMs: 0,
@@ -97,6 +100,9 @@ PlasmoidItem {
             screenName: parsed.screenName || "",
             cacheNamespace: parsed.cacheNamespace || "",
             syncGroup: parsed.syncGroup || "default",
+            lockScreenSyncAt: parsed.lockScreenSyncAt || "",
+            lockScreenSyncPath: parsed.lockScreenSyncPath || "",
+            lockScreenSyncOk: !!parsed.lockScreenSyncOk,
             paused: !!parsed.paused,
             slideshowActive: !!parsed.slideshowActive,
             nextChangeMs: Math.max(0, parseInt(parsed.nextChangeMs, 10) || 0),
@@ -263,6 +269,35 @@ PlasmoidItem {
         return min + ":" + (sec < 10 ? "0" : "") + sec;
     }
 
+    function compactStatusTip() {
+        var parts = [];
+        if (statusData.id)
+            parts.push("#" + statusData.id);
+        parts.push(root.formatCountdown(root.countdownMs));
+        if (statusData.apiHealth && statusData.apiHealth.rateLimitCount > 0)
+            parts.push(i18n("rate-limited ×%1", statusData.apiHealth.rateLimitCount));
+        if (statusData.lockScreenSyncAt) {
+            parts.push(statusData.lockScreenSyncOk
+                ? i18n("lock sync OK")
+                : i18n("lock sync failed"));
+        }
+        return parts.join(" · ");
+    }
+
+    function openWallpaperSettings() {
+        var msg = new PDBus.dbusMessage({
+            service: "org.robertsm.Wallhaven",
+            path: "/Wallhaven",
+            iface: "org.robertsm.Wallhaven",
+            member: "RunArgv",
+            signature: "s",
+            arguments: [JSON.stringify(["systemsettings", "kcm_wallpaper"])],
+        });
+        PDBus.SessionBus.asyncCall(msg, function() {}, function() {
+            Qt.openUrlExternally("systemsettings://kcm_wallpaper");
+        });
+    }
+
     Timer {
         interval: 1000
         running: true
@@ -295,19 +330,29 @@ PlasmoidItem {
     compactRepresentation: RowLayout {
         spacing: Kirigami.Units.smallSpacing
 
-        Image {
+        Item {
             Layout.preferredWidth: Kirigami.Units.iconSizes.medium
             Layout.preferredHeight: Kirigami.Units.iconSizes.medium
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            visible: root.plasmoidThumbSource() !== ""
-            source: root.plasmoidThumbSource()
-        }
-        PlasmaCore.IconItem {
-            Layout.preferredWidth: Kirigami.Units.iconSizes.medium
-            Layout.preferredHeight: Kirigami.Units.iconSizes.medium
-            visible: root.plasmoidThumbSource() === ""
-            source: root.dbusOffline ? "network-disconnect" : "preferences-desktop-wallpaper"
+
+            Image {
+                anchors.fill: parent
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                visible: root.plasmoidThumbSource() !== ""
+                source: root.plasmoidThumbSource()
+            }
+            PlasmaCore.IconItem {
+                anchors.fill: parent
+                visible: root.plasmoidThumbSource() === ""
+                source: root.dbusOffline ? "network-disconnect" : "preferences-desktop-wallpaper"
+            }
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                acceptedButtons: Qt.NoButton
+                QtControls2.ToolTip.visible: containsMouse
+                QtControls2.ToolTip.text: root.compactStatusTip()
+            }
         }
         QtControls2.ToolButton {
             display: QtControls2.AbstractButton.IconOnly
@@ -637,6 +682,16 @@ PlasmoidItem {
 
         QtControls2.Label {
             Layout.fillWidth: true
+            visible: statusData.lockScreenSyncAt !== ""
+            font.pointSize: 7
+            opacity: 0.7
+            text: statusData.lockScreenSyncOk
+                ? i18n("Lock sync OK · %1", statusData.lockScreenSyncAt)
+                : i18n("Lock sync failed · %1", statusData.lockScreenSyncAt)
+        }
+
+        QtControls2.Label {
+            Layout.fillWidth: true
             visible: statusData.apiHealth && statusData.apiHealth.rateLimitCount > 0
             font.pointSize: 7
             opacity: 0.8
@@ -703,8 +758,8 @@ PlasmoidItem {
                 Repeater {
                     model: root.historyEntries
                     delegate: QtControls2.AbstractButton {
-                        Layout.preferredWidth: 64
-                        Layout.preferredHeight: 64
+                        Layout.preferredWidth: 72
+                        Layout.preferredHeight: 72
                         ToolTip.visible: hovered
                         ToolTip.text: i18n("Show wallpaper #%1", modelData.id)
                         onClicked: {
@@ -735,6 +790,10 @@ PlasmoidItem {
             text: i18n("Open wallpaper page")
             enabled: statusData.pageUrl !== "" || statusData.id !== ""
             onTriggered: root.openCurrentPage()
+        }
+        QtControls2.MenuItem {
+            text: i18n("Wallpaper settings…")
+            onTriggered: root.openWallpaperSettings()
         }
         QtControls2.MenuItem {
             text: i18n("Similar wallpapers")

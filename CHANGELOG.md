@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.2.0 — 2026-09-02
+
+Distribution polish and smarter offline/local control.
+
+### Added
+- **Cache tags** — wallpapers store tags in the disk-cache index for day/night smart offline matching
+- **Named local playlists** — save/apply/delete folder + depth/exclude/sort presets (`LocalPlaylistsJson`)
+- **Plasmoid polish** — compact status tooltip (ID/countdown/API/lock sync), Wallpaper settings menu, lock-sync line, larger history scrubber
+
+### Changed
+- Day-aware offline uses stored cache tags + day/night search words
+- Expanded DE/FR/ES/IT catalog translations for 3.1/3.2 UI strings
+- AUR workflow default and Store/Flathub docs updated for 3.2.0
+
 ## 3.1.0 — 2026-08-31
 
 Daily-driver control and local/offline polish.

@@ -82,7 +82,7 @@ required = ["SetupWizardCompleted", "WallpaperOfDayEnabled", "PinnedCacheIdsJson
             "AutoPanelAccentEnabled", "PauseOnBatteryLow", "TagFavoritesJson", "CacheNamespace",
             "ConfigSchemaVersion", "SettingsUiMode", "SmartOfflineEnabled", "ScrubSecretsOnExport",
             "LocalFolderPath", "ReducedMotion", "LocalFolderMaxDepth", "LocalFolderExclude",
-            "SmartOfflineDayAware"]
+            "SmartOfflineDayAware", "LocalPlaylistsJson"]
 missing = [k for k in required if k not in entries]
 if missing:
     raise SystemExit("main.xml missing: " + ", ".join(missing))

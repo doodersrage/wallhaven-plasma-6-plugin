@@ -42,6 +42,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="3.2.0" date="2026-09-02">
+      <description>
+        <p>Cache tags for smarter day/night offline picks, named local folder playlists, plasmoid settings shortcut and status tips, plus expanded DE/FR/ES/IT translations.</p>
+      </description>
+    </release>
     <release version="3.1.0" date="2026-08-31">
       <description>
         <p>Compact plasmoid with search and cache pin, Simple-mode polish, local-folder depth/exclude/sort, day-aware smart offline, preset gallery tiles, and lock-screen sync status.</p>
