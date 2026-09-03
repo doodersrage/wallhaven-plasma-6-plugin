@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.3.1 — 2026-09-03
+
+### Fixed
+- **API key corruption** — KWallet load no longer writes `Plasma::DBusPendingReply(…)` into `ApiKey` (caused persistent Wallhaven 401s); bad keys are scrubbed on startup and omitted from API URLs
+
 ## 3.3.0 — 2026-09-03
 
 Offline depth, multi-monitor control, and settings profiles.

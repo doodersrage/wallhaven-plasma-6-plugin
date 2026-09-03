@@ -3223,11 +3223,11 @@ WallpaperItem {
     QtObject {
         id: kwalletReadLoader
         function read(tmpPath) {
-            dbusHelper.readFile(tmpPath, function(text) {
+            dbusHelper.readFile(tmpPath, function(reply) {
                 if (!root.configuration) {
                     return;
                 }
-                var key = String(text || "").trim();
+                var key = Wallhaven.sanitizeApiKey(reply);
                 if (key) {
                     root.configuration.ApiKey = key;
                     scheduleConfigWrite();
@@ -4395,9 +4395,15 @@ WallpaperItem {
         root.loadWallpaperHistory();
         // Migrate before KWallet so upgrades that flip UseKWalletForApiKey load the key.
         var migration = Wallhaven.migrateConfigurationToV3(root.configuration);
-        if (migration.migrated) {
+        if (migration.migrated || migration.apiKeyScrubbed) {
             scheduleConfigWrite();
-            logDebug("Migrated config schema " + migration.from + " → " + migration.to);
+            if (migration.migrated) {
+                logDebug("Migrated config schema " + migration.from + " → " + migration.to);
+            }
+            if (migration.apiKeyScrubbed) {
+                logDebug("Cleared corrupted ApiKey value from wallpaper config");
+                engine.showStatus(i18n("Cleared a bad API key from settings. Re-enter it if you need NSFW/favorites."), "warn");
+            }
         }
         root.loadApiKeyFromKWallet();
         engine.fetchFreshWallpaper(false);

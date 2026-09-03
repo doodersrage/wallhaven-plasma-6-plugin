@@ -341,6 +341,14 @@ function testDbusReplyIsTrue() {
     assert(Wallhaven.dbusReplyAsString(["/usr/bin/realesrgan-ncnn-vulkan"]) === "/usr/bin/realesrgan-ncnn-vulkan", "dbus array path");
     assert(Wallhaven.dbusReplyAsString({ value: "/usr/bin/realesrgan-ncnn-vulkan" }) === "/usr/bin/realesrgan-ncnn-vulkan", "dbus variant path");
     assert(Wallhaven.dbusReplyAsString(null) === "", "dbus missing path");
+    assert(Wallhaven.dbusReplyAsString("Plasma::DBusPendingReply(0x55ff)") === "", "reject pending reply string");
+    assert(Wallhaven.sanitizeApiKey("Plasma::DBusPendingReply(0x55ffaccdf640)") === "", "sanitize pending reply");
+    assert(Wallhaven.sanitizeApiKey("abcd1234efgh5678") === "abcd1234efgh5678", "keep real key");
+    var scrubCfg = { ConfigSchemaVersion: 3, ApiKey: "Plasma::DBusPendingReply(0xdead)" };
+    var scrub = Wallhaven.migrateConfigurationToV3(scrubCfg);
+    assert(scrub.apiKeyScrubbed === true && scrubCfg.ApiKey === "", "scrub bad key on migrate");
+    var url = Wallhaven.buildWallpaperUrl("abc12", "Plasma::DBusPendingReply(0x1)");
+    assert(url.indexOf("apikey=") === -1, "wallpaper url omits bad key");
 }
 
 function testPluginVersion() {

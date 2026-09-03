@@ -32,6 +32,11 @@ function dbusReplyAsString(value) {
         return "";
     }
     if (typeof value === "string") {
+        // Never treat a stringified pending-reply object as real payload.
+        if (value.indexOf("Plasma::DBusPendingReply") === 0
+            || value.indexOf("QDBusPendingReply") === 0) {
+            return "";
+        }
         return value;
     }
     if (Array.isArray(value) && value.length) {
@@ -44,8 +49,37 @@ function dbusReplyAsString(value) {
         if (typeof value.length === "number" && value.length > 0) {
             return dbusReplyAsString(value[0]);
         }
+        // Unresolved / opaque D-Bus reply objects stringify to
+        // "Plasma::DBusPendingReply(0x...)"; never treat that as content.
+        var asText = "";
+        try {
+            asText = String(value);
+        } catch (e) {
+            return "";
+        }
+        if (asText.indexOf("Plasma::DBusPendingReply") === 0
+            || asText.indexOf("QDBusPendingReply") === 0
+            || asText === "[object Object]") {
+            return "";
+        }
+        return asText;
     }
     return String(value);
+}
+
+function sanitizeApiKey(value) {
+    var key = dbusReplyAsString(value).trim();
+    if (!key) {
+        return "";
+    }
+    if (key.indexOf("Plasma::") === 0 || key.indexOf("QDBus") === 0) {
+        return "";
+    }
+    // Reject stringified objects / multi-line junk that cannot be an API token.
+    if (key.indexOf(" ") !== -1 || key.indexOf("\n") !== -1) {
+        return "";
+    }
+    return key;
 }
 
 function boolTriplet(values) {
@@ -344,17 +378,23 @@ function importSettingsSnapshot(raw) {
 
 function migrateConfigurationToV3(configuration) {
     if (!configuration) {
-        return { migrated: false, from: 0, to: 3 };
+        return { migrated: false, from: 0, to: 3, apiKeyScrubbed: false };
+    }
+    // Always scrub corrupted API keys, even when schema is already v3.
+    var cleanedKey = sanitizeApiKey(configuration.ApiKey);
+    var apiKeyScrubbed = String(configuration.ApiKey || "") !== cleanedKey;
+    if (apiKeyScrubbed) {
+        configuration.ApiKey = cleanedKey;
     }
     var from = parseInt(configuration.ConfigSchemaVersion, 10) || 0;
     if (from >= 3) {
-        return { migrated: false, from: from, to: 3 };
+        return { migrated: false, from: from, to: 3, apiKeyScrubbed: apiKeyScrubbed };
     }
     // v3 defaults: prefer KWallet, scrub exports, settings UI simple, smart offline on.
     if (configuration.UseKWalletForApiKey === undefined || configuration.UseKWalletForApiKey === false) {
         // Only force-enable wallet load when an API key is already present in config
         // or wallet was never considered; keep false if user explicitly cleared key+wallet.
-        if (String(configuration.ApiKey || "").trim() !== "") {
+        if (cleanedKey !== "") {
             configuration.UseKWalletForApiKey = true;
         }
     }
@@ -374,7 +414,7 @@ function migrateConfigurationToV3(configuration) {
         // Historical rename hint: keep lock-pause semantics; idle stays separate.
     }
     configuration.ConfigSchemaVersion = 3;
-    return { migrated: true, from: from, to: 3 };
+    return { migrated: true, from: from, to: 3, apiKeyScrubbed: apiKeyScrubbed };
 }
 
 function isLocalBrowseMode(cfg) {
@@ -581,7 +621,7 @@ function pickSmartCachedId(index, cfg, cursor) {
 }
 
 function pluginVersion() {
-    return "3.3.0";
+    return "3.3.1";
 }
 
 function buildPresetFromConfig(name, cfg) {
@@ -2257,7 +2297,10 @@ function buildSearchUrl(cfg, state) {
         params.push("colors=" + encodeURIComponent(colorFilter));
     }
     if (cfg.ApiKey) {
-        params.push("apikey=" + encodeURIComponent(cfg.ApiKey.trim()));
+        var searchKey = sanitizeApiKey(cfg.ApiKey);
+        if (searchKey) {
+            params.push("apikey=" + encodeURIComponent(searchKey));
+        }
     }
 
     return url + params.join("&");
@@ -2274,17 +2317,28 @@ function buildCollectionUrl(cfg, state) {
         + encodeURIComponent(user) + "/"
         + encodeURIComponent(id) + "?page=" + encodeURIComponent(String(state.page));
     if (cfg.ApiKey) {
-        url += "&apikey=" + encodeURIComponent(cfg.ApiKey.trim());
+        var collectionKey = sanitizeApiKey(cfg.ApiKey);
+        if (collectionKey) {
+            url += "&apikey=" + encodeURIComponent(collectionKey);
+        }
     }
     return url;
 }
 
 function buildSettingsUrl(apiKey) {
-    return "https://wallhaven.cc/api/v1/settings?apikey=" + encodeURIComponent(apiKey.trim());
+    var key = sanitizeApiKey(apiKey);
+    if (!key) {
+        return "";
+    }
+    return "https://wallhaven.cc/api/v1/settings?apikey=" + encodeURIComponent(key);
 }
 
 function buildCollectionsUrl(apiKey) {
-    return "https://wallhaven.cc/api/v1/collections?apikey=" + encodeURIComponent(apiKey.trim());
+    var key = sanitizeApiKey(apiKey);
+    if (!key) {
+        return "";
+    }
+    return "https://wallhaven.cc/api/v1/collections?apikey=" + encodeURIComponent(key);
 }
 
 function buildCollectionsUrlForUser(username, apiKey) {
@@ -2293,8 +2347,9 @@ function buildCollectionsUrlForUser(username, apiKey) {
         return "";
     }
     var url = "https://wallhaven.cc/api/v1/collections/" + encodeURIComponent(user);
-    if (apiKey) {
-        url += "?apikey=" + encodeURIComponent(String(apiKey).trim());
+    var key = sanitizeApiKey(apiKey);
+    if (key) {
+        url += "?apikey=" + encodeURIComponent(key);
     }
     return url;
 }
@@ -2380,8 +2435,9 @@ function offlineModeSettings() {
 
 function buildWallpaperUrl(wallpaperId, apiKey) {
     var url = "https://wallhaven.cc/api/v1/w/" + encodeURIComponent(String(wallpaperId));
-    if (apiKey) {
-        url += "?apikey=" + encodeURIComponent(apiKey.trim());
+    var key = sanitizeApiKey(apiKey);
+    if (key) {
+        url += "?apikey=" + encodeURIComponent(key);
     }
     return url;
 }
