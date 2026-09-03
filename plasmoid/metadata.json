@@ -7,7 +7,7 @@
         "Id": "org.robertsm.wallhaven.control",
         "License": "GPL-2.0-or-later",
         "Name": "Wallhaven Control",
-        "Version": "3.2.0",
+        "Version": "3.3.0",
         "Website": "https://wallhaven.cc"
     },
     "KPackageStructure": "Plasma/Applet",

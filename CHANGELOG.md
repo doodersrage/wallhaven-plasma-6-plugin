@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.3.0 — 2026-09-03
+
+Offline depth, multi-monitor control, and settings profiles.
+
+### Added
+- **Offline tag filter** — cycle only cached wallpapers matching tag words (`OfflineTagQuery`)
+- **Cache browser filters** — filter by id/tag/category, pinned-only, and edit tags per entry
+- **Multi-monitor plasmoid list** — see each screen’s wallpaper ID; focus or pause per sync group
+- **Desktop / offline presets** — one-click profiles beside laptop mode
+- **Searchable preset gallery** — find bundled presets by name/search text; saves stamp SampleWallpaperId
+- **API outage soft-offline** — latch on 502/503/504 (and exhausted 5xx/timeouts): pause retries, cycle cache, auto-resume when Wallhaven returns; settings + plasmoid show **API down · N cached**
+
+### Fixed
+- Strip `file://` from cache/KWallet/lockscreen/`RunArgv` paths so shell tools never see URLs
+- Keep error banner visible while falling back to disk cache on request failures
+
+### Changed
+- Setup/Simple tips mention offline playlist, local playlists, and smart offline
+- Expanded DE/FR/ES/IT translations; Store/Flathub/AUR docs updated for 3.3.0
+
 ## 3.2.0 — 2026-09-02
 
 Distribution polish and smarter offline/local control.

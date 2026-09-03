@@ -244,6 +244,7 @@ var EXPORTABLE_SETTINGS_KEYS = [
     "SettingsUiMode", "LocalFolderPath", "ReducedMotion",
     "ScrubSecretsOnExport", "SmartOfflineEnabled", "SmartOfflineDayAware",
     "LocalFolderMaxDepth", "LocalFolderExclude", "LocalPlaylistsJson",
+    "OfflineTagQuery",
 ];
 
 // Fields captured when saving/applying search presets or sync-group profiles.
@@ -580,7 +581,7 @@ function pickSmartCachedId(index, cfg, cursor) {
 }
 
 function pluginVersion() {
-    return "3.2.0";
+    return "3.3.0";
 }
 
 function buildPresetFromConfig(name, cfg) {
@@ -1083,11 +1084,59 @@ function listCachedIds(index, cfg) {
     var ids = [];
     for (var i = 0; i < index.ids.length; i++) {
         var id = String(index.ids[i] || "").trim();
-        if (id && ids.indexOf(id) === -1 && cachedIdMatchesCategories(index, id, cfg)) {
+        if (id && ids.indexOf(id) === -1
+                && cachedIdMatchesCategories(index, id, cfg)
+                && cachedIdMatchesTagQuery(index, id, cfg)) {
             ids.push(id);
         }
     }
     return ids;
+}
+
+function cachedIdMatchesTagQuery(index, id, cfg) {
+    var query = String(cfg && cfg.OfflineTagQuery || "").trim().toLowerCase();
+    if (!query) {
+        return true;
+    }
+    var tags = diskCacheTagsForId(index, id).toLowerCase();
+    if (!tags) {
+        return false;
+    }
+    var tokens = query.split(/\s+/).filter(function(t) { return t.length > 0; });
+    for (var i = 0; i < tokens.length; i++) {
+        if (tags.indexOf(tokens[i]) === -1) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function filterCacheEntries(entries, filterText, pinnedOnly) {
+    entries = entries || [];
+    filterText = String(filterText || "").trim().toLowerCase();
+    var out = [];
+    for (var i = 0; i < entries.length; i++) {
+        var entry = entries[i];
+        if (!entry) {
+            continue;
+        }
+        if (pinnedOnly && !entry.pinned) {
+            continue;
+        }
+        if (filterText) {
+            var hay = [
+                entry.id || "",
+                entry.tags || "",
+                entry.category || "",
+                entry.purity || "",
+            ].join(" ").toLowerCase();
+            if (hay.indexOf(filterText) === -1) {
+                continue;
+            }
+        }
+        out.push(entry);
+    }
+    return out;
 }
 
 function pickRandomCachedId(index, cfg, pinnedOnly) {
@@ -1144,13 +1193,17 @@ function filterCollectionsByQuery(entries, query) {
 
 function buildApiHealthSnapshot(state) {
     state = state || {};
+    var lastStatus = parseInt(state.lastStatus, 10) || 0;
+    var lastError = String(state.lastError || "");
+    var outageOffline = !!state.outageOffline;
     return {
-        lastStatus: parseInt(state.lastStatus, 10) || 0,
-        lastError: String(state.lastError || ""),
+        lastStatus: lastStatus,
+        lastError: lastError,
         rateLimitCount: parseInt(state.rateLimitCount, 10) || 0,
         lastRateLimitAt: String(state.lastRateLimitAt || ""),
         lastSuccessAt: String(state.lastSuccessAt || ""),
-        healthy: state.lastStatus === 200 || state.lastStatus === 0 && !state.lastError,
+        outageOffline: outageOffline,
+        healthy: !outageOffline && (lastStatus === 200 || (lastStatus === 0 && !lastError)),
     };
 }
 
@@ -1648,8 +1701,10 @@ function buildStatusSnapshot(data) {
         lockScreenSyncOk: !!data.lockScreenSyncOk,
         metrics: data.metrics || null,
         apiHealth: data.apiHealth || null,
+        cacheCount: Math.max(0, parseInt(data.cacheCount, 10) || 0),
+        outageOffline: !!data.outageOffline,
         updatedAt: new Date().toISOString(),
-    }, null, 2);
+    });
 }
 
 function pickTransitionMode(cfg) {
@@ -1709,8 +1764,20 @@ function shellSingleQuote(value) {
 }
 
 function buildLockScreenSyncCommand(sourcePath, destPath) {
-    var source = String(sourcePath || "");
-    var dest = String(destPath || "");
+    function plainPath(value) {
+        var path = String(value || "");
+        if (path.indexOf("file://") === 0) {
+            path = path.substring(7);
+            if (path.indexOf("localhost/") === 0) {
+                path = path.substring(9);
+            }
+        } else if (path.indexOf("file:") === 0) {
+            path = path.substring(5);
+        }
+        return path;
+    }
+    var source = plainPath(sourcePath);
+    var dest = plainPath(destPath);
     if (!source || !dest) {
         return "";
     }
@@ -2025,6 +2092,8 @@ function listCacheEntries(index, pinnedIds) {
             dimensionX: dims ? dims.dimension_x : 0,
             dimensionY: dims ? dims.dimension_y : 0,
             tags: diskCacheTagsForId(index, id),
+            category: index.categories ? String(index.categories[id] || "") : "",
+            purity: index.purities ? String(index.purities[id] || "") : "",
         });
     }
     return entries;
@@ -2273,6 +2342,39 @@ function laptopModeSettings() {
         UpscaleEnabled: false,
         CacheDownloadOriginal: false,
         NotifyOnRefresh: false,
+    };
+}
+
+function desktopModeSettings() {
+    return {
+        MeteredCacheOnly: false,
+        OfflineOnlyMode: false,
+        OfflineCacheFallback: true,
+        PauseOnBatteryLow: false,
+        PauseOnIdleEnabled: false,
+        ImageQuality: "original",
+        PreloadCount: 2,
+        AdaptivePreloadEnabled: true,
+        CacheDownloadOriginal: true,
+        SmartOfflineEnabled: true,
+        SmartOfflineDayAware: true,
+        ReducedMotion: false,
+    };
+}
+
+function offlineModeSettings() {
+    return {
+        BrowseMode: "playlist",
+        OfflineOnlyMode: true,
+        OfflineCacheFallback: true,
+        SmartOfflineEnabled: true,
+        SmartOfflineDayAware: true,
+        MeteredCacheOnly: true,
+        CacheDownloadOriginal: false,
+        UpscaleEnabled: false,
+        NotifyOnRefresh: false,
+        PreloadCount: 0,
+        AdaptivePreloadEnabled: false,
     };
 }
 

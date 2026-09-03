@@ -155,16 +155,28 @@ function testCollectionUrlFilterAndApiHealth() {
     });
     assert(health.rateLimitCount === 3, "health rate count");
     assert(health.lastStatus === 429, "health status");
+    assert(health.healthy === false, "429 not healthy");
+
+    var outage = Wallhaven.buildApiHealthSnapshot({
+        lastStatus: 502,
+        outageOffline: true,
+    });
+    assert(outage.outageOffline === true, "outage flag");
+    assert(outage.healthy === false, "outage not healthy");
 
     var snap = JSON.parse(Wallhaven.buildStatusSnapshot({
         id: "abc",
         details: "line",
         apiHealth: health,
         browseMode: "playlist",
+        cacheCount: 12,
+        outageOffline: true,
     }));
     assert(snap.details === "line", "status details");
     assert(snap.browseMode === "playlist", "status browse mode");
     assert(snap.apiHealth.rateLimitCount === 3, "status api health");
+    assert(snap.cacheCount === 12, "status cache count");
+    assert(snap.outageOffline === true, "status outage offline");
 }
 
 function testV3MigrationExportAndSmartOffline() {
@@ -234,6 +246,17 @@ function testV3MigrationExportAndSmartOffline() {
     var cfgLocal = { BrowseMode: "search" };
     assert(Wallhaven.applyLocalPlaylist(playlists[0], cfgLocal) === true, "apply local playlist");
     assert(cfgLocal.BrowseMode === "local" && cfgLocal.LocalFolderPath === "/home/u/Pictures", "local playlist fields applied");
+
+    var tagged = { ids: ["a", "b", "c"], tags: { a: "mountains nature", b: "city neon", c: "mountains lake" }, categories: {}, purities: {} };
+    var mountainIds = Wallhaven.listCachedIds(tagged, { OfflineTagQuery: "mountains" });
+    assert(mountainIds.length === 2 && mountainIds.indexOf("b") === -1, "offline tag query filters cache ids");
+    var filtered = Wallhaven.filterCacheEntries([
+        { id: "a", tags: "mountains", pinned: true, category: "general" },
+        { id: "b", tags: "city", pinned: false, category: "anime" },
+    ], "city", false);
+    assert(filtered.length === 1 && filtered[0].id === "b", "cache browser filter");
+    assert(Wallhaven.desktopModeSettings().CacheDownloadOriginal === true, "desktop profile");
+    assert(Wallhaven.offlineModeSettings().BrowseMode === "playlist", "offline profile");
 }
 
 function testCollectionRotation() {
@@ -361,6 +384,14 @@ function testLockScreenSyncCommand() {
     assert(cmd.indexOf("--key Wallpaper ") === -1, "does not write bogus Greeter Wallpaper key");
     var same = Wallhaven.buildLockScreenSyncCommand("/tmp/lock.jpg", "/tmp/lock.jpg");
     assert(same.indexOf("cp -f") === -1, "skips copy when already at dest");
+
+    var fromUrl = Wallhaven.buildLockScreenSyncCommand(
+        "file:///tmp/src.jpg",
+        "file://localhost/tmp/lock.jpg",
+    );
+    assert(fromUrl.indexOf("cp -f '/tmp/src.jpg'") !== -1, "strips file:// from source");
+    assert(fromUrl.indexOf("file:///tmp/") === -1 || fromUrl.indexOf("cp -f 'file://") === -1, "no file:// in cp source");
+    assert(fromUrl.indexOf("cp -f 'file://") === -1, "cp never gets file:// source");
 }
 
 function testDiskCacheNamespaceAndCategories() {

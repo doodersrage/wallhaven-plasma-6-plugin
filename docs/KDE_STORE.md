@@ -6,13 +6,21 @@ Wallhaven is published on OpenDesktop / KDE Store:
 
 ## Updating the listing
 
-When you ship a new release (current: **3.2.0**):
+When you ship a new release (current: **3.3.0**):
 
 1. Build/publish: `./dev-helper.sh release` → GitHub Release + `wallhaven-plasma-X.Y.Z.tar.xz`
 2. Upload the new file on the product **Files** tab at [opendesktop.org/p/2368647](https://www.opendesktop.org/p/2368647/)
-3. Paste release notes from `CHANGELOG.md` (3.2.0 section) into the store description / changelog field
+3. Paste release notes from `CHANGELOG.md` (3.3.0 section) into the store description / changelog field
 4. Replace screenshots if the UI changed (`./scripts/capture-screenshots.sh`)
 5. Confirm AppStream in git matches (`metainfo/org.robertsm.wallhaven.metainfo.xml` release entry)
+
+### 3.3.0 store blurb (copy/paste)
+
+```
+v3.3.0 — Offline tag filter and cache browser re-tag, multi-monitor plasmoid
+controls, desktop/offline one-click profiles, searchable preset gallery, and
+more DE/FR/ES/IT translations.
+```
 
 ### 3.2.0 store blurb (copy/paste)
 

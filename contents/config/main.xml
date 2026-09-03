@@ -138,5 +138,6 @@
         <entry name="ScrubSecretsOnExport" type="Bool"><default>true</default></entry>
         <entry name="SmartOfflineEnabled" type="Bool"><default>true</default></entry>
         <entry name="SmartOfflineDayAware" type="Bool"><default>true</default></entry>
+        <entry name="OfflineTagQuery" type="String"><default></default></entry>
     </group>
 </kcfg>

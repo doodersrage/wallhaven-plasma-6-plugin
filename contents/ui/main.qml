@@ -32,7 +32,19 @@ WallpaperItem {
     }
     readonly property string previewCacheFile: StandardPaths.writableLocation(StandardPaths.CacheLocation)
         + "/wallhaven-preview-" + diskCacheNamespace + ".png"
-    readonly property string diskCacheDir: StandardPaths.writableLocation(StandardPaths.CacheLocation)
+    readonly property string diskCacheDir: {
+        var p = String(StandardPaths.writableLocation(StandardPaths.CacheLocation) || "");
+        // Some Qt/Plasma builds return a file:// URL from StandardPaths.
+        if (p.indexOf("file://") === 0)
+            p = p.substring(7);
+        if (p.indexOf("localhost/") === 0)
+            p = p.substring(9);
+        try {
+            return decodeURIComponent(p);
+        } catch (e) {
+            return p;
+        }
+    }
     readonly property string controlBusFile: diskCacheDir + "/wallhaven-control.json"
     readonly property string varietyMetadataFile: diskCacheDir + "/wallhaven-variety.json"
     readonly property string settingsExportFile: diskCacheDir + "/wallhaven-settings-export.json"
@@ -57,6 +69,7 @@ WallpaperItem {
 
     function effectiveOfflineOnly() {
         return cfg.OfflineOnlyMode
+            || root._apiOutageOffline
             || cfg.BrowseMode === "playlist"
             || cfg.BrowseMode === "local"
             || (cfg.MeteredCacheOnly && root.meteredConnection);
@@ -157,14 +170,20 @@ WallpaperItem {
     property int _apiRateLimitCount: 0
     property string _apiLastRateLimitAt: ""
     property string _apiLastSuccessAt: ""
+    // Temporary soft-offline while Wallhaven is unreachable; clears on API recovery.
+    property bool _apiOutageOffline: false
     readonly property var apiHealth: Wallhaven.buildApiHealthSnapshot({
         lastStatus: _apiLastStatus,
         lastError: _apiLastError,
         rateLimitCount: _apiRateLimitCount,
         lastRateLimitAt: _apiLastRateLimitAt,
         lastSuccessAt: _apiLastSuccessAt,
+        outageOffline: root._apiOutageOffline,
     })
     readonly property string apiHealthSummary: {
+        if (root._apiOutageOffline) {
+            return i18n("API down — using cache (%1)", diskCacheEntryCount);
+        }
         if (_apiRateLimitCount > 0 && _apiLastStatus === 429) {
             return i18n("Rate limited (429) — %1 time(s)", _apiRateLimitCount);
         }
@@ -379,11 +398,22 @@ WallpaperItem {
     }
 
     function urlToLocalPath(url) {
-        var path = String(url);
+        var path = String(url == null ? "" : url);
+        if (!path)
+            return "";
         if (path.indexOf("file://") === 0) {
             path = path.substring(7);
+            // file://localhost/home/... or leftover host form
+            if (path.indexOf("localhost/") === 0)
+                path = path.substring(9);
+        } else if (path.indexOf("file:") === 0) {
+            path = path.substring(5);
         }
-        return decodeURIComponent(path);
+        try {
+            return decodeURIComponent(path);
+        } catch (e) {
+            return path;
+        }
     }
 
     function localPathToUrl(path) {
@@ -882,12 +912,28 @@ WallpaperItem {
             varietyWatchEnabled: cfg.VarietyWatchEnabled,
             metrics: _metrics,
             apiHealth: root.apiHealth,
+            cacheCount: diskCacheEntryCount,
+            outageOffline: root._apiOutageOffline,
         });
-        settingsFileWriter.writeFile(statusBusFile, statusJson);
-        // Per-monitor copy so the plasmoid can list / target each screen.
-        settingsFileWriter.writeFile(
-            diskCacheDir + "/wallhaven-status-" + diskCacheNamespace + ".json",
-            statusJson,
+        // Prefer pathless Publish* helpers; fall back to WriteTextFile with a
+        // plasmashell-cache path for older helper builds.
+        dbusHelper.wallhavenMessage("PublishStatusJson", "s", [statusJson], function(reply) {
+            if (!Wallhaven.dbusReplyAsString(reply)) {
+                settingsFileWriter.writeFile(statusBusFile, statusJson);
+            }
+        });
+        dbusHelper.wallhavenMessage(
+            "PublishMonitorStatusJson",
+            "ss",
+            [String(diskCacheNamespace || "default"), statusJson],
+            function(reply) {
+                if (!Wallhaven.dbusReplyAsString(reply)) {
+                    settingsFileWriter.writeFile(
+                        diskCacheDir + "/wallhaven-status-" + diskCacheNamespace + ".json",
+                        statusJson,
+                    );
+                }
+            },
         );
         publishDbusConfig();
     }
@@ -1178,6 +1224,64 @@ WallpaperItem {
         engine.showStatus(i18n("Laptop mode applied (metered, battery, idle pause, lighter effects)."), "info");
     }
 
+    function applyDesktopMode() {
+        if (!root.configuration) {
+            return;
+        }
+        var settings = Wallhaven.desktopModeSettings();
+        var keys = Object.keys(settings);
+        for (var i = 0; i < keys.length; i++) {
+            root.configuration[keys[i]] = settings[keys[i]];
+        }
+        scheduleConfigWrite();
+        engine.showStatus(i18n("Desktop mode applied (full quality, smart offline, original downloads)."), "info");
+    }
+
+    function applyOfflineMode() {
+        if (!root.configuration) {
+            return;
+        }
+        var settings = Wallhaven.offlineModeSettings();
+        var keys = Object.keys(settings);
+        for (var i = 0; i < keys.length; i++) {
+            root.configuration[keys[i]] = settings[keys[i]];
+        }
+        scheduleConfigWrite();
+        engine.showStatus(i18n("Offline mode applied (playlist / cache only, no network fetches)."), "info");
+    }
+
+    function enterApiOutageOffline(statusCode) {
+        root._apiOutageOffline = true;
+        engine.stopRetries();
+        var msg = statusCode
+            ? i18n("Wallhaven unreachable (%1). Using cache until it recovers.", statusCode)
+            : i18n("Using cache until Wallhaven recovers.");
+        if (!engine.tryOfflineFallback(msg)) {
+            engine.showStatus(msg, "error");
+        }
+        publishStatus();
+    }
+
+    function clearApiOutageOffline(resumeFetch) {
+        if (!root._apiOutageOffline) {
+            return;
+        }
+        root._apiOutageOffline = false;
+        publishStatus();
+        if (resumeFetch && !cfg.OfflineOnlyMode && cfg.BrowseMode !== "playlist" && cfg.BrowseMode !== "local") {
+            engine.showStatus(i18n("Wallhaven is back — resuming online search."), "info");
+            engine.resetSlideshow();
+        }
+    }
+
+    function setCacheEntryTags(id, tags) {
+        if (!id) {
+            return;
+        }
+        Wallhaven.setDiskCacheTags(_diskCacheIndex, id, tags);
+        persistDiskCacheIndex();
+    }
+
     function useScreenNameAsSyncGroup() {
         if (!root.configuration) {
             return;
@@ -1245,6 +1349,7 @@ WallpaperItem {
         } else if (status === 200) {
             root._apiLastSuccessAt = new Date().toISOString();
             root._apiLastError = "";
+            clearApiOutageOffline(true);
         }
         publishStatus();
     }
@@ -1597,7 +1702,7 @@ WallpaperItem {
         if (!cfg.UseKWalletForApiKey) {
             return;
         }
-        var tmp = diskCacheDir + "/kwallet-apikey.txt";
+        var tmp = urlToLocalPath(diskCacheDir + "/kwallet-apikey.txt");
         dbusHelper.runArgv([
             "bash", "-lc",
             "kwallet-query -r apikey -f org.robertsm.wallhaven -w wallhaven > '"
@@ -1639,6 +1744,11 @@ WallpaperItem {
             var online = xhr.status >= 200 && xhr.status < 400;
             if (online && !_connectivityOnline && _needsReconnectFetch) {
                 engine.retryAfterReconnect();
+            }
+            if (online && root._apiOutageOffline) {
+                // Site reachable again — leave soft-offline; next successful API
+                // fetch (or explicit resume) clears the outage latch.
+                clearApiOutageOffline(true);
             }
             if (!online && _connectivityOnline) {
                 _needsReconnectFetch = true;
@@ -1725,6 +1835,10 @@ WallpaperItem {
         function endBusy() {
             busy = false;
             root.loading = false;
+        }
+
+        function stopRetries() {
+            retryTimer.stop();
         }
 
         function applyState(state) {
@@ -1821,7 +1935,7 @@ WallpaperItem {
                     return;
                 }
                 if (!wallpaper || !url) {
-                    if (tryOfflineFallback()) {
+                    if (tryOfflineFallback(i18n("Could not load wallpaper. Showing cached wallpaper."))) {
                         endBusy();
                         return;
                     }
@@ -1918,6 +2032,7 @@ WallpaperItem {
                     ? String(root.currentWallpaperId) : "",
                 SmartOfflineEnabled: cfg.SmartOfflineEnabled,
                 SmartOfflineDayAware: cfg.SmartOfflineDayAware,
+                OfflineTagQuery: cfg.OfflineTagQuery,
                 OfflinePlaylistPinnedOnly: cfg.OfflinePlaylistPinnedOnly,
                 PinnedCacheIdsJson: cfg.PinnedCacheIdsJson,
                 LocalFolderPath: cfg.LocalFolderPath,
@@ -1992,12 +2107,19 @@ WallpaperItem {
             var maxAttempts = Math.max(1, cfg.RetryAttempts || 5);
             // System-notify on the first failure only; later retries stay on the desktop banner.
             var opts = { notify: attempt <= 1 };
+            var msg;
             if (statusCode === 429) {
-                showStatus(i18n("Rate limited by Wallhaven. Retry %1/%2 in %3s…", attempt, maxAttempts, seconds), "error", false, opts);
+                msg = i18n("Rate limited by Wallhaven. Retry %1/%2 in %3s…", attempt, maxAttempts, seconds);
             } else if (statusCode === 0) {
-                showStatus(i18n("Request timed out. Retry %1/%2 in %3s…", attempt, maxAttempts, seconds), "error", false, opts);
+                msg = i18n("Request timed out. Retry %1/%2 in %3s…", attempt, maxAttempts, seconds);
             } else {
-                showStatus(i18n("Request failed (%1). Retry %2/%3 in %4s…", statusCode, attempt, maxAttempts, seconds), "error", false, opts);
+                msg = i18n("Request failed (%1). Retry %2/%3 in %4s…", statusCode, attempt, maxAttempts, seconds);
+            }
+            // Keep a wallpaper on screen from cache while retries continue.
+            if (engine.tryOfflineFallback(msg)) {
+                // tryOfflineFallback already set the combined status banner.
+            } else {
+                showStatus(msg, "error", false, opts);
             }
             retryTimer.restart();
         }
@@ -2223,11 +2345,27 @@ WallpaperItem {
                         onDone(null);
                         return;
                     }
+                    // Hard outages: stop hammering Wallhaven and stay on cache.
+                    if (status === 502 || status === 503 || status === 504) {
+                        root.enterApiOutageOffline(status);
+                        endBusy();
+                        onDone(null);
+                        return;
+                    }
                     root._fetchRetryCount++;
                     var maxAttempts = Math.max(1, cfg.RetryAttempts || 5);
                     var baseSec = Math.max(1, cfg.RetryDelaySec || 15);
                     if (root._fetchRetryCount > maxAttempts) {
-                        if (engine.tryOfflineFallback()) {
+                        if (status === 0 || status >= 500) {
+                            root.enterApiOutageOffline(status);
+                            endBusy();
+                            onDone(null);
+                            return;
+                        }
+                        var finalMsg = i18n("Wallhaven request failed after %1 attempts.", maxAttempts);
+                        if (status)
+                            finalMsg = i18n("Request failed (%1). Showing cached wallpaper.", status);
+                        if (engine.tryOfflineFallback(finalMsg)) {
                             onDone(null);
                             return;
                         }
@@ -2369,21 +2507,28 @@ WallpaperItem {
             index = 0;
         }
 
-        function tryOfflineFallback() {
+        function tryOfflineFallback(statusOverride) {
             if (!cfg.DiskCacheEnabled) {
                 return false;
             }
             if (!cfg.OfflineCacheFallback && !root.effectiveOfflineOnly()) {
                 return false;
             }
-            if (showNextCachedWallpaper(true, false)) {
+            // Already showing a local cache/file image — keep it and only refresh the banner.
+            var currentSrc = String(root.currentUrl || "");
+            if (currentSrc.indexOf("file:") === 0 && statusOverride) {
+                showStatus(statusOverride, "error");
+                endBusy();
+                return true;
+            }
+            if (showNextCachedWallpaper(true, false, statusOverride)) {
                 endBusy();
                 return true;
             }
             return false;
         }
 
-        function showNextCachedWallpaper(immediate, fromHistory) {
+        function showNextCachedWallpaper(immediate, fromHistory, statusOverride) {
             var config = configObject();
             var pick = Wallhaven.pickSmartCachedId(
                 root._diskCacheIndex,
@@ -2397,7 +2542,9 @@ WallpaperItem {
             var id = pick.id;
             var wp = Wallhaven.makeCachedWallpaper(id);
             var remote = Wallhaven.thumbUrlForId(id);
-            if (cfg.BrowseMode === "playlist") {
+            if (statusOverride) {
+                showStatus(statusOverride, "error");
+            } else if (cfg.BrowseMode === "playlist") {
                 showStatus(i18n("Playlist — cached wallpaper."), "info");
             } else if (cfg.OfflineOnlyMode) {
                 showStatus(i18n("Offline mode — showing cached wallpaper."), "info");
@@ -2617,6 +2764,10 @@ WallpaperItem {
                     return;
                 }
                 if (!wallpaper || !url) {
+                    if (tryOfflineFallback(i18n("Could not load the next wallpaper. Showing cached wallpaper."))) {
+                        endBusy();
+                        return;
+                    }
                     showStatus(i18n("Could not load the next wallpaper."), "warn");
                     endBusy();
                     return;
@@ -2859,6 +3010,14 @@ WallpaperItem {
         if (currentWallpaper && currentWallpaper.id) {
             engine.markSeen(currentWallpaper.id);
         }
+        // When Wallhaven/API is unhealthy, skip remote fetches and cycle local cache.
+        if (!root.apiHealth.healthy || root.effectiveOfflineOnly()) {
+            if (cfg.DiskCacheEnabled && (cfg.OfflineCacheFallback || root.effectiveOfflineOnly())
+                    && engine.showNextCachedWallpaper(true, false,
+                        i18n("Image failed to load. Showing cached wallpaper."))) {
+                return;
+            }
+        }
         if (_imageErrorCount >= 5) {
             engine.showStatus(i18n("Could not download wallpaper images. Check your connection."), "error");
             return;
@@ -2930,38 +3089,88 @@ WallpaperItem {
     QtObject {
         id: dbusHelper
 
+        function wallhavenNormalizeSignature(signature) {
+            var sig = String(signature || "").trim();
+            if (!sig)
+                return "";
+            // Plasma's D-Bus encoder expects parenthesized signatures, e.g. "(ss)".
+            if (sig.charAt(0) !== "(")
+                sig = "(" + sig + ")";
+            return sig;
+        }
+
+        function wallhavenTypedArgs(signature, args) {
+            // Prefer typed wrappers when available; fall back to plain values.
+            var out = [];
+            var sig = String(signature || "").replace(/[()]/g, "");
+            var list = args || [];
+            var ai = 0;
+            var hasStringCtor = typeof PDBus.string === "function";
+            var hasBoolCtor = typeof PDBus.bool === "function";
+            for (var i = 0; i < sig.length && ai < list.length; i++) {
+                var ch = sig.charAt(i);
+                var value = list[ai++];
+                if (ch === "s" && hasStringCtor)
+                    out.push(new PDBus.string(String(value == null ? "" : value)));
+                else if (ch === "b" && hasBoolCtor)
+                    out.push(new PDBus.bool(!!value));
+                else
+                    out.push(value);
+            }
+            while (ai < list.length)
+                out.push(list[ai++]);
+            return out;
+        }
+
         function wallhavenMessage(member, signature, args, callback) {
+            var normalized = wallhavenNormalizeSignature(signature);
             var msg = new PDBus.dbusMessage({
                 service: "org.robertsm.Wallhaven",
                 path: "/Wallhaven",
                 iface: "org.robertsm.Wallhaven",
                 member: member,
-                signature: signature,
-                arguments: args,
+                signature: normalized,
+                arguments: wallhavenTypedArgs(normalized, args),
             });
-            if (callback) {
-                PDBus.SessionBus.asyncCall(msg, callback, function(err) {
-                    console.warn("Wallhaven D-Bus call failed:", member, err);
-                });
-            } else {
-                PDBus.SessionBus.asyncCall(msg);
-            }
+            PDBus.SessionBus.asyncCall(msg, function(reply) {
+                if (callback)
+                    callback(reply);
+            }, function(err) {
+                var detail = "";
+                try {
+                    if (err && err.error)
+                        detail = String(err.error.message || err.error.name || "");
+                    else if (err && err.message)
+                        detail = String(err.message);
+                } catch (e) {}
+                console.warn("Wallhaven D-Bus call failed:", member, detail || err);
+                if (callback)
+                    callback("");
+            });
         }
 
         function writeFile(path, text, callback) {
-            wallhavenMessage("WriteTextFile", "ss", [path, text], callback);
+            wallhavenMessage("WriteTextFile", "ss", [urlToLocalPath(path), text || ""], callback);
         }
 
         function readFile(path, callback) {
-            wallhavenMessage("ReadTextFile", "s", [path], callback);
+            wallhavenMessage("ReadTextFile", "s", [urlToLocalPath(path)], callback);
         }
 
         function appendFile(path, line, callback) {
-            wallhavenMessage("AppendTextFile", "ss", [path, line], callback);
+            wallhavenMessage("AppendTextFile", "ss", [urlToLocalPath(path), line || ""], callback);
         }
 
         function runArgv(argv, callback) {
-            wallhavenMessage("RunArgv", "s", [JSON.stringify(argv)], callback);
+            var cleaned = [];
+            for (var i = 0; i < (argv || []).length; i++) {
+                var arg = String(argv[i] == null ? "" : argv[i]);
+                // Never pass file:// URLs to shell tools (cp, bash redirects, etc.).
+                if (arg.indexOf("file://") === 0 || arg.indexOf("file:") === 0)
+                    arg = urlToLocalPath(arg);
+                cleaned.push(arg);
+            }
+            wallhavenMessage("RunArgv", "s", [JSON.stringify(cleaned)], callback);
         }
 
         function listImageFiles(folder, callback) {
@@ -3478,6 +3687,12 @@ WallpaperItem {
                     if (root.currentWallpaperId && root.currentWallpaperId !== "wallpaper") {
                         root.unpinCacheId(root.currentWallpaperId);
                     }
+                    break;
+                case "outageoffline":
+                    root.enterApiOutageOffline(0);
+                    break;
+                case "resumeonline":
+                    root.clearApiOutageOffline(true);
                     break;
                 default: break;
                 }

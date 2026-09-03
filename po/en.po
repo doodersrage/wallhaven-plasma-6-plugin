@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 3.2.0\n"
+"Project-Id-Version: org.robertsm.wallhaven 3.3.0\n"
 "Language: en\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -128,11 +128,17 @@ msgstr "Apply accent color via plasma-apply-colors when available"
 msgid "Apply brightness/contrast/saturation adjustments to the wallpaper"
 msgstr "Apply brightness/contrast/saturation adjustments to the wallpaper"
 
+msgid "Apply desktop quality preset"
+msgstr "Apply desktop quality preset"
+
 msgid "Apply laptop power-saving preset"
 msgstr "Apply laptop power-saving preset"
 
 msgid "Apply local playlist"
 msgstr "Apply local playlist"
+
+msgid "Apply offline / cache-only preset"
+msgstr "Apply offline / cache-only preset"
 
 msgid "Apply preset:"
 msgstr "Apply preset:"
@@ -422,6 +428,9 @@ msgstr "Could not load curated presets."
 msgid "Could not load the next wallpaper."
 msgstr "Could not load the next wallpaper."
 
+msgid "Could not load the next wallpaper. Showing cached wallpaper."
+msgstr "Could not load the next wallpaper. Showing cached wallpaper."
+
 msgid "Could not load wallpaper."
 msgstr "Could not load wallpaper."
 
@@ -430,6 +439,9 @@ msgstr "Could not load wallpaper #%1."
 
 msgid "Could not load wallpaper #%1 — showing preview instead."
 msgstr "Could not load wallpaper #%1 — showing preview instead."
+
+msgid "Could not load wallpaper. Showing cached wallpaper."
+msgstr "Could not load wallpaper. Showing cached wallpaper."
 
 msgid "Could not parse collections response."
 msgstr "Could not parse collections response."
@@ -544,6 +556,12 @@ msgstr "Desktop Art"
 
 msgid "Desktop banner:"
 msgstr "Desktop banner:"
+
+msgid "Desktop mode:"
+msgstr "Desktop mode:"
+
+msgid "Desktop mode applied (full quality, smart offline, original downloads)."
+msgstr "Desktop mode applied (full quality, smart offline, original downloads)."
 
 msgid "Diagnostics"
 msgstr "Diagnostics"
@@ -665,6 +683,9 @@ msgstr "File type:"
 msgid "Filter by name, id, or username"
 msgstr "Filter by name, id, or username"
 
+msgid "Filter cache:"
+msgstr "Filter cache:"
+
 msgid "Filter collections:"
 msgstr "Filter collections:"
 
@@ -677,8 +698,14 @@ msgstr "Filters are in Advanced settings mode. Switch Settings mode to Advanced 
 msgid "Filter settings…"
 msgstr "Filter settings…"
 
+msgid "Find preset:"
+msgstr "Find preset:"
+
 msgid "Finish"
 msgstr "Finish"
+
+msgid "Focus this monitor"
+msgstr "Focus this monitor"
 
 msgid "Folder depth:"
 msgstr "Folder depth:"
@@ -725,14 +752,23 @@ msgstr "https://wallhaven.cc/collections/user/12345"
 msgid "ID: %1"
 msgstr "ID: %1"
 
+msgid "idle"
+msgstr "idle"
+
 msgid "Idle pause:"
 msgstr "Idle pause:"
 
 msgid "Idle threshold (min):"
 msgstr "Idle threshold (min):"
 
+msgid "id, tag, category…"
+msgstr "id, tag, category…"
+
 msgid "Image enhance:"
 msgstr "Image enhance:"
+
+msgid "Image failed to load. Showing cached wallpaper."
+msgstr "Image failed to load. Showing cached wallpaper."
 
 msgid "Image failed to load. Trying another…"
 msgstr "Image failed to load. Trying another…"
@@ -956,6 +992,9 @@ msgstr "Mon–Fri"
 msgid "Monitor: %1"
 msgstr "Monitor: %1"
 
+msgid "Monitors"
+msgstr "Monitors"
+
 msgid "More actions"
 msgstr "More actions"
 
@@ -968,6 +1007,9 @@ msgstr "More-like-current mode needs a wallpaper on screen first."
 msgid "Most advanced options are hidden in Simple mode. Switch Settings mode to Advanced on the Source tab."
 msgstr "Most advanced options are hidden in Simple mode. Switch Settings mode to Advanced on the Source tab."
 
+msgid "mountains nature"
+msgstr "mountains nature"
+
 msgid "Music-reactive pacing:"
 msgstr "Music-reactive pacing:"
 
@@ -979,6 +1021,9 @@ msgstr "Muted tags: %1"
 
 msgid "Name and folder path are required to save a local playlist."
 msgstr "Name and folder path are required to save a local playlist."
+
+msgid "name or search words"
+msgstr "name or search words"
 
 msgid "Network error during search test."
 msgstr "Network error during search test."
@@ -1091,6 +1136,12 @@ msgstr "NSFW:"
 msgid "Offline fallback:"
 msgstr "Offline fallback:"
 
+msgid "Offline mode:"
+msgstr "Offline mode:"
+
+msgid "Offline mode applied (playlist / cache only, no network fetches)."
+msgstr "Offline mode applied (playlist / cache only, no network fetches)."
+
 msgid "Offline mode — showing cached wallpaper."
 msgstr "Offline mode — showing cached wallpaper."
 
@@ -1100,6 +1151,9 @@ msgstr "Offline only:"
 msgid "Offline playlist"
 msgstr "Offline playlist"
 
+msgid "Offline tag filter:"
+msgstr "Offline tag filter:"
+
 msgid "Olive"
 msgstr "Olive"
 
@@ -1108,6 +1162,9 @@ msgstr "Omit API key from settings / bug-report exports (recommended)"
 
 msgid "On errors:"
 msgstr "On errors:"
+
+msgid "Only cycle cached wallpapers whose stored tags contain all these words."
+msgstr "Only cycle cached wallpapers whose stored tags contain all these words."
 
 msgid "Only play pinned cache entries"
 msgstr "Only play pinned cache entries"
@@ -1130,8 +1187,8 @@ msgstr "Open wallpaper page"
 msgid "Open wallpaper settings while Wallhaven is active to see the count"
 msgstr "Open wallpaper settings while Wallhaven is active to see the count"
 
-msgid "Optional: add your Wallhaven API key for NSFW and favorites."
-msgstr "Optional: add your Wallhaven API key for NSFW and favorites."
+msgid "Optional API key for NSFW/favorites. Later: try Offline playlist, local folder playlists, or smart offline on the Source tab."
+msgstr "Optional API key for NSFW/favorites. Later: try Offline playlist, local folder playlists, or smart offline on the Source tab."
 
 msgid "Optional path for Variety integration"
 msgstr "Optional path for Variety integration"
@@ -1184,6 +1241,9 @@ msgstr "Pause slideshow on low battery"
 msgid "Pause the slideshow while the screen is locked"
 msgstr "Pause the slideshow while the screen is locked"
 
+msgid "Pause this monitor"
+msgstr "Pause this monitor"
+
 msgid "Pause when the session has been idle for several minutes"
 msgstr "Pause when the session has been idle for several minutes"
 
@@ -1216,6 +1276,9 @@ msgstr "Pink"
 
 msgid "Pink Red"
 msgstr "Pink Red"
+
+msgid "Pinned only:"
+msgstr "Pinned only:"
 
 msgid "Playback"
 msgstr "Playback"
@@ -1343,6 +1406,9 @@ msgstr "Remember search settings per sync group"
 msgid "Request failed (%1). Retry %2/%3 in %4s…"
 msgstr "Request failed (%1). Retry %2/%3 in %4s…"
 
+msgid "Request failed (%1). Showing cached wallpaper."
+msgstr "Request failed (%1). Showing cached wallpaper."
+
 msgid "Request timed out. Retry %1/%2 in %3s…"
 msgstr "Request timed out. Retry %1/%2 in %3s…"
 
@@ -1360,6 +1426,9 @@ msgstr "Resume slideshow"
 
 msgid "Resume Slideshow"
 msgstr "Resume Slideshow"
+
+msgid "Resume this monitor"
+msgstr "Resume this monitor"
 
 msgid "Retry delay (sec):"
 msgstr "Retry delay (sec):"
@@ -1517,6 +1586,9 @@ msgstr "Showing wallpaper #%1 from history."
 msgid "Show overlay on desktop"
 msgstr "Show overlay on desktop"
 
+msgid "Show pinned cache entries only"
+msgstr "Show pinned cache entries only"
+
 msgid "Show recent log lines"
 msgstr "Show recent log lines"
 
@@ -1538,8 +1610,8 @@ msgstr "Similar Wallpapers"
 msgid "Simple"
 msgstr "Simple"
 
-msgid "Simple mode shows Source and Playback essentials. Switch to Advanced for filters, sync, diagnostics, and power tools."
-msgstr "Simple mode shows Source and Playback essentials. Switch to Advanced for filters, sync, diagnostics, and power tools."
+msgid "Simple mode: Source + Playback. Tip: Offline playlist, local playlists, and smart offline are on Source. Switch to Advanced for filters, cache, and sync."
+msgstr "Simple mode: Source + Playback. Tip: Offline playlist, local playlists, and smart offline are on Source. Switch to Advanced for filters, cache, and sync."
 
 msgid "Sketchy:"
 msgstr "Sketchy:"
@@ -1636,6 +1708,9 @@ msgstr "System theme sync:"
 
 msgid "Tag blocklist:"
 msgstr "Tag blocklist:"
+
+msgid "tags"
+msgstr "tags"
 
 msgid "Tags, keywords, e.g. nature anime"
 msgstr "Tags, keywords, e.g. nature anime"

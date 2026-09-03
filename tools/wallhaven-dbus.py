@@ -15,7 +15,7 @@ try:
     import dbus
     import dbus.service
     from dbus.mainloop.glib import DBusGMainLoop
-    from gi.repository import GLib
+    from gi.repository import Gio, GLib
 except ImportError as exc:  # pragma: no cover
     print("Requires python3-dbus and python3-gi:", exc, file=sys.stderr)
     sys.exit(1)
@@ -64,11 +64,22 @@ def config_home() -> str:
 VARIETY_CONFIG = os.path.join(config_home(), "variety", "variety.conf")
 
 
+def normalize_local_path(path: str) -> str:
+    """Accept plain paths or file:// URLs from QML StandardPaths / Image.source."""
+    text = str(path or "").strip()
+    if text.startswith("file://"):
+        text = text[7:]
+        # file:///home/... → /home/... ; keep leading slash
+        if text.startswith("//"):
+            text = text[1:]
+    return text
+
+
 def validate_cache_path(path: str) -> str:
     if not path:
         raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: empty path")
     base = os.path.realpath(PLASMA_CACHE)
-    full = os.path.realpath(path)
+    full = os.path.realpath(normalize_local_path(path))
     if full == base or full.startswith(base + os.sep):
         return full
     raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: path outside cache")
@@ -77,7 +88,7 @@ def validate_cache_path(path: str) -> str:
 def validate_read_path(path: str) -> str:
     if not path:
         raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: empty path")
-    full = os.path.realpath(path)
+    full = os.path.realpath(normalize_local_path(path))
     cache_base = os.path.realpath(PLASMA_CACHE)
     if full == cache_base or full.startswith(cache_base + os.sep):
         return full
@@ -198,17 +209,29 @@ def watch_variety_config(group: str) -> None:
     def attach_config(path: str) -> None:
         if not os.path.isfile(path):
             return
-        GLib.io_add_watch(path, GLib.IOCondition.IN_MODIFY, on_change)
+        try:
+            gfile = Gio.File.new_for_path(path)
+            monitor = gfile.monitor_file(Gio.FileMonitorFlags.NONE, None)
+            monitor.connect("changed", lambda *_a: on_change())
+            # Keep a reference so the monitor is not GC'd.
+            attach_config._monitors = getattr(attach_config, "_monitors", []) + [monitor]
+        except GLib.Error:
+            GLib.timeout_add_seconds(5, on_change)
 
     def attach_dbus_config(path: str) -> None:
         if not os.path.isfile(path):
             return
 
-        def on_config_change(*_args) -> bool:
+        def on_config_change(*_args) -> None:
             on_change()
-            return True
 
-        GLib.io_add_watch(path, GLib.IOCondition.IN_MODIFY, on_config_change)
+        try:
+            gfile = Gio.File.new_for_path(path)
+            monitor = gfile.monitor_file(Gio.FileMonitorFlags.NONE, None)
+            monitor.connect("changed", lambda *_a: on_config_change())
+            attach_dbus_config._monitors = getattr(attach_dbus_config, "_monitors", []) + [monitor]
+        except GLib.Error:
+            GLib.timeout_add_seconds(5, on_config_change)
 
     attach_config(VARIETY_CONFIG)
     attach_dbus_config(DBUS_CONFIG_FILE)
@@ -342,7 +365,7 @@ class WallhavenControl(dbus.service.Object):
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def GetPluginVersion(self) -> str:
-        return "3.2.0"
+        return "3.3.0"
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def ListMonitorStatuses(self) -> str:
@@ -391,12 +414,39 @@ class WallhavenControl(dbus.service.Object):
     def CommandWithQuery(self, cmd: str, query: str, group: str = "") -> None:
         write_command(cmd, group or self.group, query)
 
-    @dbus.service.method(INTERFACE, in_signature="ss")
-    def WriteTextFile(self, path: str, content: str) -> None:
-        target = validate_cache_path(path)
+    @dbus.service.method(INTERFACE, in_signature="ss", out_signature="s")
+    def WriteTextFile(self, path: str, content: str) -> str:
+        log_path = os.path.join(PLASMA_CACHE, "wallhaven-dbus-write.log")
+        try:
+            target = validate_cache_path(path)
+        except dbus.exceptions.DBusException as exc:
+            try:
+                with open(log_path, "a", encoding="utf-8") as handle:
+                    handle.write(f"REJECT {path!r} err={exc}\n")
+            except OSError:
+                pass
+            raise
         os.makedirs(os.path.dirname(target), exist_ok=True)
         with open(target, "w", encoding="utf-8") as handle:
             handle.write(content)
+        try:
+            with open(log_path, "a", encoding="utf-8") as handle:
+                handle.write(f"OK {target} bytes={len(content or '')}\n")
+        except OSError:
+            pass
+        return "ok"
+
+    @dbus.service.method(INTERFACE, in_signature="s", out_signature="s")
+    def PublishStatusJson(self, content: str) -> str:
+        """Write status JSON to the plasmashell cache (no client-supplied path)."""
+        return self.WriteTextFile(STATUS_FILE, content or "{}")
+
+    @dbus.service.method(INTERFACE, in_signature="ss", out_signature="s")
+    def PublishMonitorStatusJson(self, namespace: str, content: str) -> str:
+        """Write per-monitor status JSON under the plasmashell cache."""
+        safe = re.sub(r"[^A-Za-z0-9._-]+", "_", str(namespace or "default"))[:80] or "default"
+        target = os.path.join(PLASMA_CACHE, f"wallhaven-status-{safe}.json")
+        return self.WriteTextFile(target, content or "{}")
 
     @dbus.service.method(INTERFACE, in_signature="s", out_signature="s")
     def ReadTextFile(self, path: str) -> str:
@@ -407,8 +457,8 @@ class WallhavenControl(dbus.service.Object):
         except OSError:
             return ""
 
-    @dbus.service.method(INTERFACE, in_signature="ss")
-    def AppendTextFile(self, path: str, line: str) -> None:
+    @dbus.service.method(INTERFACE, in_signature="ss", out_signature="s")
+    def AppendTextFile(self, path: str, line: str) -> str:
         target = validate_cache_path(path)
         os.makedirs(os.path.dirname(target), exist_ok=True)
         existing = ""
@@ -419,9 +469,10 @@ class WallhavenControl(dbus.service.Object):
             pass
         with open(target, "w", encoding="utf-8") as handle:
             handle.write(append_debug_log_line(existing, line))
+        return "ok"
 
-    @dbus.service.method(INTERFACE, in_signature="s")
-    def RunArgv(self, argv_json: str) -> None:
+    @dbus.service.method(INTERFACE, in_signature="s", out_signature="s")
+    def RunArgv(self, argv_json: str) -> str:
         try:
             argv = json.loads(argv_json)
         except json.JSONDecodeError as exc:
@@ -431,6 +482,7 @@ class WallhavenControl(dbus.service.Object):
         if not isinstance(argv, list):
             raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: argv must be a list")
         run_argv([str(part) for part in argv])
+        return "ok"
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def UpscalerAvailable(self) -> str:
@@ -615,25 +667,34 @@ class MprisMediaPlayer2(dbus.service.Object):
 
 
 def watch_status_file(mpris: MprisMediaPlayer2) -> None:
-    def emit_if_changed(*_args) -> bool:
+    """Watch wallhaven-status.json and refresh MPRIS metadata when it changes."""
+    monitors: list = []
+
+    def emit_if_changed(*_args) -> None:
         mpris.refresh_status()
-        return True
 
-    def attach(path: str) -> None:
+    def attach(path: str) -> bool:
         if not os.path.isfile(path):
-            return
-        GLib.io_add_watch(path, GLib.IOCondition.IN_MODIFY, emit_if_changed)
-        mpris.refresh_status(force=True)
+            return False
+        try:
+            gfile = Gio.File.new_for_path(path)
+            monitor = gfile.monitor_file(Gio.FileMonitorFlags.NONE, None)
+            monitor.connect("changed", lambda *_a: emit_if_changed())
+            monitors.append(monitor)
+            mpris.refresh_status(force=True)
+            return True
+        except GLib.Error as exc:
+            print(f"status file monitor failed for {path}: {exc}", flush=True)
+            # Fall back to polling so MPRIS still updates.
+            GLib.timeout_add_seconds(2, lambda: (mpris.refresh_status(), True)[1])
+            mpris.refresh_status(force=True)
+            return True
 
-    if os.path.isfile(STATUS_FILE):
-        attach(STATUS_FILE)
+    if attach(STATUS_FILE):
         return
 
     def wait_for_file() -> bool:
-        if os.path.isfile(STATUS_FILE):
-            attach(STATUS_FILE)
-            return False
-        return True
+        return not attach(STATUS_FILE)
 
     GLib.timeout_add_seconds(1, wait_for_file)
 

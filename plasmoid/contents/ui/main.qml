@@ -10,7 +10,18 @@ import org.kde.plasma.workspace.dbus as PDBus
 PlasmoidItem {
     id: root
 
-    readonly property string cacheDir: StandardPaths.writableLocation(StandardPaths.CacheLocation)
+    readonly property string cacheDir: {
+        var p = String(StandardPaths.writableLocation(StandardPaths.CacheLocation) || "");
+        if (p.indexOf("file://") === 0)
+            p = p.substring(7);
+        if (p.indexOf("localhost/") === 0)
+            p = p.substring(9);
+        try {
+            return decodeURIComponent(p);
+        } catch (e) {
+            return p;
+        }
+    }
     readonly property string controlFile: cacheDir + "/wallhaven-control.json"
     readonly property string statusFile: cacheDir + "/wallhaven-status.json"
 
@@ -35,6 +46,8 @@ PlasmoidItem {
         slideshowActive: false,
         nextChangeMs: 0,
         apiHealth: null,
+        cacheCount: 0,
+        outageOffline: false,
     })
     property var monitorStatuses: []
     property int selectedMonitorIndex: -1
@@ -45,6 +58,22 @@ PlasmoidItem {
     readonly property string historyFile: cacheDir + "/wallhaven-history.json"
     property var historyEntries: []
 
+    function dbusStringArgs(values) {
+        var out = [];
+        for (var i = 0; i < values.length; i++)
+            out.push(new PDBus.string(String(values[i] == null ? "" : values[i])));
+        return out;
+    }
+
+    function dbusParenSignature(signature) {
+        var sig = String(signature || "").trim();
+        if (!sig)
+            return "";
+        if (sig.charAt(0) !== "(")
+            sig = "(" + sig + ")";
+        return sig;
+    }
+
     function sendCommand(cmd, query) {
         var group = root.effectiveSyncGroup();
         var msg;
@@ -54,8 +83,8 @@ PlasmoidItem {
                 path: "/Wallhaven",
                 iface: "org.robertsm.Wallhaven",
                 member: "Search",
-                signature: "ss",
-                arguments: [query, group],
+                signature: dbusParenSignature("ss"),
+                arguments: dbusStringArgs([query, group]),
             });
         } else {
             msg = new PDBus.dbusMessage({
@@ -63,8 +92,8 @@ PlasmoidItem {
                 path: "/Wallhaven",
                 iface: "org.robertsm.Wallhaven",
                 member: "CommandInGroup",
-                signature: "ss",
-                arguments: [cmd, group],
+                signature: dbusParenSignature("ss"),
+                arguments: dbusStringArgs([cmd, group]),
             });
         }
         PDBus.SessionBus.asyncCall(msg, function() {}, function(err) {
@@ -107,6 +136,9 @@ PlasmoidItem {
             slideshowActive: !!parsed.slideshowActive,
             nextChangeMs: Math.max(0, parseInt(parsed.nextChangeMs, 10) || 0),
             apiHealth: parsed.apiHealth || null,
+            cacheCount: Math.max(0, parseInt(parsed.cacheCount, 10) || 0),
+            outageOffline: !!(parsed.outageOffline
+                || (parsed.apiHealth && parsed.apiHealth.outageOffline)),
         };
         countdownMs = statusData.nextChangeMs;
     }
@@ -163,8 +195,8 @@ PlasmoidItem {
                 path: "/Wallhaven",
                 iface: "org.robertsm.Wallhaven",
                 member: "ReadTextFile",
-                signature: "s",
-                arguments: [statusFile],
+                signature: dbusParenSignature("s"),
+                arguments: dbusStringArgs([statusFile]),
             });
             PDBus.SessionBus.asyncCall(fallback, function(text) {
                 root.dbusOffline = false;
@@ -189,8 +221,8 @@ PlasmoidItem {
             path: "/Wallhaven",
             iface: "org.robertsm.Wallhaven",
             member: "CommandWithQuery",
-            signature: "sss",
-            arguments: ["history", id, group],
+            signature: dbusParenSignature("sss"),
+            arguments: dbusStringArgs(["history", id, group]),
         });
         PDBus.SessionBus.asyncCall(msg, function() {}, function(err) {
             console.warn("Wallhaven plasmoid D-Bus call failed:", err);
@@ -224,8 +256,8 @@ PlasmoidItem {
             path: "/Wallhaven",
             iface: "org.robertsm.Wallhaven",
             member: "ReadTextFile",
-            signature: "s",
-            arguments: [historyFile],
+            signature: dbusParenSignature("s"),
+            arguments: dbusStringArgs([historyFile]),
         });
         PDBus.SessionBus.asyncCall(msg, function(text) {
             text = dbusReplyAsString(text);
@@ -271,6 +303,12 @@ PlasmoidItem {
 
     function compactStatusTip() {
         var parts = [];
+        if (statusData.outageOffline) {
+            var n = statusData.cacheCount || 0;
+            parts.push(n > 0
+                ? i18n("API down · %1 cached", n)
+                : i18n("API down · no cache"));
+        }
         if (statusData.id)
             parts.push("#" + statusData.id);
         parts.push(root.formatCountdown(root.countdownMs));
@@ -290,8 +328,8 @@ PlasmoidItem {
             path: "/Wallhaven",
             iface: "org.robertsm.Wallhaven",
             member: "RunArgv",
-            signature: "s",
-            arguments: [JSON.stringify(["systemsettings", "kcm_wallpaper"])],
+            signature: dbusParenSignature("s"),
+            arguments: dbusStringArgs([JSON.stringify(["systemsettings", "kcm_wallpaper"])]),
         });
         PDBus.SessionBus.asyncCall(msg, function() {}, function() {
             Qt.openUrlExternally("systemsettings://kcm_wallpaper");
@@ -623,24 +661,57 @@ PlasmoidItem {
             text: statusData.tags
         }
 
-        QtControls2.ComboBox {
+        ColumnLayout {
             Layout.fillWidth: true
-            visible: root.monitorStatuses.length > 1
-            model: {
-                var labels = [];
-                for (var i = 0; i < root.monitorStatuses.length; i++) {
-                    var m = root.monitorStatuses[i] || {};
-                    var screen = m.screenName || m.cacheNamespace || ("#" + (i + 1));
-                    var group = m.syncGroup || "default";
-                    labels.push(screen + " · " + group);
-                }
-                return labels;
+            spacing: 2
+            visible: root.monitorStatuses.length > 0
+
+            QtControls2.Label {
+                font.pointSize: 7
+                opacity: 0.7
+                text: i18n("Monitors")
+                visible: root.monitorStatuses.length > 1
             }
-            currentIndex: Math.max(0, root.selectedMonitorIndex)
-            onActivated: function(index) {
-                root.selectedMonitorIndex = index;
-                if (index >= 0 && index < root.monitorStatuses.length)
-                    root.applyParsedStatus(root.monitorStatuses[index]);
+
+            Repeater {
+                model: root.monitorStatuses
+
+                delegate: RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.smallSpacing
+
+                    QtControls2.Label {
+                        Layout.fillWidth: true
+                        font.pointSize: 7
+                        elide: Text.ElideRight
+                        opacity: index === root.selectedMonitorIndex ? 1 : 0.75
+                        text: {
+                            var screen = modelData.screenName || modelData.cacheNamespace || ("#" + (index + 1));
+                            var id = modelData.id ? ("#" + modelData.id) : i18n("idle");
+                            return screen + " · " + id;
+                        }
+                    }
+                    QtControls2.ToolButton {
+                        display: QtControls2.AbstractButton.IconOnly
+                        icon.name: "view-visible"
+                        ToolTip.text: i18n("Focus this monitor")
+                        onClicked: {
+                            root.selectedMonitorIndex = index;
+                            root.applyParsedStatus(modelData);
+                        }
+                    }
+                    QtControls2.ToolButton {
+                        display: QtControls2.AbstractButton.IconOnly
+                        icon.name: modelData.paused ? "media-playback-start" : "media-playback-pause"
+                        ToolTip.text: modelData.paused ? i18n("Resume this monitor") : i18n("Pause this monitor")
+                        enabled: !root.dbusOffline
+                        onClicked: {
+                            root.selectedMonitorIndex = index;
+                            root.applyParsedStatus(modelData);
+                            root.sendCommand(modelData.paused ? "resume" : "pause");
+                        }
+                    }
+                }
             }
         }
 
@@ -688,6 +759,35 @@ PlasmoidItem {
             text: statusData.lockScreenSyncOk
                 ? i18n("Lock sync OK · %1", statusData.lockScreenSyncAt)
                 : i18n("Lock sync failed · %1", statusData.lockScreenSyncAt)
+        }
+
+        QtControls2.Label {
+            Layout.fillWidth: true
+            visible: statusData.outageOffline
+            font.pointSize: 7
+            opacity: 0.9
+            color: Kirigami.Theme.negativeTextColor
+            text: statusData.cacheCount > 0
+                ? i18n("API down · %1 cached", statusData.cacheCount)
+                : i18n("API down · no cache")
+        }
+
+        QtControls2.Button {
+            Layout.fillWidth: true
+            visible: statusData.outageOffline
+            text: i18n("Resume online search")
+            enabled: !root.dbusOffline
+            onClicked: root.sendCommand("resumeonline")
+        }
+
+        QtControls2.Button {
+            Layout.fillWidth: true
+            visible: !statusData.outageOffline
+                && statusData.apiHealth
+                && statusData.apiHealth.lastStatus >= 500
+            text: i18n("Use cache until API recovers")
+            enabled: !root.dbusOffline
+            onClicked: root.sendCommand("outageoffline")
         }
 
         QtControls2.Label {

@@ -139,6 +139,10 @@ ColumnLayout {
     property alias cfg_ScrubSecretsOnExport: scrubSecretsCheck.checked
     property alias cfg_SmartOfflineEnabled: smartOfflineCheck.checked
     property alias cfg_SmartOfflineDayAware: smartOfflineDayCheck.checked
+    property alias cfg_OfflineTagQuery: offlineTagQueryField.text
+    property string cacheBrowserFilter: ""
+    property bool cacheBrowserPinnedOnly: false
+    property string presetBrowserFilter: ""
     property string collectionSearchQuery: ""
     property string collectionUrlFieldText: ""
     readonly property bool uiSimple: String(cfg_SettingsUiMode || "simple") !== "advanced"
@@ -190,7 +194,7 @@ ColumnLayout {
         "playlist", "pinned", "health", "rate", "limit", "kwallet", "wallet", "secret",
         "details", "collection", "url", "simple", "advanced", "local", "folder", "motion",
         "accessibility", "scrub", "schema", "depth", "exclude", "day", "night", "gallery",
-        "compact", "pin", "unpin", "playlist",
+        "compact", "pin", "unpin", "playlist", "tag", "desktop", "profile", "filter",
     ]
 
     function rowVisible(keywords) {
@@ -328,7 +332,11 @@ ColumnLayout {
         if (!liveWallpaper || !liveWallpaper.getCacheEntries)
             return ;
 
-        var entries = liveWallpaper.getCacheEntries();
+        var entries = Wallhaven.filterCacheEntries(
+            liveWallpaper.getCacheEntries(),
+            root.cacheBrowserFilter,
+            root.cacheBrowserPinnedOnly,
+        );
         for (var i = 0; i < entries.length; i++) {
             cacheModel.append(entries[i]);
         }
@@ -718,7 +726,7 @@ ColumnLayout {
                     visible: rowVisible(["getting", "started"])
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                text: i18n("Optional: add your Wallhaven API key for NSFW and favorites.")
+                text: i18n("Optional API key for NSFW/favorites. Later: try Offline playlist, local folder playlists, or smart offline on the Source tab.")
             }
 
             QtControls2.TextField {
@@ -1218,7 +1226,7 @@ ColumnLayout {
                     opacity: 0.7
                     visible: rowVisible(["simple", "advanced", "settings"])
                     text: root.uiSimple
-                        ? i18n("Simple mode shows Source and Playback essentials. Switch to Advanced for filters, sync, diagnostics, and power tools.")
+                        ? i18n("Simple mode: Source + Playback. Tip: Offline playlist, local playlists, and smart offline are on Source. Switch to Advanced for filters, cache, and sync.")
                         : i18n("Advanced mode shows all tabs and options.")
                 }
 
@@ -1319,6 +1327,23 @@ ColumnLayout {
                     visible: smartOfflineCheck.visible && smartOfflineCheck.checked
                         && rowVisible(["smart", "offline", "day", "night", "playlist", "cache"])
                     enabled: smartOfflineCheck.checked
+                }
+
+                QtControls2.TextField {
+                    id: offlineTagQueryField
+                    Kirigami.FormData.label: i18n("Offline tag filter:")
+                    placeholderText: i18n("mountains nature")
+                    visible: (browseModeCombo.currentValue === "playlist" || offlineOnlyCheck.checked)
+                        && rowVisible(["offline", "tag", "filter", "playlist", "cache"])
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: offlineTagQueryField.visible
+                    text: i18n("Only cycle cached wallpapers whose stored tags contain all these words.")
                 }
 
                 QtControls2.TextField {
@@ -2058,6 +2083,9 @@ ColumnLayout {
 
                         var presets = root.currentPresets().slice();
                         var preset = Wallhaven.buildPresetFromConfig(name, root.buildCurrentConfigObject());
+                        if (liveWallpaper && liveWallpaper.currentWallpaperId
+                                && liveWallpaper.currentWallpaperId !== "wallpaper")
+                            preset.SampleWallpaperId = liveWallpaper.currentWallpaperId;
                         var replaced = false;
                         for (var i = 0; i < presets.length; i++) {
                             if (presets[i].name === name) {
@@ -2109,6 +2137,15 @@ ColumnLayout {
                     text: i18n("Bundled packs (one-click import):")
                 }
 
+                QtControls2.TextField {
+                    id: presetBrowserFilterField
+                    Kirigami.FormData.label: i18n("Find preset:")
+                    placeholderText: i18n("name or search words")
+                    visible: parent.searchFilters
+                    text: root.presetBrowserFilter
+                    onTextChanged: root.presetBrowserFilter = text
+                }
+
                 Flow {
                     Kirigami.FormData.label: " "
                     Layout.fillWidth: true
@@ -2116,7 +2153,17 @@ ColumnLayout {
                     spacing: Kirigami.Units.smallSpacing
 
                     Repeater {
-                        model: Wallhaven.bundledCuratedPresets().concat(Wallhaven.bundledCommunityPresets())
+                        model: {
+                            var all = Wallhaven.bundledCuratedPresets().concat(Wallhaven.bundledCommunityPresets());
+                            var q = String(root.presetBrowserFilter || "").trim().toLowerCase();
+                            if (!q)
+                                return all;
+                            return all.filter(function(p) {
+                                if (!p) return false;
+                                var hay = [p.name || "", p.SearchText || ""].join(" ").toLowerCase();
+                                return hay.indexOf(q) !== -1;
+                            });
+                        }
 
                         delegate: QtControls2.ItemDelegate {
                             width: 104
@@ -3094,6 +3141,30 @@ ColumnLayout {
                     onClicked: root.refreshCacheModel()
                 }
 
+                QtControls2.TextField {
+                    id: cacheBrowserFilterField
+                    Kirigami.FormData.label: i18n("Filter cache:")
+                    placeholderText: i18n("id, tag, category…")
+                    visible: advancedVisible(["cache", "filter", "tag"])
+                    text: root.cacheBrowserFilter
+                    onTextChanged: {
+                        root.cacheBrowserFilter = text;
+                        root.refreshCacheModel();
+                    }
+                }
+
+                QtControls2.CheckBox {
+                    id: cacheBrowserPinnedCheck
+                    Kirigami.FormData.label: i18n("Pinned only:")
+                    text: i18n("Show pinned cache entries only")
+                    visible: advancedVisible(["cache", "pinned", "filter"])
+                    checked: root.cacheBrowserPinnedOnly
+                    onCheckedChanged: {
+                        root.cacheBrowserPinnedOnly = checked;
+                        root.refreshCacheModel();
+                    }
+                }
+
                 ListView {
                     id: cacheList
 
@@ -3114,9 +3185,24 @@ ColumnLayout {
                             source: model.thumbUrl
                         }
 
-                        QtControls2.Label {
+                        ColumnLayout {
                             Layout.fillWidth: true
-                            text: "#" + model.id + (model.pinned ? " ★" : "")
+                            spacing: 0
+                            QtControls2.Label {
+                                Layout.fillWidth: true
+                                text: "#" + model.id + (model.pinned ? " ★" : "")
+                                    + (model.category ? (" · " + model.category) : "")
+                            }
+                            QtControls2.TextField {
+                                Layout.fillWidth: true
+                                text: model.tags || ""
+                                placeholderText: i18n("tags")
+                                font.pointSize: 8
+                                onEditingFinished: {
+                                    if (liveWallpaper && liveWallpaper.setCacheEntryTags)
+                                        liveWallpaper.setCacheEntryTags(model.id, text);
+                                }
+                            }
                         }
 
                         QtControls2.Button {
@@ -3160,6 +3246,32 @@ ColumnLayout {
                     text: liveWallpaper && liveWallpaper.apiHealthSummary
                         ? liveWallpaper.apiHealthSummary
                         : i18n("Open settings while Wallhaven is the active wallpaper to see live API health.")
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    visible: advancedVisible(["api", "health", "offline", "outage"])
+                        && liveWallpaper
+                        && liveWallpaper._apiOutageOffline
+                    text: i18n("Resume online search")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.clearApiOutageOffline)
+                            liveWallpaper.clearApiOutageOffline(true);
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    visible: advancedVisible(["api", "health", "offline", "outage"])
+                        && liveWallpaper
+                        && !liveWallpaper._apiOutageOffline
+                    text: i18n("Use cache until Wallhaven recovers")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.enterApiOutageOffline)
+                            liveWallpaper.enterApiOutageOffline(0);
+                    }
                 }
 
                 QtControls2.Label {
@@ -3237,6 +3349,28 @@ ColumnLayout {
                     onClicked: {
                         if (liveWallpaper && liveWallpaper.applyLaptopMode)
                             liveWallpaper.applyLaptopMode();
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Desktop mode:")
+                    visible: advancedVisible(["desktop", "mode", "profile"])
+                    text: i18n("Apply desktop quality preset")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.applyDesktopMode)
+                            liveWallpaper.applyDesktopMode();
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Offline mode:")
+                    visible: advancedVisible(["offline", "mode", "profile"])
+                    text: i18n("Apply offline / cache-only preset")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.applyOfflineMode)
+                            liveWallpaper.applyOfflineMode();
                     }
                 }
 

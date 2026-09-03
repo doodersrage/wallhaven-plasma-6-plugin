@@ -74,15 +74,30 @@ if issues:
 PY
 
 python3 - <<PY
+import re
 import xml.etree.ElementTree as ET
-path = "${ROOT}/contents/config/main.xml"
+from pathlib import Path
+
+root = Path(r"""${ROOT}""")
+config = (root / "contents/ui/config.qml").read_text()
+alias_targets = re.findall(r"property alias cfg_\w+:\s*([A-Za-z_][\w]*)\.", config)
+ids = set(re.findall(r"\bid:\s*([A-Za-z_][\w]*)", config))
+missing_ids = sorted(set(alias_targets) - ids)
+if missing_ids:
+    raise SystemExit(
+        "config.qml: property alias targets missing id: "
+        + ", ".join(missing_ids)
+        + " (Plasma shows a blank wallpaper config panel)"
+    )
+
+path = root / "contents/config/main.xml"
 tree = ET.parse(path)
 entries = [e.attrib["name"] for e in tree.findall(".//{http://www.kde.org/standards/kcfg/1.0}entry")]
 required = ["SetupWizardCompleted", "WallpaperOfDayEnabled", "PinnedCacheIdsJson", "DebugLogEnabled",
             "AutoPanelAccentEnabled", "PauseOnBatteryLow", "TagFavoritesJson", "CacheNamespace",
             "ConfigSchemaVersion", "SettingsUiMode", "SmartOfflineEnabled", "ScrubSecretsOnExport",
             "LocalFolderPath", "ReducedMotion", "LocalFolderMaxDepth", "LocalFolderExclude",
-            "SmartOfflineDayAware", "LocalPlaylistsJson"]
+            "SmartOfflineDayAware", "LocalPlaylistsJson", "OfflineTagQuery"]
 missing = [k for k in required if k not in entries]
 if missing:
     raise SystemExit("main.xml missing: " + ", ".join(missing))
