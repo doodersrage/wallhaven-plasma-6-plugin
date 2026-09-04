@@ -238,6 +238,35 @@ def watch_variety_config(group: str) -> None:
     on_change()
 
 
+def list_sync_groups() -> list[str]:
+    """Unique sync groups from per-monitor status files (fallback: default)."""
+    groups: list[str] = []
+    try:
+        for name in os.listdir(PLASMA_CACHE):
+            if not name.startswith("wallhaven-status-") or not name.endswith(".json"):
+                continue
+            path = os.path.join(PLASMA_CACHE, name)
+            try:
+                with open(path, encoding="utf-8") as handle:
+                    data = json.load(handle)
+            except (OSError, json.JSONDecodeError):
+                continue
+            group = str(data.get("syncGroup") or data.get("cacheNamespace") or "").strip()
+            if group and group not in groups:
+                groups.append(group)
+    except OSError:
+        pass
+    if not groups:
+        try:
+            data = read_status()
+            group = str(data.get("syncGroup") or data.get("cacheNamespace") or "").strip()
+            if group:
+                groups.append(group)
+        except Exception:
+            pass
+    return groups or ["default"]
+
+
 def write_command(cmd: str, group: str = "default", query: str = "") -> None:
     os.makedirs(os.path.dirname(CONTROL_FILE), exist_ok=True)
     payload: dict[str, object] = {"cmd": cmd, "ts": int(time.time() * 1000), "group": group}
@@ -245,6 +274,31 @@ def write_command(cmd: str, group: str = "default", query: str = "") -> None:
         payload["query"] = query
     with open(CONTROL_FILE, "w", encoding="utf-8") as handle:
         json.dump(payload, handle)
+
+
+_NAV_FANOUT = {
+    "next", "prev", "pause", "resume", "reload",
+    "outageoffline", "resumeonline",
+}
+
+
+def write_command_fanout(cmd: str, group: str = "default", query: str = "") -> None:
+    """Write one control command; fan-out nav cmds when group is the shared default."""
+    target = group or "default"
+    if cmd in _NAV_FANOUT and target == "default":
+        groups = list_sync_groups()
+        base = int(time.time() * 1000)
+        commands = []
+        for i, g in enumerate(groups):
+            entry: dict[str, object] = {"cmd": cmd, "ts": base + i, "group": g}
+            if query:
+                entry["query"] = query
+            commands.append(entry)
+        os.makedirs(os.path.dirname(CONTROL_FILE), exist_ok=True)
+        with open(CONTROL_FILE, "w", encoding="utf-8") as handle:
+            json.dump({"commands": commands}, handle)
+        return
+    write_command(cmd, target, query)
 
 
 def read_status() -> dict:
@@ -365,7 +419,7 @@ class WallhavenControl(dbus.service.Object):
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def GetPluginVersion(self) -> str:
-        return "3.4.0"
+        return "3.4.1"
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def ListMonitorStatuses(self) -> str:
@@ -400,19 +454,23 @@ class WallhavenControl(dbus.service.Object):
 
     @dbus.service.method(INTERFACE, in_signature="s")
     def Command(self, cmd: str) -> None:
-        write_command(cmd, self.group)
+        write_command_fanout(cmd, self.group)
 
     @dbus.service.method(INTERFACE, in_signature="ss")
     def CommandInGroup(self, cmd: str, group: str) -> None:
-        write_command(cmd, group or self.group)
+        write_command_fanout(cmd, group or self.group)
 
     @dbus.service.method(INTERFACE, in_signature="ss")
     def Search(self, query: str, group: str = "") -> None:
+        # Never fan-out searches — that overwrote every monitor's query.
         write_command("search", group or self.group, query)
 
     @dbus.service.method(INTERFACE, in_signature="sss")
     def CommandWithQuery(self, cmd: str, query: str, group: str = "") -> None:
-        write_command(cmd, group or self.group, query)
+        if cmd in _NAV_FANOUT:
+            write_command_fanout(cmd, group or self.group, query)
+        else:
+            write_command(cmd, group or self.group, query)
 
     @dbus.service.method(INTERFACE, in_signature="ss", out_signature="s")
     def WriteTextFile(self, path: str, content: str) -> str:

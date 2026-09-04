@@ -934,7 +934,7 @@ function pickSmartCachedId(index, cfg, cursor) {
 }
 
 function pluginVersion() {
-    return "3.4.0";
+    return "3.4.1";
 }
 
 function buildPresetFromConfig(name, cfg) {
@@ -1826,22 +1826,41 @@ function base64EncodeUtf8(str) {
 }
 
 function parseControlCommand(raw) {
+    var list = parseControlCommands(raw);
+    return list.length ? list[list.length - 1] : null;
+}
+
+function parseControlCommands(raw) {
     if (!raw) {
-        return null;
+        return [];
     }
     try {
         var parsed = JSON.parse(raw);
-        if (!parsed || !parsed.cmd) {
-            return null;
+        if (!parsed) {
+            return [];
         }
-        return {
-            cmd: String(parsed.cmd),
-            ts: parseInt(parsed.ts, 10) || 0,
-            group: parsed.group ? String(parsed.group) : "default",
-            query: parsed.query ? String(parsed.query) : "",
-        };
+        var entries = [];
+        if (Array.isArray(parsed.commands)) {
+            entries = parsed.commands;
+        } else if (parsed.cmd) {
+            entries = [parsed];
+        }
+        var out = [];
+        for (var i = 0; i < entries.length; i++) {
+            var entry = entries[i];
+            if (!entry || !entry.cmd) {
+                continue;
+            }
+            out.push({
+                cmd: String(entry.cmd),
+                ts: parseInt(entry.ts, 10) || 0,
+                group: entry.group ? String(entry.group) : "default",
+                query: entry.query ? String(entry.query) : "",
+            });
+        }
+        return out;
     } catch (e) {
-        return null;
+        return [];
     }
 }
 

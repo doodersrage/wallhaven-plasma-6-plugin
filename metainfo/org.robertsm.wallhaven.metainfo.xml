@@ -42,6 +42,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="3.4.1" date="2026-09-04">
+      <description>
+        <p>Hotfix: stop notification floods from retries/filters; isolate per-screen sync groups so search no longer overwrites every monitor; keep next/pause fan-out.</p>
+      </description>
+    </release>
     <release version="3.4.0" date="2026-09-04">
       <description>
         <p>Daily-driver update: API key auth UX, cache warm/prune/quota, trip mode, plasmoid search history and purity toggles, notification actions, and settings undo.</p>

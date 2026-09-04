@@ -17,6 +17,7 @@ Usage: $(basename "$0") <command> [args...]
 Commands:
   next|prev|reload|pause|resume|like|dislike|pin|unpin|info
   copyid|copyurl|warm|prune|endtrip|undo|clearkey|testkey
+  outageoffline|resumeonline
   search <query>
   history <wallpaper-id>
   applysearch <name>
@@ -169,7 +170,7 @@ if [[ "${CMD}" == "warm" ]]; then
 fi
 
 case "${CMD}" in
-    next|prev|reload|pause|resume|like|dislike|pin|unpin|copyid|copyurl|prune|endtrip|undo|clearkey|testkey) ;;
+    next|prev|reload|pause|resume|like|dislike|pin|unpin|copyid|copyurl|prune|endtrip|undo|clearkey|testkey|outageoffline|resumeonline) ;;
     -h|--help|help) usage; exit 0 ;;
     *) echo "Unknown command: ${CMD}"; usage; exit 1 ;;
 esac

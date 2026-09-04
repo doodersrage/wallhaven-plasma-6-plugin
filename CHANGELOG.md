@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.4.1 — 2026-09-04
+
+### Fixed
+- **Notification flood** — filter/retry/offline messages stay on the desktop banner; throttle tray notices; actions only on non-error notifications
+- **Multi-monitor search overwrite** — each screen uses its own sync group (screen name); search/purity no longer broadcast to every display
+- **Control-bus fan-out** — next/pause/reload still reach all screens via a command batch; searches stay targeted
+
 ## 3.4.0 — 2026-09-04
 
 Daily-driver reliability: auth UX, cache health, plasmoid controls, and trip mode.

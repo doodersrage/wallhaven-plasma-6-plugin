@@ -485,15 +485,182 @@ WallpaperItem {
         if (!root.configuration) {
             return;
         }
-        if (Wallhaven.sanitizeCacheNamespace(cfg.CacheNamespace)) {
+        if (!Wallhaven.sanitizeCacheNamespace(cfg.CacheNamespace)) {
+            var ns = diskCacheNamespace;
+            if (!ns || ns === "default") {
+                ns = "m" + Math.random().toString(36).slice(2, 10);
+            }
+            root.configuration.CacheNamespace = ns;
+            scheduleConfigWrite();
+        }
+        // Isolate multi-monitor control by default. A shared SyncAdvanceGroup of
+        // "default" made search/purity from the plasmoid/CLI overwrite every screen.
+        ensureSyncGroupIsolated();
+    }
+
+    function ensureSyncGroupIsolated() {
+        if (!root.configuration) {
             return;
         }
-        var ns = diskCacheNamespace;
-        if (!ns || ns === "default") {
-            ns = "m" + Math.random().toString(36).slice(2, 10);
+        var group = String(cfg.SyncAdvanceGroup || "").trim();
+        var screen = diskCacheNamespace;
+        if (!screen || screen === "default") {
+            return;
         }
-        root.configuration.CacheNamespace = ns;
-        scheduleConfigWrite();
+        if (!group || group === "default") {
+            root.configuration.SyncAdvanceGroup = screen;
+            // Keep sync-advance off unless the user already enabled it — isolation
+            // only changes which control-bus group this screen listens on.
+            scheduleConfigWrite();
+            logDebug("SyncAdvanceGroup set to screen " + screen);
+        }
+    }
+
+    function controlCommandTargetsThisScreen(cmd) {
+        if (!cmd) {
+            return false;
+        }
+        var myGroup = String(cfg.SyncAdvanceGroup || "default");
+        var myScreen = String(diskCacheNamespace || "");
+        var cmdGroup = String(cmd.group || "default");
+        if (cmdGroup === myGroup) {
+            return true;
+        }
+        // Allow addressing a screen by its cache namespace even when groups differ.
+        if (myScreen && cmdGroup === myScreen) {
+            return true;
+        }
+        return false;
+    }
+
+    function isSettingsControlCommand(cmdName) {
+        var name = String(cmdName || "");
+        return name === "search" || name === "applysearch" || name === "savesearch"
+            || name === "purity" || name === "trip" || name === "endtrip"
+            || name === "clearkey" || name === "testkey" || name === "warm"
+            || name === "importpreset";
+    }
+
+    function handleControlCommand(cmd) {
+        if (!cmd || !cmd.cmd) {
+            return;
+        }
+        switch (cmd.cmd) {
+        case "next": engine.skipForward(); break;
+        case "prev": engine.previousWallpaper(); break;
+        case "reload": root.reloadWallpaper(); break;
+        case "pause":
+        case "resume":
+            root.toggleSlideshowPause();
+            break;
+        case "search":
+            if (cmd.query && root.configuration) {
+                root.snapshotSettingsForUndo();
+                root.configuration.BrowseMode = "search";
+                root.configuration.SearchText = cmd.query;
+                root.configuration.WallpaperOfDayEnabled = false;
+                root.recordSearchHistory(cmd.query);
+                scheduleConfigWrite();
+                engine.resetSlideshow();
+            }
+            break;
+        case "open":
+            if (root.currentPageUrl) {
+                Qt.openUrlExternally(root.currentPageUrl);
+            }
+            break;
+        case "block":
+            root.blockCurrentWallpaper();
+            break;
+        case "copytags":
+            root.copyCurrentTags();
+            break;
+        case "similar":
+            root.loadSimilarWallpapers();
+            break;
+        case "info":
+            root.showWallpaperInfo();
+            break;
+        case "importpreset":
+            if (cmd.query) {
+                root.importPresetFromUrl(cmd.query);
+            }
+            break;
+        case "like":
+            root.rateCurrentWallpaper(true);
+            break;
+        case "dislike":
+            root.rateCurrentWallpaper(false);
+            break;
+        case "history":
+            if (cmd.query) {
+                root.showHistoryWallpaper(cmd.query);
+            }
+            break;
+        case "pin":
+            if (root.currentWallpaperId && root.currentWallpaperId !== "wallpaper") {
+                root.pinCacheId(root.currentWallpaperId);
+            }
+            break;
+        case "unpin":
+            if (root.currentWallpaperId && root.currentWallpaperId !== "wallpaper") {
+                root.unpinCacheId(root.currentWallpaperId);
+            }
+            break;
+        case "outageoffline":
+            root.enterApiOutageOffline(0);
+            break;
+        case "resumeonline":
+            root.clearApiOutageOffline(true);
+            break;
+        case "clearkey":
+            root.clearApiKey(false);
+            break;
+        case "testkey":
+            root.testApiKeyNow();
+            break;
+        case "copyid":
+            root.copyWallpaperId();
+            break;
+        case "copyurl":
+            root.copyPageUrl();
+            break;
+        case "prune":
+            root.pruneUnpinnedCache();
+            break;
+        case "warm":
+            root.warmDiskCache(cmd.query ? parseInt(cmd.query, 10) : 0);
+            break;
+        case "trip":
+            root.enterTripModeWithWarm(cmd.query ? parseInt(cmd.query, 10) : 24, cfg.CacheWarmCount || 12);
+            break;
+        case "endtrip":
+            root.clearTripMode(true);
+            break;
+        case "undo":
+            root.undoLastSettingsChange();
+            break;
+        case "savesearch":
+            root.saveCurrentAsSavedSearch(cmd.query || "");
+            break;
+        case "applysearch":
+            if (cmd.query) {
+                root.applySavedSearch(cmd.query);
+            }
+            break;
+        case "purity":
+            if (cmd.query) {
+                var bits = String(cmd.query).split(",");
+                root.setPurityFlags(
+                    bits.indexOf("sfw") !== -1 || bits.indexOf("100") !== -1,
+                    bits.indexOf("sketchy") !== -1 || bits.indexOf("010") !== -1 || bits.indexOf("110") !== -1,
+                    bits.indexOf("nsfw") !== -1 || bits.indexOf("001") !== -1 || bits.indexOf("111") !== -1,
+                );
+            }
+            break;
+        default:
+            break;
+        }
     }
 
     function persistDiskCacheIndex() {
@@ -2406,7 +2573,7 @@ WallpaperItem {
                     return;
                 }
                 if (!data || !data.data || !data.data.length) {
-                    showStatus(i18n("No wallpapers match your current filters."), "warn");
+                    showStatus(i18n("No wallpapers match your current filters."), "warn", true, { notify: false });
                     endBusy();
                     return;
                 }
@@ -2414,7 +2581,7 @@ WallpaperItem {
                 var state = stateObject();
                 var wallpaper = Wallhaven.pickWallpaper(configObject(), state, data.data, true);
                 if (!wallpaper) {
-                    showStatus(i18n("No more wallpapers match your current filters."), "warn");
+                    showStatus(i18n("No more wallpapers match your current filters."), "warn", true, { notify: false });
                     endBusy();
                     return;
                 }
@@ -2547,8 +2714,9 @@ WallpaperItem {
             var seconds = Math.round(delay / 1000);
             var attempt = root._fetchRetryCount;
             var maxAttempts = Math.max(1, cfg.RetryAttempts || 5);
-            // System-notify on the first failure only; later retries stay on the desktop banner.
-            var opts = { notify: attempt <= 1 };
+            // Retries stay on the desktop banner only — multi-monitor used to
+            // flood the tray with identical rate-limit / timeout notices.
+            var opts = { notify: false };
             var msg;
             if (statusCode === 429) {
                 msg = i18n("Rate limited by Wallhaven. Retry %1/%2 in %3s…", attempt, maxAttempts, seconds);
@@ -2757,21 +2925,21 @@ WallpaperItem {
                         return;
                     }
                     if (!json.data || !json.data.length) {
-                        showStatus(i18n("No wallpapers match your current filters."), "warn");
+                        showStatus(i18n("No wallpapers match your current filters."), "warn", true, { notify: false });
                         endBusy();
                         onDone(null);
                         return;
                     }
                     json.data = Wallhaven.filterWallpapersByBlocklist(json.data, blockedIds);
                     if (!json.data.length) {
-                        showStatus(i18n("All results are blocked. Clear the blocklist or try another search."), "warn");
+                        showStatus(i18n("All results are blocked. Clear the blocklist or try another search."), "warn", true, { notify: false });
                         endBusy();
                         onDone(null);
                         return;
                     }
                     json.data = Wallhaven.filterWallpapersByCategories(json.data, config);
                     if (!json.data.length) {
-                        showStatus(i18n("No wallpapers match your current filters."), "warn");
+                        showStatus(i18n("No wallpapers match your current filters."), "warn", true, { notify: false });
                         endBusy();
                         onDone(null);
                         return;
@@ -2959,7 +3127,7 @@ WallpaperItem {
             // Already showing a local cache/file image — keep it and only refresh the banner.
             var currentSrc = String(root.currentUrl || "");
             if (currentSrc.indexOf("file:") === 0 && statusOverride) {
-                showStatus(statusOverride, "error");
+                showStatus(statusOverride, "error", false, { notify: false });
                 endBusy();
                 return true;
             }
@@ -2985,13 +3153,13 @@ WallpaperItem {
             var wp = Wallhaven.makeCachedWallpaper(id);
             var remote = Wallhaven.thumbUrlForId(id);
             if (statusOverride) {
-                showStatus(statusOverride, "error");
+                showStatus(statusOverride, "error", false, { notify: false });
             } else if (cfg.BrowseMode === "playlist") {
                 showStatus(i18n("Playlist — cached wallpaper."), "info");
             } else if (cfg.OfflineOnlyMode) {
                 showStatus(i18n("Offline mode — showing cached wallpaper."), "info");
             } else {
-                showStatus(i18n("Showing cached wallpaper (offline)."), "warn");
+                showStatus(i18n("Showing cached wallpaper (offline)."), "warn", true, { notify: false });
             }
             if (!fromHistory) {
                 pushHistory({
@@ -3479,10 +3647,27 @@ WallpaperItem {
         engine.skipForward();
     }
 
+    property int _lastNotifyAtMs: 0
+    property string _lastNotifyText: ""
+
     function sendSystemNotification(title, text, isError) {
         if (!text) {
             return;
         }
+        // Multi-monitor + retries used to flood the notification tray. Keep the
+        // desktop banner, but only pop one system notification per unique text
+        // within a quiet window (and at most one error/warn every 45s).
+        var now = Date.now();
+        var sameText = String(text) === root._lastNotifyText;
+        var quietMs = isError ? 45000 : 20000;
+        if (sameText && (now - root._lastNotifyAtMs) < 90000) {
+            return;
+        }
+        if (isError && (now - root._lastNotifyAtMs) < quietMs) {
+            return;
+        }
+        root._lastNotifyAtMs = now;
+        root._lastNotifyText = String(text);
         var props = {
             title: title || i18n("Wallhaven"),
             text: text,
@@ -3493,7 +3678,9 @@ WallpaperItem {
         if (!notification) {
             return;
         }
-        if (cfg.NotifyWithActions !== false) {
+        // Actions only on non-error refresh-style notices — error floods were
+        // already noisy; keep actions on intentional refresh notifications.
+        if (!isError && cfg.NotifyWithActions !== false) {
             try {
                 var nextAct = notificationActionComponent.createObject(notification, {
                     label: i18n("Next"),
@@ -4136,128 +4323,21 @@ WallpaperItem {
                 if (!text) {
                     return;
                 }
-                var cmd = Wallhaven.parseControlCommand(text);
-                if (!cmd || cmd.ts <= root._lastControlTs) {
-                    return;
+                var commands = Wallhaven.parseControlCommands(text);
+                if (!commands.length) {
+                    var single = Wallhaven.parseControlCommand(text);
+                    commands = single ? [single] : [];
                 }
-                if (cmd.group !== (cfg.SyncAdvanceGroup || "default")) {
-                    return;
-                }
-                root._lastControlTs = cmd.ts;
-                switch (cmd.cmd) {
-                case "next": engine.skipForward(); break;
-                case "prev": engine.previousWallpaper(); break;
-                case "reload": root.reloadWallpaper(); break;
-                case "pause":
-                case "resume":
-                    root.toggleSlideshowPause();
-                    break;
-                case "search":
-                    if (cmd.query && root.configuration) {
-                        root.snapshotSettingsForUndo();
-                        root.configuration.BrowseMode = "search";
-                        root.configuration.SearchText = cmd.query;
-                        root.configuration.WallpaperOfDayEnabled = false;
-                        root.recordSearchHistory(cmd.query);
-                        scheduleConfigWrite();
-                        engine.resetSlideshow();
+                for (var ci = 0; ci < commands.length; ci++) {
+                    var cmd = commands[ci];
+                    if (!cmd || cmd.ts <= root._lastControlTs) {
+                        continue;
                     }
-                    break;
-                case "open":
-                    if (root.currentPageUrl) {
-                        Qt.openUrlExternally(root.currentPageUrl);
+                    if (!root.controlCommandTargetsThisScreen(cmd)) {
+                        continue;
                     }
-                    break;
-                case "block":
-                    root.blockCurrentWallpaper();
-                    break;
-                case "copytags":
-                    root.copyCurrentTags();
-                    break;
-                case "similar":
-                    root.loadSimilarWallpapers();
-                    break;
-                case "info":
-                    root.showWallpaperInfo();
-                    break;
-                case "importpreset":
-                    if (cmd.query) {
-                        root.importPresetFromUrl(cmd.query);
-                    }
-                    break;
-                case "like":
-                    root.rateCurrentWallpaper(true);
-                    break;
-                case "dislike":
-                    root.rateCurrentWallpaper(false);
-                    break;
-                case "history":
-                    if (cmd.query) {
-                        root.showHistoryWallpaper(cmd.query);
-                    }
-                    break;
-                case "pin":
-                    if (root.currentWallpaperId && root.currentWallpaperId !== "wallpaper") {
-                        root.pinCacheId(root.currentWallpaperId);
-                    }
-                    break;
-                case "unpin":
-                    if (root.currentWallpaperId && root.currentWallpaperId !== "wallpaper") {
-                        root.unpinCacheId(root.currentWallpaperId);
-                    }
-                    break;
-                case "outageoffline":
-                    root.enterApiOutageOffline(0);
-                    break;
-                case "resumeonline":
-                    root.clearApiOutageOffline(true);
-                    break;
-                case "clearkey":
-                    root.clearApiKey(false);
-                    break;
-                case "testkey":
-                    root.testApiKeyNow();
-                    break;
-                case "copyid":
-                    root.copyWallpaperId();
-                    break;
-                case "copyurl":
-                    root.copyPageUrl();
-                    break;
-                case "prune":
-                    root.pruneUnpinnedCache();
-                    break;
-                case "warm":
-                    root.warmDiskCache(cmd.query ? parseInt(cmd.query, 10) : 0);
-                    break;
-                case "trip":
-                    root.enterTripModeWithWarm(cmd.query ? parseInt(cmd.query, 10) : 24, cfg.CacheWarmCount || 12);
-                    break;
-                case "endtrip":
-                    root.clearTripMode(true);
-                    break;
-                case "undo":
-                    root.undoLastSettingsChange();
-                    break;
-                case "savesearch":
-                    root.saveCurrentAsSavedSearch(cmd.query || "");
-                    break;
-                case "applysearch":
-                    if (cmd.query) {
-                        root.applySavedSearch(cmd.query);
-                    }
-                    break;
-                case "purity":
-                    if (cmd.query) {
-                        var bits = String(cmd.query).split(",");
-                        root.setPurityFlags(
-                            bits.indexOf("sfw") !== -1 || bits.indexOf("100") !== -1,
-                            bits.indexOf("sketchy") !== -1 || bits.indexOf("010") !== -1 || bits.indexOf("110") !== -1,
-                            bits.indexOf("nsfw") !== -1 || bits.indexOf("001") !== -1 || bits.indexOf("111") !== -1,
-                        );
-                    }
-                    break;
-                default: break;
+                    root._lastControlTs = Math.max(root._lastControlTs, cmd.ts);
+                    root.handleControlCommand(cmd);
                 }
             });
         }
