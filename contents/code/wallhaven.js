@@ -82,6 +82,318 @@ function sanitizeApiKey(value) {
     return key;
 }
 
+function apiKeyLastFour(value) {
+    var key = sanitizeApiKey(value);
+    if (!key) {
+        return "";
+    }
+    if (key.length <= 4) {
+        return key;
+    }
+    return key.slice(-4);
+}
+
+function classifyApiStatus(status) {
+    status = parseInt(status, 10) || 0;
+    if (status === 401 || status === 403) {
+        return "auth";
+    }
+    if (status === 429) {
+        return "rate";
+    }
+    if (status === 0 || status === 502 || status === 503 || status === 504 || status >= 500) {
+        return "outage";
+    }
+    if (status >= 400) {
+        return "error";
+    }
+    if (status >= 200 && status < 300) {
+        return "ok";
+    }
+    return "idle";
+}
+
+function parseSearchHistory(raw) {
+    if (!raw) {
+        return [];
+    }
+    try {
+        var parsed = JSON.parse(raw);
+        if (!parsed || !parsed.length) {
+            return [];
+        }
+        var out = [];
+        for (var i = 0; i < parsed.length; i++) {
+            var q = String(parsed[i] || "").trim();
+            if (q) {
+                out.push(q);
+            }
+        }
+        return out;
+    } catch (e) {
+        return [];
+    }
+}
+
+function pushSearchHistory(rawOrList, query, maxEntries) {
+    maxEntries = maxEntries || 10;
+    var list = Array.isArray(rawOrList) ? rawOrList.slice() : parseSearchHistory(rawOrList);
+    query = String(query || "").trim();
+    if (!query) {
+        return list;
+    }
+    for (var i = list.length - 1; i >= 0; i--) {
+        if (String(list[i]).toLowerCase() === query.toLowerCase()) {
+            list.splice(i, 1);
+        }
+    }
+    list.unshift(query);
+    if (list.length > maxEntries) {
+        list = list.slice(0, maxEntries);
+    }
+    return list;
+}
+
+function serializeSearchHistory(list) {
+    return JSON.stringify(Array.isArray(list) ? list : []);
+}
+
+function parseSavedSearches(raw) {
+    if (!raw) {
+        return [];
+    }
+    try {
+        var parsed = JSON.parse(raw);
+        if (!parsed || !parsed.length) {
+            return [];
+        }
+        var out = [];
+        for (var i = 0; i < parsed.length; i++) {
+            var item = parsed[i];
+            if (!item) {
+                continue;
+            }
+            var name = String(item.name || "").trim();
+            var query = String(item.query || item.SearchText || "").trim();
+            if (!name && !query) {
+                continue;
+            }
+            out.push({
+                name: name || query,
+                query: query,
+                PuritySfw: item.PuritySfw !== false,
+                PuritySketchy: item.PuritySketchy !== false,
+                PurityNsfw: !!item.PurityNsfw,
+            });
+        }
+        return out;
+    } catch (e) {
+        return [];
+    }
+}
+
+function serializeSavedSearches(list) {
+    return JSON.stringify(Array.isArray(list) ? list : []);
+}
+
+function upsertSavedSearch(list, entry, maxEntries) {
+    maxEntries = maxEntries || 20;
+    list = Array.isArray(list) ? list.slice() : [];
+    entry = entry || {};
+    var name = String(entry.name || "").trim();
+    var query = String(entry.query || "").trim();
+    if (!name && !query) {
+        return list;
+    }
+    if (!name) {
+        name = query;
+    }
+    for (var i = list.length - 1; i >= 0; i--) {
+        if (String(list[i].name || "").toLowerCase() === name.toLowerCase()) {
+            list.splice(i, 1);
+        }
+    }
+    list.unshift({
+        name: name,
+        query: query,
+        PuritySfw: entry.PuritySfw !== false,
+        PuritySketchy: entry.PuritySketchy !== false,
+        PurityNsfw: !!entry.PurityNsfw,
+    });
+    if (list.length > maxEntries) {
+        list = list.slice(0, maxEntries);
+    }
+    return list;
+}
+
+function findSavedSearch(list, nameOrQuery) {
+    var needle = String(nameOrQuery || "").trim().toLowerCase();
+    if (!needle || !list || !list.length) {
+        return null;
+    }
+    for (var i = 0; i < list.length; i++) {
+        var item = list[i];
+        if (!item) {
+            continue;
+        }
+        if (String(item.name || "").toLowerCase() === needle
+            || String(item.query || "").toLowerCase() === needle) {
+            return item;
+        }
+    }
+    return null;
+}
+
+function listUnpinnedCacheIdsOldestFirst(index, pinnedIds) {
+    pinnedIds = pinnedIds || [];
+    var ids = listCachedIds(index);
+    var rows = [];
+    for (var i = 0; i < ids.length; i++) {
+        var id = String(ids[i] || "");
+        if (!id || pinnedIds.indexOf(id) !== -1) {
+            continue;
+        }
+        rows.push({ id: id, usedAt: diskCacheUsedAt(index, id) });
+    }
+    rows.sort(function(a, b) {
+        return (a.usedAt || 0) - (b.usedAt || 0);
+    });
+    return rows.map(function(row) { return row.id; });
+}
+
+function pruneUnpinnedCacheIds(index, pinnedIds, keepSlots) {
+    keepSlots = Math.max(0, parseInt(keepSlots, 10) || 0);
+    pinnedIds = pinnedIds || [];
+    if (!index || !index.ids) {
+        return [];
+    }
+    var removed = [];
+    var occupied = listCachedIds(index);
+    while (occupied.length > keepSlots) {
+        var oldest = listUnpinnedCacheIdsOldestFirst(index, pinnedIds);
+        if (!oldest.length) {
+            break;
+        }
+        var victim = oldest[0];
+        var slot = diskCacheSlotForId(index, victim);
+        if (slot < 0) {
+            break;
+        }
+        evictDiskCacheOccupant(index, victim);
+        index.ids[slot] = "";
+        removed.push(victim);
+        occupied = listCachedIds(index);
+    }
+    return removed;
+}
+
+function estimateCacheBytesFromSizes(sizeMap) {
+    sizeMap = sizeMap || {};
+    var total = 0;
+    var keys = Object.keys(sizeMap);
+    for (var i = 0; i < keys.length; i++) {
+        total += Math.max(0, parseInt(sizeMap[keys[i]], 10) || 0);
+    }
+    return total;
+}
+
+function pruneCacheToMaxBytes(index, pinnedIds, sizeMap, maxBytes) {
+    maxBytes = Math.max(0, parseInt(maxBytes, 10) || 0);
+    if (!maxBytes) {
+        return [];
+    }
+    pinnedIds = pinnedIds || [];
+    sizeMap = sizeMap || {};
+    var removed = [];
+    var total = estimateCacheBytesFromSizes(sizeMap);
+    while (total > maxBytes) {
+        var oldest = listUnpinnedCacheIdsOldestFirst(index, pinnedIds);
+        if (!oldest.length) {
+            break;
+        }
+        var victim = oldest[0];
+        var slot = diskCacheSlotForId(index, victim);
+        if (slot < 0) {
+            break;
+        }
+        var bytes = Math.max(0, parseInt(sizeMap[victim], 10) || 0);
+        evictDiskCacheOccupant(index, victim);
+        index.ids[slot] = "";
+        delete sizeMap[victim];
+        removed.push(victim);
+        total = Math.max(0, total - bytes);
+    }
+    return removed;
+}
+
+function buildSettingsUndoSnapshot(cfg, keys) {
+    keys = keys || PRESET_SNAPSHOT_KEYS;
+    var snap = {
+        savedAt: new Date().toISOString(),
+        settings: {},
+    };
+    if (!cfg) {
+        return snap;
+    }
+    for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        if (cfg[key] !== undefined) {
+            snap.settings[key] = cfg[key];
+        }
+    }
+    // Also capture offline/trip-related toggles.
+    var extra = ["OfflineOnlyMode", "BrowseMode", "SearchText", "SlideshowPaused"];
+    for (var j = 0; j < extra.length; j++) {
+        if (cfg[extra[j]] !== undefined && snap.settings[extra[j]] === undefined) {
+            snap.settings[extra[j]] = cfg[extra[j]];
+        }
+    }
+    return snap;
+}
+
+function applySettingsUndoSnapshot(snapshot, configuration) {
+    if (!snapshot || !configuration || !snapshot.settings) {
+        return false;
+    }
+    var keys = Object.keys(snapshot.settings);
+    for (var i = 0; i < keys.length; i++) {
+        configuration[keys[i]] = snapshot.settings[keys[i]];
+    }
+    return keys.length > 0;
+}
+
+function tripModeActive(untilMs, nowMs) {
+    untilMs = parseInt(untilMs, 10) || 0;
+    nowMs = nowMs || Date.now();
+    return untilMs > nowMs;
+}
+
+function tripModeUntilMsFromHours(hours, nowMs) {
+    hours = Math.max(0, parseInt(hours, 10) || 0);
+    nowMs = nowMs || Date.now();
+    if (!hours) {
+        return 0;
+    }
+    return nowMs + (hours * 3600 * 1000);
+}
+
+function walletStatusLabel(state) {
+    state = state || {};
+    if (state.useWallet === false) {
+        return "disabled";
+    }
+    if (state.loaded) {
+        return "loaded";
+    }
+    if (state.failed) {
+        return "failed";
+    }
+    if (state.missing) {
+        return "missing";
+    }
+    return "unknown";
+}
+
 function boolTriplet(values) {
     var result = "";
     for (var i = 0; i < values.length; i++) {
@@ -278,7 +590,8 @@ var EXPORTABLE_SETTINGS_KEYS = [
     "SettingsUiMode", "LocalFolderPath", "ReducedMotion",
     "ScrubSecretsOnExport", "SmartOfflineEnabled", "SmartOfflineDayAware",
     "LocalFolderMaxDepth", "LocalFolderExclude", "LocalPlaylistsJson",
-    "OfflineTagQuery",
+    "OfflineTagQuery", "DiskCacheMaxMb", "CacheWarmCount", "NotifyWithActions",
+    "SavedSearchesJson",
 ];
 
 // Fields captured when saving/applying search presets or sync-group profiles.
@@ -621,7 +934,7 @@ function pickSmartCachedId(index, cfg, cursor) {
 }
 
 function pluginVersion() {
-    return "3.3.1";
+    return "3.4.0";
 }
 
 function buildPresetFromConfig(name, cfg) {
@@ -1236,6 +1549,10 @@ function buildApiHealthSnapshot(state) {
     var lastStatus = parseInt(state.lastStatus, 10) || 0;
     var lastError = String(state.lastError || "");
     var outageOffline = !!state.outageOffline;
+    var classif = classifyApiStatus(lastStatus);
+    if (outageOffline) {
+        classif = "outage";
+    }
     return {
         lastStatus: lastStatus,
         lastError: lastError,
@@ -1243,7 +1560,12 @@ function buildApiHealthSnapshot(state) {
         lastRateLimitAt: String(state.lastRateLimitAt || ""),
         lastSuccessAt: String(state.lastSuccessAt || ""),
         outageOffline: outageOffline,
-        healthy: !outageOffline && (lastStatus === 200 || (lastStatus === 0 && !lastError)),
+        classification: classif,
+        authError: classif === "auth",
+        apiKeyPresent: !!sanitizeApiKey(state.apiKey),
+        apiKeyLastFour: apiKeyLastFour(state.apiKey),
+        walletStatus: String(state.walletStatus || "unknown"),
+        healthy: !outageOffline && classif !== "auth" && (lastStatus === 200 || (lastStatus === 0 && !lastError)),
     };
 }
 
@@ -1743,6 +2065,14 @@ function buildStatusSnapshot(data) {
         apiHealth: data.apiHealth || null,
         cacheCount: Math.max(0, parseInt(data.cacheCount, 10) || 0),
         outageOffline: !!data.outageOffline,
+        searchHistory: Array.isArray(data.searchHistory) ? data.searchHistory : [],
+        savedSearches: Array.isArray(data.savedSearches) ? data.savedSearches : [],
+        puritySfw: data.puritySfw !== false,
+        puritySketchy: data.puritySketchy !== false,
+        purityNsfw: !!data.purityNsfw,
+        tripModeUntilMs: parseInt(data.tripModeUntilMs, 10) || 0,
+        tripModeActive: !!data.tripModeActive,
+        statusUpdatedAtMs: parseInt(data.statusUpdatedAtMs, 10) || Date.now(),
         updatedAt: new Date().toISOString(),
     });
 }

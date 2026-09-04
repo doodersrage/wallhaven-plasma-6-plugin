@@ -697,7 +697,65 @@ function testPickRandomIndexWeighting() {
     assert(unweighted === 0 || unweighted === 1, "omitting weightFn keeps plain uniform random behavior");
 }
 
-[    testFileTypeFilter,
+function testV34Helpers() {
+    assert(Wallhaven.apiKeyLastFour("abcdefghijklmnop") === "mnop", "last four");
+    assert(Wallhaven.classifyApiStatus(401) === "auth", "401 auth");
+    assert(Wallhaven.classifyApiStatus(502) === "outage", "502 outage");
+    assert(Wallhaven.classifyApiStatus(429) === "rate", "429 rate");
+    assert(Wallhaven.classifyApiStatus(200) === "ok", "200 ok");
+
+    var hist = Wallhaven.pushSearchHistory([], "nature", 3);
+    hist = Wallhaven.pushSearchHistory(hist, "ocean", 3);
+    hist = Wallhaven.pushSearchHistory(hist, "nature", 3);
+    assert(hist[0] === "nature" && hist[1] === "ocean" && hist.length === 2, "search history dedupe");
+
+    var saved = Wallhaven.upsertSavedSearch([], { name: "Oceans", query: "ocean", PurityNsfw: false }, 5);
+    saved = Wallhaven.upsertSavedSearch(saved, { name: "Oceans", query: "sea" }, 5);
+    assert(saved.length === 1 && saved[0].query === "sea", "saved search upsert");
+    assert(Wallhaven.findSavedSearch(saved, "Oceans").query === "sea", "find saved search");
+
+    var index = { ids: ["a", "b", "c", ""], next: 0, usedAt: { a: 1, b: 2, c: 3 }, categories: {}, purities: {}, tags: {} };
+    var pruned = Wallhaven.pruneUnpinnedCacheIds(index, ["c"], 1);
+    assert(pruned.indexOf("c") === -1, "never prune pinned");
+    assert(Wallhaven.listCachedIds(index).length === 1, "pruned to keepSlots");
+
+    var sizeMap = { a: 100, b: 200, c: 50 };
+    index = { ids: ["a", "b", "c"], next: 0, usedAt: { a: 1, b: 2, c: 3 }, categories: {}, purities: {}, tags: {} };
+    var dropped = Wallhaven.pruneCacheToMaxBytes(index, ["c"], sizeMap, 60);
+    assert(dropped.indexOf("c") === -1, "byte prune keeps pinned");
+    assert(dropped.length > 0, "byte prune removed something");
+
+    var undo = Wallhaven.buildSettingsUndoSnapshot({ SearchText: "x", PuritySfw: true, OfflineOnlyMode: false });
+    var cfg = {};
+    assert(Wallhaven.applySettingsUndoSnapshot(undo, cfg) === true, "undo apply");
+    assert(cfg.SearchText === "x", "undo restored search");
+
+    assert(Wallhaven.tripModeActive(Date.now() + 10000) === true, "trip active");
+    assert(Wallhaven.tripModeActive(Date.now() - 1000) === false, "trip expired");
+    assert(Wallhaven.tripModeUntilMsFromHours(2, 1000) === 1000 + 2 * 3600 * 1000, "trip hours");
+
+    var health = Wallhaven.buildApiHealthSnapshot({
+        lastStatus: 401,
+        apiKey: "abcdefghijklmnop",
+        walletStatus: "loaded",
+    });
+    assert(health.authError === true && health.apiKeyLastFour === "mnop", "health auth fields");
+    assert(health.classification === "auth", "health class");
+
+    var snap = JSON.parse(Wallhaven.buildStatusSnapshot({
+        searchHistory: ["a"],
+        savedSearches: [{ name: "n", query: "q" }],
+        puritySfw: true,
+        tripModeActive: true,
+        statusUpdatedAtMs: 123,
+    }));
+    assert(snap.searchHistory[0] === "a", "status history");
+    assert(snap.tripModeActive === true, "status trip");
+    assert(snap.statusUpdatedAtMs === 123, "status clock");
+}
+
+[
+    testFileTypeFilter,
     testSimilarSearch,
     testIntervalJitter,
     testControlBus,
@@ -744,6 +802,7 @@ function testPickRandomIndexWeighting() {
     testPickRandomIndexWeighting,
     testExportIncludesEnhanceSettings,
     testNeedsUpscale,
+    testV34Helpers,
 ].forEach(function(run) {
     run();
 });

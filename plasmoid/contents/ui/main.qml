@@ -48,15 +48,68 @@ PlasmoidItem {
         apiHealth: null,
         cacheCount: 0,
         outageOffline: false,
+        searchHistory: [],
+        savedSearches: [],
+        puritySfw: true,
+        puritySketchy: true,
+        purityNsfw: false,
+        tripModeActive: false,
+        tripModeUntilMs: 0,
+        statusUpdatedAtMs: 0,
+        updatedAt: "",
     })
     property var monitorStatuses: []
     property int selectedMonitorIndex: -1
     property bool dbusOffline: false
     property int countdownMs: 0
+    property int _lastSeenCountdownMs: -1
+    property int _stuckCountdownTicks: 0
     property real swipeOffset: 0
     property bool swiping: false
     readonly property string historyFile: cacheDir + "/wallhaven-history.json"
     property var historyEntries: []
+    readonly property bool apiKeyPresent: !!(statusData.apiHealth && statusData.apiHealth.apiKeyPresent)
+    readonly property bool apiKeyMissing: !!(statusData.apiHealth && !statusData.apiHealth.apiKeyPresent)
+    readonly property bool apiAuthError: {
+        var h = statusData.apiHealth;
+        if (!h)
+            return false;
+        if (h.authError)
+            return true;
+        var code = parseInt(h.lastStatus, 10) || 0;
+        return code === 401 || code === 403;
+    }
+    readonly property bool statusLooksStale: {
+        var now = Date.now();
+        var ms = parseInt(statusData.statusUpdatedAtMs, 10) || 0;
+        if (ms > 0)
+            return (now - ms) > 90000;
+        var parsed = Date.parse(statusData.updatedAt || "");
+        if (!isNaN(parsed) && parsed > 0)
+            return (now - parsed) > 90000;
+        return !!(statusData.slideshowActive && !statusData.paused && root._stuckCountdownTicks >= 5);
+    }
+    readonly property var searchHistoryChips: {
+        var list = statusData.searchHistory || [];
+        if (!Array.isArray(list))
+            return [];
+        return list.slice(0, 8);
+    }
+    readonly property var savedSearchNames: {
+        var list = statusData.savedSearches || [];
+        var names = [];
+        if (!Array.isArray(list))
+            return names;
+        for (var i = 0; i < list.length; i++) {
+            var item = list[i];
+            if (!item)
+                continue;
+            var name = typeof item === "string" ? item : String(item.name || item.query || "").trim();
+            if (name)
+                names.push(name);
+        }
+        return names;
+    }
 
     function dbusStringArgs(values) {
         var out = [];
@@ -77,15 +130,28 @@ PlasmoidItem {
     function sendCommand(cmd, query) {
         var group = root.effectiveSyncGroup();
         var msg;
-        if (query) {
-            msg = new PDBus.dbusMessage({
-                service: "org.robertsm.Wallhaven",
-                path: "/Wallhaven",
-                iface: "org.robertsm.Wallhaven",
-                member: "Search",
-                signature: dbusParenSignature("ss"),
-                arguments: dbusStringArgs([query, group]),
-            });
+        // Second argument → Search (search) or CommandWithQuery (applysearch, purity, …).
+        if (arguments.length >= 2) {
+            var q = String(query == null ? "" : query);
+            if (cmd === "search") {
+                msg = new PDBus.dbusMessage({
+                    service: "org.robertsm.Wallhaven",
+                    path: "/Wallhaven",
+                    iface: "org.robertsm.Wallhaven",
+                    member: "Search",
+                    signature: dbusParenSignature("ss"),
+                    arguments: dbusStringArgs([q, group]),
+                });
+            } else {
+                msg = new PDBus.dbusMessage({
+                    service: "org.robertsm.Wallhaven",
+                    path: "/Wallhaven",
+                    iface: "org.robertsm.Wallhaven",
+                    member: "CommandWithQuery",
+                    signature: dbusParenSignature("sss"),
+                    arguments: dbusStringArgs([cmd, q, group]),
+                });
+            }
         } else {
             msg = new PDBus.dbusMessage({
                 service: "org.robertsm.Wallhaven",
@@ -99,6 +165,17 @@ PlasmoidItem {
         PDBus.SessionBus.asyncCall(msg, function() {}, function(err) {
             console.warn("Wallhaven plasmoid D-Bus call failed:", err);
         });
+    }
+
+    function sendPurityFromChecks(sfw, sketchy, nsfw) {
+        var parts = [];
+        if (sfw)
+            parts.push("sfw");
+        if (sketchy)
+            parts.push("sketchy");
+        if (nsfw)
+            parts.push("nsfw");
+        root.sendCommand("purity", parts.length ? parts.join(",") : "sfw");
     }
 
     function effectiveSyncGroup() {
@@ -139,6 +216,15 @@ PlasmoidItem {
             cacheCount: Math.max(0, parseInt(parsed.cacheCount, 10) || 0),
             outageOffline: !!(parsed.outageOffline
                 || (parsed.apiHealth && parsed.apiHealth.outageOffline)),
+            searchHistory: Array.isArray(parsed.searchHistory) ? parsed.searchHistory : [],
+            savedSearches: Array.isArray(parsed.savedSearches) ? parsed.savedSearches : [],
+            puritySfw: parsed.puritySfw !== false,
+            puritySketchy: parsed.puritySketchy !== false,
+            purityNsfw: !!parsed.purityNsfw,
+            tripModeActive: !!parsed.tripModeActive,
+            tripModeUntilMs: parseInt(parsed.tripModeUntilMs, 10) || 0,
+            statusUpdatedAtMs: parseInt(parsed.statusUpdatedAtMs, 10) || 0,
+            updatedAt: parsed.updatedAt || "",
         };
         countdownMs = statusData.nextChangeMs;
     }
@@ -309,6 +395,12 @@ PlasmoidItem {
                 ? i18n("API down · %1 cached", n)
                 : i18n("API down · no cache"));
         }
+        if (root.apiAuthError)
+            parts.push(i18n("invalid API key"));
+        if (statusData.tripModeActive)
+            parts.push(i18n("trip mode"));
+        if (root.statusLooksStale)
+            parts.push(i18n("engine idle?"));
         if (statusData.id)
             parts.push("#" + statusData.id);
         parts.push(root.formatCountdown(root.countdownMs));
@@ -344,6 +436,16 @@ PlasmoidItem {
             root.loadStatus();
             if (countdownMs > 0 && !statusData.paused) {
                 countdownMs = Math.max(0, countdownMs - 1000);
+            }
+            if (statusData.slideshowActive && !statusData.paused && countdownMs > 0) {
+                if (countdownMs === root._lastSeenCountdownMs)
+                    root._stuckCountdownTicks = root._stuckCountdownTicks + 1;
+                else
+                    root._stuckCountdownTicks = 0;
+                root._lastSeenCountdownMs = countdownMs;
+            } else {
+                root._stuckCountdownTicks = 0;
+                root._lastSeenCountdownMs = -1;
             }
         }
     }
@@ -646,6 +748,210 @@ PlasmoidItem {
                     if (q)
                         root.sendCommand("search", q);
                 }
+            }
+        }
+
+        Flow {
+            Layout.fillWidth: true
+            spacing: Kirigami.Units.smallSpacing
+            visible: root.searchHistoryChips.length > 0
+
+            Repeater {
+                model: root.searchHistoryChips
+                delegate: QtControls2.Button {
+                    text: {
+                        var q = typeof modelData === "string" ? modelData : String(modelData || "");
+                        return q.length > 18 ? (q.substring(0, 16) + "…") : q;
+                    }
+                    flat: true
+                    font.pointSize: 7
+                    enabled: !root.dbusOffline
+                    ToolTip.visible: hovered
+                    ToolTip.text: typeof modelData === "string" ? modelData : String(modelData || "")
+                    onClicked: {
+                        var q = typeof modelData === "string" ? modelData : String(modelData || "");
+                        q = q.trim();
+                        if (!q)
+                            return;
+                        plasmoidSearchField.text = q;
+                        root.sendCommand("search", q);
+                    }
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Kirigami.Units.smallSpacing
+            visible: root.savedSearchNames.length > 0 || !root.dbusOffline
+
+            QtControls2.ComboBox {
+                id: savedSearchCombo
+                Layout.fillWidth: true
+                model: root.savedSearchNames
+                editable: true
+                enabled: !root.dbusOffline
+                currentIndex: root.savedSearchNames.length ? 0 : -1
+            }
+            QtControls2.Button {
+                text: i18n("Apply")
+                enabled: !root.dbusOffline && String(savedSearchCombo.editText || savedSearchCombo.currentText || "").trim() !== ""
+                onClicked: {
+                    var name = String(savedSearchCombo.editText || savedSearchCombo.currentText || "").trim();
+                    if (name)
+                        root.sendCommand("applysearch", name);
+                }
+            }
+            QtControls2.Button {
+                text: i18n("Save")
+                enabled: !root.dbusOffline && (
+                    String(savedSearchCombo.editText || "").trim() !== ""
+                    || plasmoidSearchField.text.trim() !== ""
+                )
+                onClicked: {
+                    var name = String(savedSearchCombo.editText || "").trim()
+                        || plasmoidSearchField.text.trim();
+                    if (name)
+                        root.sendCommand("savesearch", name);
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Kirigami.Units.smallSpacing
+
+            QtControls2.CheckBox {
+                id: puritySfwCheck
+                text: i18n("SFW")
+                checked: statusData.puritySfw
+                enabled: !root.dbusOffline
+                onClicked: root.sendPurityFromChecks(
+                    puritySfwCheck.checked,
+                    puritySketchyCheck.checked,
+                    purityNsfwCheck.checked && !root.apiKeyMissing
+                )
+            }
+            QtControls2.CheckBox {
+                id: puritySketchyCheck
+                text: i18n("Sketchy")
+                checked: statusData.puritySketchy
+                enabled: !root.dbusOffline
+                onClicked: root.sendPurityFromChecks(
+                    puritySfwCheck.checked,
+                    puritySketchyCheck.checked,
+                    purityNsfwCheck.checked && !root.apiKeyMissing
+                )
+            }
+            Item {
+                implicitWidth: purityNsfwCheck.implicitWidth
+                implicitHeight: purityNsfwCheck.implicitHeight
+
+                QtControls2.CheckBox {
+                    id: purityNsfwCheck
+                    text: i18n("NSFW")
+                    checked: statusData.purityNsfw && !root.apiKeyMissing
+                    enabled: !root.dbusOffline && !root.apiKeyMissing
+                    onClicked: root.sendPurityFromChecks(
+                        puritySfwCheck.checked,
+                        puritySketchyCheck.checked,
+                        purityNsfwCheck.checked
+                    )
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.NoButton
+                    hoverEnabled: true
+                    visible: root.apiKeyMissing
+                    ToolTip.visible: containsMouse
+                    ToolTip.text: i18n("NSFW requires an API key")
+                }
+            }
+        }
+
+        QtControls2.Label {
+            Layout.fillWidth: true
+            visible: statusData.tripModeActive
+            wrapMode: Text.WordWrap
+            font.pointSize: 7
+            color: Kirigami.Theme.neutralTextColor
+            text: {
+                var until = parseInt(statusData.tripModeUntilMs, 10) || 0;
+                if (until > 0) {
+                    var leftMs = Math.max(0, until - Date.now());
+                    var hrs = Math.ceil(leftMs / 3600000);
+                    return i18n("Trip mode on · ~%1h left", hrs);
+                }
+                return i18n("Trip mode on");
+            }
+        }
+
+        QtControls2.Label {
+            Layout.fillWidth: true
+            visible: root.statusLooksStale && !root.dbusOffline
+            font.pointSize: 7
+            color: Kirigami.Theme.neutralTextColor
+            text: i18n("Wallpaper engine idle?")
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Kirigami.Units.smallSpacing
+            visible: root.apiAuthError
+
+            QtControls2.Label {
+                Layout.fillWidth: true
+                font.pointSize: 7
+                color: Kirigami.Theme.negativeTextColor
+                text: i18n("Invalid API key")
+            }
+            QtControls2.Button {
+                text: i18n("Clear key")
+                enabled: !root.dbusOffline
+                onClicked: root.sendCommand("clearkey")
+            }
+        }
+
+        Flow {
+            Layout.fillWidth: true
+            spacing: Kirigami.Units.smallSpacing
+
+            QtControls2.Button {
+                text: i18n("Copy ID")
+                enabled: !root.dbusOffline && statusData.id !== ""
+                onClicked: root.sendCommand("copyid")
+            }
+            QtControls2.Button {
+                text: i18n("Copy URL")
+                enabled: !root.dbusOffline && (statusData.pageUrl !== "" || statusData.id !== "")
+                onClicked: root.sendCommand("copyurl")
+            }
+            QtControls2.Button {
+                text: i18n("Warm cache")
+                enabled: !root.dbusOffline
+                onClicked: root.sendCommand("warm")
+            }
+            QtControls2.Button {
+                text: i18n("Prune cache")
+                enabled: !root.dbusOffline
+                onClicked: root.sendCommand("prune")
+            }
+            QtControls2.Button {
+                text: i18n("Trip 24h")
+                enabled: !root.dbusOffline
+                visible: !statusData.tripModeActive
+                onClicked: root.sendCommand("trip", "24")
+            }
+            QtControls2.Button {
+                text: i18n("End trip")
+                enabled: !root.dbusOffline
+                visible: statusData.tripModeActive
+                onClicked: root.sendCommand("endtrip")
+            }
+            QtControls2.Button {
+                text: i18n("Undo settings")
+                enabled: !root.dbusOffline
+                onClicked: root.sendCommand("undo")
             }
         }
 

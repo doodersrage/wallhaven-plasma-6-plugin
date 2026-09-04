@@ -139,5 +139,12 @@
         <entry name="SmartOfflineEnabled" type="Bool"><default>true</default></entry>
         <entry name="SmartOfflineDayAware" type="Bool"><default>true</default></entry>
         <entry name="OfflineTagQuery" type="String"><default></default></entry>
+        <entry name="SearchHistoryJson" type="String"><default>[]</default></entry>
+        <entry name="SavedSearchesJson" type="String"><default>[]</default></entry>
+        <entry name="DiskCacheMaxMb" type="Int"><default>0</default></entry>
+        <entry name="CacheWarmCount" type="Int"><default>12</default></entry>
+        <entry name="NotifyWithActions" type="Bool"><default>true</default></entry>
+        <entry name="TripModeUntilMs" type="String"><default>0</default></entry>
+        <entry name="SettingsUndoJson" type="String"><default></default></entry>
     </group>
 </kcfg>

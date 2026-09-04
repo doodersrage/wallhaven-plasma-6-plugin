@@ -19,6 +19,7 @@ INTERNAL_KEYS=(
     TotalWallpapersViewed CurrentStreakDays LastViewDateStr
     BlockedIdsJson PinnedCacheIdsJson
     ConfigSchemaVersion
+    SearchHistoryJson TripModeUntilMs SettingsUndoJson
 )
 
 # Must appear in engine.configObject() or search/effects silently no-op.

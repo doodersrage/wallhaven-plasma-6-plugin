@@ -12,7 +12,18 @@ usage() {
     cat <<EOF
 Send commands to the Wallhaven wallpaper plugin.
 
-Usage: $(basename "$0") <next|prev|reload|pause|resume|like|dislike|pin|unpin|info|search query...|importpreset url|history id>
+Usage: $(basename "$0") <command> [args...]
+
+Commands:
+  next|prev|reload|pause|resume|like|dislike|pin|unpin|info
+  copyid|copyurl|warm|prune|endtrip|undo|clearkey|testkey
+  search <query>
+  history <wallpaper-id>
+  applysearch <name>
+  savesearch <name>
+  purity <sfw[,sketchy][,nsfw]>
+  trip [hours]          (default 24)
+  importpreset <url>
 
 Environment:
   WALLHAVEN_SYNC_GROUP   Control/sync group name (default: default)
@@ -31,6 +42,23 @@ if query:
 with open("${CONTROL_FILE}", "w", encoding="utf-8") as fh:
     json.dump(payload, fh)
 PY
+}
+
+send_with_query() {
+    local cmd="$1"
+    local query="$2"
+    if command -v qdbus6 >/dev/null 2>&1; then
+        if qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.CommandWithQuery \
+            "${cmd}" "${query}" "${GROUP}" 2>/dev/null; then
+            echo "Sent ${cmd} via D-Bus"
+            return 0
+        fi
+    fi
+    if [[ -f "${DBUS_PY}" ]]; then
+        WALLHAVEN_SYNC_GROUP="${GROUP}" python3 "${DBUS_PY}" "${cmd}" ${query@Q} 2>/dev/null && return 0
+    fi
+    write_control_file "${cmd}" "${query}"
+    echo "Sent ${cmd} to ${CONTROL_FILE}"
 }
 
 if [[ "${CMD}" == "search" ]]; then
@@ -85,20 +113,63 @@ if [[ "${CMD}" == "history" ]]; then
         echo "Usage: $(basename "$0") history <wallpaper id>" >&2
         exit 1
     fi
-    if command -v qdbus6 >/dev/null 2>&1; then
-        if qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.CommandWithQuery \
-            history "${WALLPAPER_ID}" "${GROUP}" 2>/dev/null; then
-            echo "Sent history via D-Bus"
-            exit 0
-        fi
+    send_with_query history "${WALLPAPER_ID}"
+    exit 0
+fi
+
+if [[ "${CMD}" == "applysearch" || "${CMD}" == "savesearch" ]]; then
+    shift
+    NAME="$*"
+    if [[ -z "${NAME}" ]]; then
+        echo "Usage: $(basename "$0") ${CMD} <name>" >&2
+        exit 1
     fi
-    write_control_file history "${WALLPAPER_ID}"
-    echo "Sent history to ${CONTROL_FILE}"
+    send_with_query "${CMD}" "${NAME}"
+    exit 0
+fi
+
+if [[ "${CMD}" == "purity" ]]; then
+    shift
+    FLAGS="$*"
+    if [[ -z "${FLAGS}" ]]; then
+        echo "Usage: $(basename "$0") purity <sfw[,sketchy][,nsfw]>" >&2
+        exit 1
+    fi
+    send_with_query purity "${FLAGS}"
+    exit 0
+fi
+
+if [[ "${CMD}" == "trip" ]]; then
+    shift
+    HOURS="${1:-24}"
+    send_with_query trip "${HOURS}"
+    exit 0
+fi
+
+if [[ "${CMD}" == "warm" ]]; then
+    shift
+    COUNT="${1:-}"
+    if [[ -n "${COUNT}" ]]; then
+        send_with_query warm "${COUNT}"
+    else
+        if command -v qdbus6 >/dev/null 2>&1; then
+            if qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.CommandInGroup warm "${GROUP}" 2>/dev/null; then
+                echo "Sent 'warm' via D-Bus"
+                exit 0
+            fi
+        fi
+        if [[ -f "${DBUS_PY}" ]]; then
+            WALLHAVEN_SYNC_GROUP="${GROUP}" python3 "${DBUS_PY}" warm 2>/dev/null && exit 0
+        fi
+        mkdir -p "${CACHE}"
+        write_control_file warm
+        echo "Sent 'warm' to ${CONTROL_FILE}"
+    fi
     exit 0
 fi
 
 case "${CMD}" in
-    next|prev|reload|pause|resume|like|dislike|pin|unpin) ;;
+    next|prev|reload|pause|resume|like|dislike|pin|unpin|copyid|copyurl|prune|endtrip|undo|clearkey|testkey) ;;
     -h|--help|help) usage; exit 0 ;;
     *) echo "Unknown command: ${CMD}"; usage; exit 1 ;;
 esac

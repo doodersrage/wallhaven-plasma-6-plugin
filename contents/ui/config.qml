@@ -108,9 +108,12 @@ ColumnLayout {
     property alias cfg_RetryAttempts: retryAttemptsSpin.value
     property alias cfg_NotifyOnRefresh: notifyRefreshCheck.checked
     property alias cfg_NotifyOnError: notifyErrorCheck.checked
+    property alias cfg_NotifyWithActions: notifyActionsCheck.checked
     property alias cfg_ShowStatusBanner: statusBannerCheck.checked
     property alias cfg_DiskCacheEnabled: diskCacheCheck.checked
     property alias cfg_DiskCacheMaxSlots: diskCacheSlotsSpin.value
+    property alias cfg_DiskCacheMaxMb: diskCacheMaxMbSpin.value
+    property alias cfg_CacheWarmCount: cacheWarmCountSpin.value
     property alias cfg_OfflineCacheFallback: offlineCacheCheck.checked
     property alias cfg_OfflineOnlyMode: offlineOnlyCheck.checked
     property alias cfg_OfflinePlaylistPinnedOnly: playlistPinnedCheck.checked
@@ -129,6 +132,8 @@ ColumnLayout {
     property string cfg_CollectionRotationJson
     property string cfg_TimeCapsulesJson
     property string cfg_SearchPresetsJson
+    property string cfg_SavedSearchesJson
+    property string cfg_SearchHistoryJson
     property alias cfg_UseKWalletForApiKey: kwalletCheck.checked
     property alias cfg_SettingsUiMode: settingsUiModeCombo.currentValue
     property alias cfg_LocalFolderPath: localFolderField.text
@@ -140,11 +145,14 @@ ColumnLayout {
     property alias cfg_SmartOfflineEnabled: smartOfflineCheck.checked
     property alias cfg_SmartOfflineDayAware: smartOfflineDayCheck.checked
     property alias cfg_OfflineTagQuery: offlineTagQueryField.text
+    property string cfg_TripModeUntilMs
+    property string cfg_SettingsUndoJson
     property string cacheBrowserFilter: ""
     property bool cacheBrowserPinnedOnly: false
     property string presetBrowserFilter: ""
     property string collectionSearchQuery: ""
     property string collectionUrlFieldText: ""
+    property string savedSearchNameFieldText: ""
     readonly property bool uiSimple: String(cfg_SettingsUiMode || "simple") !== "advanced"
     property alias cfg_ControlBusEnabled: controlBusCheck.checked
     property alias cfg_SyncAdvanceEnabled: syncAdvanceCheck.checked
@@ -1468,12 +1476,35 @@ ColumnLayout {
                     echoMode: TextInput.Password
                 }
 
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.75
+                    visible: rowVisible(["api", "key"])
+                    text: liveWallpaper && liveWallpaper.apiKeyDisplayHint
+                        ? liveWallpaper.apiKeyDisplayHint
+                        : i18n("No live wallpaper binding for key status.")
+                }
+
                 QtControls2.Button {
                     Kirigami.FormData.label: i18n("Validate key:")
                     visible: !root.uiSimple && rowVisible(["validate", "key"])
                     text: apiKeyValidator.checking ? i18n("Checking…") : i18n("Test API key")
                     enabled: apiKeyField.text !== "" && !apiKeyValidator.checking
                     onClicked: apiKeyValidator.validate()
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Clear key:")
+                    visible: rowVisible(["api", "key", "clear"])
+                    text: i18n("Clear API key")
+                    enabled: apiKeyField.text !== "" || (liveWallpaper && liveWallpaper.clearApiKey)
+                    onClicked: {
+                        apiKeyField.text = "";
+                        if (liveWallpaper && liveWallpaper.clearApiKey)
+                            liveWallpaper.clearApiKey(false);
+                    }
                 }
 
                 QtControls2.Label {
@@ -1511,6 +1542,60 @@ ColumnLayout {
                     opacity: 0.7
                     visible: rowVisible(["kwallet", "wallet", "api", "key", "secret"])
                     text: i18n("Stores the key in KWallet folder org.robertsm.wallhaven (entry apikey). Prefer this over leaving the key only in wallpaper settings.")
+                }
+
+                QtControls2.TextField {
+                    id: savedSearchNameField
+
+                    Kirigami.FormData.label: i18n("Saved search:")
+                    visible: rowVisible(["saved", "search", "history"])
+                    placeholderText: i18n("Name for current search")
+                    text: root.savedSearchNameFieldText
+                    onTextChanged: root.savedSearchNameFieldText = text
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    visible: rowVisible(["saved", "search"])
+                    text: i18n("Save current search")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.saveCurrentAsSavedSearch)
+                            liveWallpaper.saveCurrentAsSavedSearch(savedSearchNameField.text);
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Undo settings:")
+                    visible: rowVisible(["undo", "settings"])
+                    text: i18n("Undo last settings change")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.undoLastSettingsChange)
+                            liveWallpaper.undoLastSettingsChange();
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Trip mode:")
+                    visible: rowVisible(["trip", "offline", "travel"])
+                    text: i18n("Trip mode 24h (warm + cache only)")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.enterTripModeWithWarm)
+                            liveWallpaper.enterTripModeWithWarm(24, cacheWarmCountSpin.value);
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    visible: rowVisible(["trip", "offline", "travel"])
+                    text: i18n("End trip mode")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.clearTripMode)
+                            liveWallpaper.clearTripMode(true);
+                    }
                 }
 
                 QtControls2.TextField {
@@ -2903,6 +2988,14 @@ ColumnLayout {
                 }
 
                 QtControls2.CheckBox {
+                    id: notifyActionsCheck
+
+                    Kirigami.FormData.label: i18n("Notification actions:")
+                    visible: advancedVisible(["notify", "actions", "next", "pause"])
+                    text: i18n("Add Next / Pause / Open actions on notifications")
+                }
+
+                QtControls2.CheckBox {
                     id: statusBannerCheck
 
                     Kirigami.FormData.label: i18n("Desktop banner:")
@@ -2932,6 +3025,57 @@ ColumnLayout {
                     from: 5
                     to: 200
                     enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.SpinBox {
+                    id: diskCacheMaxMbSpin
+
+                    Kirigami.FormData.label: i18n("Max cache size (MB):")
+                    visible: advancedVisible(["max", "cache", "mb", "quota", "size"])
+                    from: 0
+                    to: 10240
+                    enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: diskCacheMaxMbSpin.visible
+                    text: i18n("0 = no size limit (slot limit still applies). Unpinned oldest entries are pruned first.")
+                }
+
+                QtControls2.SpinBox {
+                    id: cacheWarmCountSpin
+
+                    Kirigami.FormData.label: i18n("Warm cache count:")
+                    visible: advancedVisible(["warm", "cache", "prefetch"])
+                    from: 1
+                    to: 48
+                    enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Warm cache:")
+                    visible: advancedVisible(["warm", "cache"])
+                    text: i18n("Download matching wallpapers into cache now")
+                    enabled: liveWallpaper !== null && diskCacheCheck.checked
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.warmDiskCache)
+                            liveWallpaper.warmDiskCache(cacheWarmCountSpin.value);
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Prune cache:")
+                    visible: advancedVisible(["prune", "cache"])
+                    text: i18n("Prune unpinned entries over slot limit")
+                    enabled: liveWallpaper !== null && diskCacheCheck.checked
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.pruneUnpinnedCache)
+                            liveWallpaper.pruneUnpinnedCache(diskCacheSlotsSpin.value);
+                    }
                 }
 
                 QtControls2.CheckBox {

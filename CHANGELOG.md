@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.4.0 — 2026-09-04
+
+Daily-driver reliability: auth UX, cache health, plasmoid controls, and trip mode.
+
+### Added
+- **API auth UX** — treat 401/403 as bad key (not outage); key last-4 + KWallet status; clear/test key from settings and plasmoid
+- **Cache quota & warm** — optional MB limit, prune unpinned, warm-cache prefetch, trip mode (warm then cache-only for N hours)
+- **Plasmoid daily controls** — search history chips, saved searches, SFW/Sketchy/NSFW toggles, copy ID/URL, stale-engine watchdog
+- **Notification actions** — Next / Pause / Open on desktop notifications
+- **Settings undo** — snapshot before purity/search/trip changes with one-click restore
+
+### Fixed
+- Clearer API health messaging for unauthorized vs outage failures
+- Restore D-Bus `readFile` helper so control-bus commands (next/search/trip/…) reach the wallpaper engine again
+
+### Changed
+- Status bus includes search history, saved searches, purity flags, trip mode, and status clock
+- Store/Flathub/AUR docs updated for 3.4.0
+
 ## 3.3.1 — 2026-09-03
 
 ### Fixed

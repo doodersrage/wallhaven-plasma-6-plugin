@@ -8,8 +8,10 @@ Add **Wallhaven Control** to the panel:
 
 - Thumbnail (local cache when available) — **click** to open the Wallhaven page, **drag right/left** to like/dislike its tags
 - **History** button — popup scrubber of the last dozen wallpapers, click one to bring it back
+- Search field with recent-query chips and saved-search Apply/Save
+- Purity toggles (SFW / Sketchy / NSFW), trip-mode banner, auth/outage warnings
 - Countdown + pause state
-- Previous / next / pause / reload buttons
+- Previous / next / pause / reload, plus copy ID/URL, warm/prune cache, trip mode, undo
 - Menu: like/dislike, similar wallpapers, wallpaper info, recent history, copy tags, block, D-Bus offline help
 
 ## Global keyboard shortcuts
@@ -51,8 +53,17 @@ With `wallhaven-dbus.service` running:
 qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.CommandInGroup next default
 qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.Search "nature" default
 qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.CommandWithQuery history abc123 default
+qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.CommandWithQuery applysearch "My preset" default
+qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.CommandWithQuery purity "sfw,sketchy" default
+qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.CommandWithQuery trip 24 default
 ./tools/wallhaven-ctl.sh like
 ./tools/wallhaven-ctl.sh history abc123
+./tools/wallhaven-ctl.sh applysearch "My preset"
+./tools/wallhaven-ctl.sh purity sfw,sketchy
+./tools/wallhaven-ctl.sh trip 24
+./tools/wallhaven-ctl.sh copyid
 ```
+
+Query-bearing commands use `CommandWithQuery` (or `Search` for plain search). Simple commands use `CommandInGroup`.
 
 MPRIS media keys work via `org.mpris.MediaPlayer2.wallhaven`. Wallhaven also *reads* any other running MPRIS player (Spotify, VLC, …) when **Music-reactive pacing** is enabled, to speed up the Ken Burns pan while music is playing.

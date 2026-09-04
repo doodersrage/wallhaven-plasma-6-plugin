@@ -365,7 +365,7 @@ class WallhavenControl(dbus.service.Object):
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def GetPluginVersion(self) -> str:
-        return "3.3.1"
+        return "3.4.0"
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def ListMonitorStatuses(self) -> str:
@@ -767,7 +767,8 @@ def main() -> int:
     group = os.environ.get("WALLHAVEN_SYNC_GROUP", "default")
     if len(sys.argv) > 1 and sys.argv[1] in {
         "next", "prev", "reload", "pause", "resume", "open", "block", "copytags", "like", "dislike",
-        "pin", "unpin",
+        "pin", "unpin", "copyid", "copyurl", "warm", "prune", "endtrip", "undo", "clearkey", "testkey",
+        "info",
     }:
         write_command(sys.argv[1], group)
         print(f"Sent '{sys.argv[1]}' via control bus")
@@ -779,6 +780,12 @@ def main() -> int:
     if len(sys.argv) > 2 and sys.argv[1] == "importpreset":
         write_command("importpreset", group, sys.argv[2])
         print("Sent preset import via control bus")
+        return 0
+    if len(sys.argv) > 2 and sys.argv[1] in {
+        "history", "applysearch", "savesearch", "purity", "trip", "warm",
+    }:
+        write_command(sys.argv[1], group, " ".join(sys.argv[2:]))
+        print(f"Sent '{sys.argv[1]}' via control bus")
         return 0
 
     DBusGMainLoop(set_as_default=True)

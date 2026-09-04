@@ -42,6 +42,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="3.4.0" date="2026-09-04">
+      <description>
+        <p>Daily-driver update: API key auth UX, cache warm/prune/quota, trip mode, plasmoid search history and purity toggles, notification actions, and settings undo.</p>
+      </description>
+    </release>
     <release version="3.3.1" date="2026-09-03">
       <description>
         <p>Hotfix: stop saving stringified D-Bus replies as the Wallhaven API key (which caused persistent 401 errors); scrub bad keys on startup.</p>

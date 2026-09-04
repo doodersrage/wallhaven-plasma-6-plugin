@@ -70,6 +70,7 @@ WallpaperItem {
     function effectiveOfflineOnly() {
         return cfg.OfflineOnlyMode
             || root._apiOutageOffline
+            || Wallhaven.tripModeActive(cfg.TripModeUntilMs)
             || cfg.BrowseMode === "playlist"
             || cfg.BrowseMode === "local"
             || (cfg.MeteredCacheOnly && root.meteredConnection);
@@ -172,6 +173,8 @@ WallpaperItem {
     property string _apiLastSuccessAt: ""
     // Temporary soft-offline while Wallhaven is unreachable; clears on API recovery.
     property bool _apiOutageOffline: false
+    property string _walletStatus: "unknown"
+    property bool _walletLoadAttempted: false
     readonly property var apiHealth: Wallhaven.buildApiHealthSnapshot({
         lastStatus: _apiLastStatus,
         lastError: _apiLastError,
@@ -179,10 +182,18 @@ WallpaperItem {
         lastRateLimitAt: _apiLastRateLimitAt,
         lastSuccessAt: _apiLastSuccessAt,
         outageOffline: root._apiOutageOffline,
+        apiKey: cfg ? cfg.ApiKey : "",
+        walletStatus: root._walletStatus,
     })
     readonly property string apiHealthSummary: {
         if (root._apiOutageOffline) {
             return i18n("API down — using cache (%1)", diskCacheEntryCount);
+        }
+        if (_apiLastStatus === 401 || _apiLastStatus === 403) {
+            var tail = Wallhaven.apiKeyLastFour(cfg && cfg.ApiKey);
+            return tail
+                ? i18n("Invalid API key (…%1) — clear or re-enter", tail)
+                : i18n("API unauthorized (401/403) — check or clear API key");
         }
         if (_apiRateLimitCount > 0 && _apiLastStatus === 429) {
             return i18n("Rate limited (429) — %1 time(s)", _apiRateLimitCount);
@@ -191,10 +202,31 @@ WallpaperItem {
             return i18n("Last API error: HTTP %1", _apiLastStatus);
         }
         if (_apiLastSuccessAt) {
-            return i18n("API OK");
+            var keyTail = Wallhaven.apiKeyLastFour(cfg && cfg.ApiKey);
+            return keyTail ? i18n("API OK (key …%1)", keyTail) : i18n("API OK");
         }
         return i18n("API idle");
     }
+    readonly property string apiKeyDisplayHint: {
+        var tail = Wallhaven.apiKeyLastFour(cfg && cfg.ApiKey);
+        if (tail) {
+            return i18n("Key set (…%1)", tail);
+        }
+        if (root._walletStatus === "loaded") {
+            return i18n("Key loaded from KWallet");
+        }
+        if (root._walletStatus === "missing") {
+            return i18n("KWallet: no key stored");
+        }
+        if (root._walletStatus === "failed") {
+            return i18n("KWallet: load failed");
+        }
+        if (root._walletStatus === "disabled") {
+            return i18n("KWallet disabled");
+        }
+        return i18n("No API key");
+    }
+    readonly property bool tripModeActive: Wallhaven.tripModeActive(cfg && cfg.TripModeUntilMs)
     property int _nextSlideshowAt: 0
     property var _metrics: Wallhaven.createMetricsState()
     property int _batteryPercent: 100
@@ -693,6 +725,281 @@ WallpaperItem {
         engine.showStatus(i18n("Disk cache cleared."), "info");
     }
 
+    function pruneUnpinnedCache(keepSlots) {
+        var maxKeep = keepSlots !== undefined && keepSlots !== null
+            ? keepSlots
+            : diskCacheMaxSlots();
+        var pinned = Wallhaven.parsePinnedCacheIds(cfg.PinnedCacheIdsJson);
+        var victims = Wallhaven.listUnpinnedCacheIdsOldestFirst(_diskCacheIndex, pinned);
+        var occupied = Wallhaven.listCachedIds(_diskCacheIndex).length;
+        var paths = [];
+        var removed = 0;
+        for (var i = 0; i < victims.length && occupied - removed > maxKeep; i++) {
+            var id = victims[i];
+            var slot = Wallhaven.diskCacheSlotForId(_diskCacheIndex, id);
+            if (slot < 0) {
+                continue;
+            }
+            paths.push(diskCacheLocalPath(slot));
+            Wallhaven.evictDiskCacheOccupant(_diskCacheIndex, id);
+            _diskCacheIndex.ids[slot] = "";
+            removed++;
+        }
+        if (!removed) {
+            engine.showStatus(i18n("No unpinned cache entries to prune."), "info");
+            return 0;
+        }
+        cacheFileDeleter.deletePaths(paths);
+        persistDiskCacheIndex();
+        engine.showStatus(i18n("Pruned %1 unpinned cache entr(y/ies).", removed), "info");
+        publishStatus();
+        return removed;
+    }
+
+    function enforceCacheQuota(sizeMap) {
+        var pinned = Wallhaven.parsePinnedCacheIds(cfg.PinnedCacheIdsJson);
+        var removedSlots = Wallhaven.pruneUnpinnedCacheIds(
+            _diskCacheIndex,
+            pinned,
+            diskCacheMaxSlots(),
+        );
+        var maxMb = Math.max(0, parseInt(cfg.DiskCacheMaxMb, 10) || 0);
+        var removedBytes = [];
+        if (maxMb > 0 && sizeMap) {
+            removedBytes = Wallhaven.pruneCacheToMaxBytes(
+                _diskCacheIndex,
+                pinned,
+                sizeMap,
+                maxMb * 1024 * 1024,
+            );
+        }
+        var removed = removedSlots.concat(removedBytes);
+        if (!removed.length) {
+            return 0;
+        }
+        var paths = [];
+        var slots = diskCacheMaxSlots();
+        for (var s = 0; s < slots; s++) {
+            if (!String(_diskCacheIndex.ids[s] || "")) {
+                paths.push(diskCacheLocalPath(s));
+            }
+        }
+        cacheFileDeleter.deletePaths(paths);
+        persistDiskCacheIndex();
+        publishStatus();
+        return removed.length;
+    }
+
+    function refreshCacheFileSizes(callback) {
+        var ids = Wallhaven.listCachedIds(_diskCacheIndex);
+        var sizeMap = {};
+        var pending = ids.length;
+        if (!pending) {
+            if (callback)
+                callback(sizeMap);
+            return;
+        }
+        function doneOne() {
+            pending--;
+            if (pending <= 0 && callback) {
+                callback(sizeMap);
+            }
+        }
+        for (var i = 0; i < ids.length; i++) {
+            (function(id) {
+                var slot = Wallhaven.diskCacheSlotForId(_diskCacheIndex, id);
+                if (slot < 0) {
+                    doneOne();
+                    return;
+                }
+                var path = diskCacheLocalPath(slot);
+                dbusHelper.runArgv(["stat", "-c", "%s", path], function(reply) {
+                    var text = Wallhaven.dbusReplyAsString(reply).trim();
+                    sizeMap[id] = parseInt(text, 10) || 0;
+                    doneOne();
+                });
+            })(ids[i]);
+        }
+    }
+
+    function warmDiskCache(count) {
+        count = Math.max(1, Math.min(48, parseInt(count, 10) || cfg.CacheWarmCount || 12));
+        if (root.effectiveOfflineOnly() && !root._apiOutageOffline && !root.tripModeActive) {
+            // Allow warm only when online search is possible.
+        }
+        if (cfg.OfflineOnlyMode || cfg.BrowseMode === "playlist" || cfg.BrowseMode === "local") {
+            engine.showStatus(i18n("Switch to an online browse mode to warm the cache."), "warn");
+            return;
+        }
+        engine.showStatus(i18n("Warming cache with up to %1 wallpaper(s)…", count), "info");
+        engine.warmCache(count);
+    }
+
+    function recordSearchHistory(query) {
+        if (!root.configuration) {
+            return;
+        }
+        var next = Wallhaven.pushSearchHistory(cfg.SearchHistoryJson, query, 10);
+        root.configuration.SearchHistoryJson = Wallhaven.serializeSearchHistory(next);
+        scheduleConfigWrite();
+        publishStatus();
+    }
+
+    function saveCurrentAsSavedSearch(name) {
+        if (!root.configuration) {
+            return;
+        }
+        var entry = {
+            name: String(name || cfg.SearchText || "").trim(),
+            query: String(cfg.SearchText || "").trim(),
+            PuritySfw: !!cfg.PuritySfw,
+            PuritySketchy: !!cfg.PuritySketchy,
+            PurityNsfw: !!cfg.PurityNsfw,
+        };
+        var list = Wallhaven.upsertSavedSearch(
+            Wallhaven.parseSavedSearches(cfg.SavedSearchesJson),
+            entry,
+            20,
+        );
+        root.configuration.SavedSearchesJson = Wallhaven.serializeSavedSearches(list);
+        scheduleConfigWrite();
+        engine.showStatus(i18n("Saved search “%1”.", entry.name), "info");
+        publishStatus();
+    }
+
+    function applySavedSearch(nameOrQuery) {
+        if (!root.configuration) {
+            return;
+        }
+        var item = Wallhaven.findSavedSearch(
+            Wallhaven.parseSavedSearches(cfg.SavedSearchesJson),
+            nameOrQuery,
+        );
+        if (!item) {
+            engine.showStatus(i18n("Saved search not found."), "warn");
+            return;
+        }
+        snapshotSettingsForUndo();
+        root.configuration.BrowseMode = "search";
+        root.configuration.SearchText = item.query;
+        root.configuration.PuritySfw = item.PuritySfw !== false;
+        root.configuration.PuritySketchy = item.PuritySketchy !== false;
+        root.configuration.PurityNsfw = !!item.PurityNsfw;
+        root.configuration.WallpaperOfDayEnabled = false;
+        recordSearchHistory(item.query);
+        scheduleConfigWrite();
+        engine.resetSlideshow();
+        engine.showStatus(i18n("Applied saved search “%1”.", item.name), "info");
+    }
+
+    function setPurityFlags(sfw, sketchy, nsfw) {
+        if (!root.configuration) {
+            return;
+        }
+        snapshotSettingsForUndo();
+        root.configuration.PuritySfw = !!sfw;
+        root.configuration.PuritySketchy = !!sketchy;
+        root.configuration.PurityNsfw = !!nsfw && !!Wallhaven.sanitizeApiKey(cfg.ApiKey);
+        if (nsfw && !Wallhaven.sanitizeApiKey(cfg.ApiKey)) {
+            engine.showStatus(i18n("NSFW needs a valid API key."), "warn");
+        }
+        scheduleConfigWrite();
+        engine.resetSlideshow();
+        publishStatus();
+    }
+
+    function snapshotSettingsForUndo() {
+        if (!root.configuration) {
+            return;
+        }
+        root.configuration.SettingsUndoJson = JSON.stringify(
+            Wallhaven.buildSettingsUndoSnapshot(cfg),
+        );
+        scheduleConfigWrite();
+    }
+
+    function undoLastSettingsChange() {
+        if (!root.configuration || !cfg.SettingsUndoJson) {
+            engine.showStatus(i18n("Nothing to undo."), "warn");
+            return;
+        }
+        try {
+            var snap = JSON.parse(cfg.SettingsUndoJson);
+            if (!Wallhaven.applySettingsUndoSnapshot(snap, root.configuration)) {
+                engine.showStatus(i18n("Nothing to undo."), "warn");
+                return;
+            }
+            root.configuration.SettingsUndoJson = "";
+            scheduleConfigWrite();
+            engine.resetSlideshow();
+            engine.showStatus(i18n("Restored previous settings."), "info");
+            publishStatus();
+        } catch (e) {
+            engine.showStatus(i18n("Could not restore settings."), "error");
+        }
+    }
+
+    function enterTripMode(hours) {
+        if (!root.configuration) {
+            return;
+        }
+        hours = Math.max(1, parseInt(hours, 10) || 24);
+        snapshotSettingsForUndo();
+        root.configuration.TripModeUntilMs = String(Wallhaven.tripModeUntilMsFromHours(hours));
+        root.configuration.OfflineOnlyMode = true;
+        scheduleConfigWrite();
+        engine.stopRetries();
+        engine.showStatus(i18n("Trip mode on for %1 hour(s) — cache only.", hours), "info");
+        if (!engine.tryOfflineFallback(i18n("Trip mode: using cached wallpapers."))) {
+            // keep banner from showStatus
+        }
+        publishStatus();
+        // Opportunistically warm before fully offline if still online.
+        if (!root._apiOutageOffline && cfg.BrowseMode !== "local") {
+            // Already flipped OfflineOnlyMode; warm must happen before that for online fetch.
+        }
+    }
+
+    function enterTripModeWithWarm(hours, warmCount) {
+        if (!root.configuration) {
+            return;
+        }
+        hours = Math.max(1, parseInt(hours, 10) || 24);
+        warmCount = Math.max(0, parseInt(warmCount, 10) || cfg.CacheWarmCount || 12);
+        snapshotSettingsForUndo();
+        var finish = function() {
+            root.configuration.TripModeUntilMs = String(Wallhaven.tripModeUntilMsFromHours(hours));
+            root.configuration.OfflineOnlyMode = true;
+            scheduleConfigWrite();
+            engine.stopRetries();
+            engine.showStatus(i18n("Trip mode on for %1 hour(s).", hours), "info");
+            engine.tryOfflineFallback(i18n("Trip mode: using cached wallpapers."));
+            publishStatus();
+        };
+        if (warmCount > 0 && !cfg.OfflineOnlyMode && cfg.BrowseMode !== "playlist" && cfg.BrowseMode !== "local") {
+            engine.showStatus(i18n("Warming cache before trip mode…"), "info");
+            engine.warmCache(warmCount, finish);
+        } else {
+            finish();
+        }
+    }
+
+    function clearTripMode(resumeOnline) {
+        if (!root.configuration) {
+            return;
+        }
+        root.configuration.TripModeUntilMs = "0";
+        if (resumeOnline) {
+            root.configuration.OfflineOnlyMode = false;
+        }
+        scheduleConfigWrite();
+        engine.showStatus(i18n("Trip mode cleared."), "info");
+        publishStatus();
+        if (resumeOnline) {
+            engine.resetSlideshow();
+        }
+    }
+
     function copyToClipboard(text, successMessage) {
         if (!text) {
             return;
@@ -914,6 +1221,14 @@ WallpaperItem {
             apiHealth: root.apiHealth,
             cacheCount: diskCacheEntryCount,
             outageOffline: root._apiOutageOffline,
+            searchHistory: Wallhaven.parseSearchHistory(cfg.SearchHistoryJson),
+            savedSearches: Wallhaven.parseSavedSearches(cfg.SavedSearchesJson),
+            puritySfw: !!cfg.PuritySfw,
+            puritySketchy: !!cfg.PuritySketchy,
+            purityNsfw: !!cfg.PurityNsfw,
+            tripModeUntilMs: parseInt(cfg.TripModeUntilMs, 10) || 0,
+            tripModeActive: root.tripModeActive,
+            statusUpdatedAtMs: Date.now(),
         });
         // Prefer pathless Publish* helpers; fall back to WriteTextFile with a
         // plasmashell-cache path for older helper builds.
@@ -1349,9 +1664,69 @@ WallpaperItem {
         } else if (status === 200) {
             root._apiLastSuccessAt = new Date().toISOString();
             root._apiLastError = "";
+            if (root.configuration) {
+                root.configuration.ApiKeyValid = !!Wallhaven.sanitizeApiKey(cfg.ApiKey);
+            }
             clearApiOutageOffline(true);
+        } else if (status === 401 || status === 403) {
+            if (root.configuration) {
+                root.configuration.ApiKeyValid = false;
+            }
+            // Auth errors are not outages — keep online path so user can clear the key.
+            var keyHint = Wallhaven.apiKeyLastFour(cfg.ApiKey);
+            engine.showStatus(
+                keyHint
+                    ? i18n("Wallhaven rejected API key (…%1). Clear or re-enter it.", keyHint)
+                    : i18n("Wallhaven unauthorized (%1). Check API key / NSFW settings.", status),
+                "error",
+            );
         }
         publishStatus();
+    }
+
+    function clearApiKey(keepWallet) {
+        if (!root.configuration) {
+            return;
+        }
+        root.configuration.ApiKey = "";
+        root.configuration.ApiKeyValid = false;
+        if (!keepWallet) {
+            root.configuration.UseKWalletForApiKey = false;
+            root._walletStatus = "disabled";
+        }
+        scheduleConfigWrite();
+        engine.showStatus(i18n("API key cleared."), "info");
+        publishStatus();
+        if (!root.effectiveOfflineOnly()) {
+            engine.resetSlideshow();
+        }
+    }
+
+    function testApiKeyNow(callback) {
+        var key = Wallhaven.sanitizeApiKey(cfg.ApiKey);
+        if (!key) {
+            engine.showStatus(i18n("Enter an API key first."), "warn");
+            if (callback)
+                callback(false, 0);
+            return;
+        }
+        var url = Wallhaven.buildSettingsUrl(key);
+        if (!url) {
+            engine.showStatus(i18n("API key looks invalid."), "warn");
+            if (callback)
+                callback(false, 0);
+            return;
+        }
+        engine.requestJson(url, function() {
+            root.noteApiResult(200, "");
+            engine.showStatus(i18n("API key is valid."), "info");
+            if (callback)
+                callback(true, 200);
+        }, function(status) {
+            root.noteApiResult(status || 0, "key test failed");
+            if (callback)
+                callback(false, status || 0);
+        });
     }
 
     function exportDebugBundleToFile(destUrl) {
@@ -1700,8 +2075,10 @@ WallpaperItem {
 
     function loadApiKeyFromKWallet() {
         if (!cfg.UseKWalletForApiKey) {
+            root._walletStatus = "disabled";
             return;
         }
+        root._walletLoadAttempted = true;
         var tmp = urlToLocalPath(diskCacheDir + "/kwallet-apikey.txt");
         dbusHelper.runArgv([
             "bash", "-lc",
@@ -1839,6 +2216,71 @@ WallpaperItem {
 
         function stopRetries() {
             retryTimer.stop();
+        }
+
+        function warmCache(count, onDone) {
+            count = Math.max(1, Math.min(48, parseInt(count, 10) || 12));
+            var warmed = 0;
+            var skipped = 0;
+            fetchApiData(function(json) {
+                if (!json || !json.data || !json.data.length) {
+                    showStatus(i18n("Could not warm cache — no API results."), "warn");
+                    if (onDone)
+                        onDone(0);
+                    return;
+                }
+                var data = json.data;
+                var i = 0;
+                function step() {
+                    while (i < data.length && warmed + skipped < count * 3 && warmed < count) {
+                        var wp = data[i++];
+                        if (!wp || !wp.id) {
+                            continue;
+                        }
+                        var id = String(wp.id);
+                        if (Wallhaven.diskCacheSlotForId(root._diskCacheIndex, id) >= 0) {
+                            skipped++;
+                            continue;
+                        }
+                        var slot = Wallhaven.allocateDiskCacheSlot(
+                            root._diskCacheIndex,
+                            id,
+                            root.diskCacheMaxSlots(),
+                            root.pinnedCacheIds(),
+                            wp.category || "",
+                            wp.purity || "",
+                        );
+                        if (slot < 0) {
+                            skipped++;
+                            continue;
+                        }
+                        Wallhaven.setDiskCacheDimensions(
+                            root._diskCacheIndex,
+                            id,
+                            wp.dimension_x,
+                            wp.dimension_y,
+                        );
+                        var path = root.diskCacheLocalPath(slot);
+                        var url = Wallhaven.wallpaperUrl(wp, cfg.ImageQuality);
+                        dbusHelper.runArgv([
+                            "curl", "-fsSL", "--max-time", "90", "-o", path, url,
+                        ], function() {
+                            warmed++;
+                            root.persistDiskCacheIndex();
+                            step();
+                        });
+                        return;
+                    }
+                    showStatus(
+                        i18n("Cache warm finished: %1 new, %2 already cached.", warmed, skipped),
+                        "info",
+                    );
+                    root.publishStatus();
+                    if (onDone)
+                        onDone(warmed);
+                }
+                step();
+            });
         }
 
         function applyState(state) {
@@ -3041,15 +3483,52 @@ WallpaperItem {
         if (!text) {
             return;
         }
-        var notification = notificationComponent.createObject(root, {
+        var props = {
             title: title || i18n("Wallhaven"),
             text: text,
             iconName: isError ? "dialog-error" : "preferences-desktop-wallpaper",
             urgency: isError ? Notification.HighUrgency : Notification.LowUrgency,
-        });
-        if (notification) {
-            notification.sendEvent();
+        };
+        var notification = notificationComponent.createObject(root, props);
+        if (!notification) {
+            return;
         }
+        if (cfg.NotifyWithActions !== false) {
+            try {
+                var nextAct = notificationActionComponent.createObject(notification, {
+                    label: i18n("Next"),
+                });
+                if (nextAct) {
+                    nextAct.activated.connect(function() { engine.skipForward(); });
+                }
+                var pauseAct = notificationActionComponent.createObject(notification, {
+                    label: cfg.SlideshowPaused ? i18n("Resume") : i18n("Pause"),
+                });
+                if (pauseAct) {
+                    pauseAct.activated.connect(function() { root.toggleSlideshowPause(); });
+                }
+                var openAct = notificationActionComponent.createObject(notification, {
+                    label: i18n("Open"),
+                });
+                if (openAct) {
+                    openAct.activated.connect(function() {
+                        if (root.currentPageUrl)
+                            Qt.openUrlExternally(root.currentPageUrl);
+                    });
+                }
+                var acts = [];
+                if (nextAct)
+                    acts.push(nextAct);
+                if (pauseAct)
+                    acts.push(pauseAct);
+                if (openAct)
+                    acts.push(openAct);
+                notification.actions = acts;
+            } catch (e) {
+                // Older notification plugins may lack actions — banner still sends.
+            }
+        }
+        notification.sendEvent();
     }
 
     Component {
@@ -3059,6 +3538,11 @@ WallpaperItem {
             eventId: "notification"
             autoDelete: true
         }
+    }
+
+    Component {
+        id: notificationActionComponent
+        NotificationAction {}
     }
 
     TextEdit {
@@ -3150,15 +3634,24 @@ WallpaperItem {
         }
 
         function writeFile(path, text, callback) {
-            wallhavenMessage("WriteTextFile", "ss", [urlToLocalPath(path), text || ""], callback);
+            wallhavenMessage("WriteTextFile", "ss", [urlToLocalPath(path), text || ""], function(reply) {
+                if (callback)
+                    callback(Wallhaven.dbusReplyAsString(reply));
+            });
         }
 
         function readFile(path, callback) {
-            wallhavenMessage("ReadTextFile", "s", [urlToLocalPath(path)], callback);
+            wallhavenMessage("ReadTextFile", "s", [urlToLocalPath(path)], function(reply) {
+                if (callback)
+                    callback(Wallhaven.dbusReplyAsString(reply));
+            });
         }
 
         function appendFile(path, line, callback) {
-            wallhavenMessage("AppendTextFile", "ss", [urlToLocalPath(path), line || ""], callback);
+            wallhavenMessage("AppendTextFile", "ss", [urlToLocalPath(path), line || ""], function(reply) {
+                if (callback)
+                    callback(Wallhaven.dbusReplyAsString(reply));
+            });
         }
 
         function runArgv(argv, callback) {
@@ -3170,7 +3663,10 @@ WallpaperItem {
                     arg = urlToLocalPath(arg);
                 cleaned.push(arg);
             }
-            wallhavenMessage("RunArgv", "s", [JSON.stringify(cleaned)], callback);
+            wallhavenMessage("RunArgv", "s", [JSON.stringify(cleaned)], function(reply) {
+                if (callback)
+                    callback(Wallhaven.dbusReplyAsString(reply));
+            });
         }
 
         function listImageFiles(folder, callback) {
@@ -3230,8 +3726,12 @@ WallpaperItem {
                 var key = Wallhaven.sanitizeApiKey(reply);
                 if (key) {
                     root.configuration.ApiKey = key;
+                    root._walletStatus = "loaded";
                     scheduleConfigWrite();
+                } else if (root._walletLoadAttempted) {
+                    root._walletStatus = "missing";
                 }
+                publishStatus();
             });
         }
     }
@@ -3241,7 +3741,23 @@ WallpaperItem {
         interval: 5000
         running: root._configured
         repeat: true
-        onTriggered: root.publishStatus()
+        onTriggered: {
+            if (root.tripModeActive === false
+                && cfg.TripModeUntilMs
+                && parseInt(cfg.TripModeUntilMs, 10) > 0
+                && !Wallhaven.tripModeActive(cfg.TripModeUntilMs)) {
+                // Trip window ended — clear latch but keep OfflineOnly if user set it manually.
+                root.configuration.TripModeUntilMs = "0";
+                scheduleConfigWrite();
+                engine.showStatus(i18n("Trip mode ended."), "info");
+            }
+            root.publishStatus();
+            if (cfg.DiskCacheMaxMb > 0) {
+                root.refreshCacheFileSizes(function(sizeMap) {
+                    root.enforceCacheQuota(sizeMap);
+                });
+            }
+        }
     }
 
     QtObject {
@@ -3638,9 +4154,11 @@ WallpaperItem {
                     break;
                 case "search":
                     if (cmd.query && root.configuration) {
+                        root.snapshotSettingsForUndo();
                         root.configuration.BrowseMode = "search";
                         root.configuration.SearchText = cmd.query;
                         root.configuration.WallpaperOfDayEnabled = false;
+                        root.recordSearchHistory(cmd.query);
                         scheduleConfigWrite();
                         engine.resetSlideshow();
                     }
@@ -3693,6 +4211,51 @@ WallpaperItem {
                     break;
                 case "resumeonline":
                     root.clearApiOutageOffline(true);
+                    break;
+                case "clearkey":
+                    root.clearApiKey(false);
+                    break;
+                case "testkey":
+                    root.testApiKeyNow();
+                    break;
+                case "copyid":
+                    root.copyWallpaperId();
+                    break;
+                case "copyurl":
+                    root.copyPageUrl();
+                    break;
+                case "prune":
+                    root.pruneUnpinnedCache();
+                    break;
+                case "warm":
+                    root.warmDiskCache(cmd.query ? parseInt(cmd.query, 10) : 0);
+                    break;
+                case "trip":
+                    root.enterTripModeWithWarm(cmd.query ? parseInt(cmd.query, 10) : 24, cfg.CacheWarmCount || 12);
+                    break;
+                case "endtrip":
+                    root.clearTripMode(true);
+                    break;
+                case "undo":
+                    root.undoLastSettingsChange();
+                    break;
+                case "savesearch":
+                    root.saveCurrentAsSavedSearch(cmd.query || "");
+                    break;
+                case "applysearch":
+                    if (cmd.query) {
+                        root.applySavedSearch(cmd.query);
+                    }
+                    break;
+                case "purity":
+                    if (cmd.query) {
+                        var bits = String(cmd.query).split(",");
+                        root.setPurityFlags(
+                            bits.indexOf("sfw") !== -1 || bits.indexOf("100") !== -1,
+                            bits.indexOf("sketchy") !== -1 || bits.indexOf("010") !== -1 || bits.indexOf("110") !== -1,
+                            bits.indexOf("nsfw") !== -1 || bits.indexOf("001") !== -1 || bits.indexOf("111") !== -1,
+                        );
+                    }
                     break;
                 default: break;
                 }
