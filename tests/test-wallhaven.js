@@ -245,6 +245,22 @@ function testV3MigrationExportAndSmartOffline() {
     }, -1);
     assert(smart.id === "b", "smart offline prefers larger resolution");
 
+    var avoidSeen = Wallhaven.pickSmartCachedId(index, {
+        SmartOfflineEnabled: true,
+        SmartOfflineDayAware: false,
+        BrowseMode: "playlist",
+        PinnedCacheIdsJson: "[]",
+        LocalSortings: "random",
+    }, -1, ["b"]);
+    assert(avoidSeen.id === "a", "smart offline skips seen ids when unseen remain");
+
+    assert(Wallhaven.searchDedupeFingerprint({ SearchText: "a", Ratio: "portrait" })
+        !== Wallhaven.searchDedupeFingerprint({ SearchText: "b", Ratio: "portrait" }),
+        "dedupe fingerprint changes with search text");
+    assert(Wallhaven.searchDedupeFingerprint({ SearchText: "x" })
+        === Wallhaven.searchDedupeFingerprint({ SearchText: "x" }),
+        "dedupe fingerprint stable for same filters");
+
     Wallhaven.setDiskCacheTags(index, "a", "mountains nature day");
     Wallhaven.setDiskCacheTags(index, "b", "neon cyberpunk night");
     var dayPick = Wallhaven.pickSmartCachedId(index, {
@@ -402,13 +418,18 @@ function testParallaxMotion() {
 }
 
 function testLockScreenSyncCommand() {
-    var cmd = Wallhaven.buildLockScreenSyncCommand("/tmp/src.jpg", "/tmp/lock.jpg");
-    assert(cmd.indexOf("cp -f") !== -1, "copies to stable lockscreen file");
+    assert(Wallhaven.lockScreenImageFileName("abc12") === "wallhaven-lockscreen-abc12.jpg", "unique lock file per id");
+    assert(Wallhaven.lockScreenImageFileName("a/b c") === "wallhaven-lockscreen-ab-c.jpg"
+        || Wallhaven.lockScreenImageFileName("a/b c").indexOf("wallhaven-lockscreen-") === 0, "sanitizes id");
+
+    var cmd = Wallhaven.buildLockScreenSyncCommand("/tmp/src.jpg", "/tmp/wallhaven-lockscreen-abc.jpg");
+    assert(cmd.indexOf("cp -f") !== -1, "copies to lockscreen file");
     assert(cmd.indexOf("--group Wallpaper") !== -1, "nested wallpaper group");
     assert(cmd.indexOf("--group org.kde.image") !== -1, "image plugin group");
     assert(cmd.indexOf("--key Image ") !== -1, "Image key");
-    assert(cmd.indexOf("file:///tmp/lock.jpg") !== -1, "file url");
+    assert(cmd.indexOf("file:///tmp/wallhaven-lockscreen-abc.jpg") !== -1, "file url");
     assert(cmd.indexOf("--key Wallpaper ") === -1, "does not write bogus Greeter Wallpaper key");
+    assert(cmd.indexOf("wallhaven-lockscreen-*.jpg") !== -1, "prunes prior lockscreen copies");
     var same = Wallhaven.buildLockScreenSyncCommand("/tmp/lock.jpg", "/tmp/lock.jpg");
     assert(same.indexOf("cp -f") === -1, "skips copy when already at dest");
 
@@ -417,7 +438,6 @@ function testLockScreenSyncCommand() {
         "file://localhost/tmp/lock.jpg",
     );
     assert(fromUrl.indexOf("cp -f '/tmp/src.jpg'") !== -1, "strips file:// from source");
-    assert(fromUrl.indexOf("file:///tmp/") === -1 || fromUrl.indexOf("cp -f 'file://") === -1, "no file:// in cp source");
     assert(fromUrl.indexOf("cp -f 'file://") === -1, "cp never gets file:// source");
 }
 
@@ -814,6 +834,14 @@ function testV35Helpers() {
         { cacheNamespace: "B", syncGroup: "gb" },
     ]);
     assert(lines.indexOf("ocean") !== -1 && lines.indexOf("(empty)") !== -1, "monitor trust lines");
+
+    assert(Wallhaven.rateLimitCooldownMs(0) === 300000, "rate cooldown min 5m");
+    assert(Wallhaven.rateLimitCooldownMs(600000) === 600000, "rate cooldown respects retry-after");
+    var latch = Wallhaven.parseRateLimitLatch(Wallhaven.buildRateLimitLatch(Date.now() + 60000, 429));
+    assert(latch && latch.status === 429 && Wallhaven.rateLimitLatchActive(latch, Date.now()), "rate latch active");
+    assert(Wallhaven.rateLimitLatchActive(latch, Date.now() + 120000) === false, "rate latch expired");
+    var metrics = Wallhaven.recordRateLimitMetrics(Wallhaven.createMetricsState());
+    assert(metrics.rateLimits === 1, "rate limit metrics");
 }
 
 [

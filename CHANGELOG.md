@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.5.1 — 2026-09-06
+
+### Fixed
+- **Rate-limit wallpaper storm** — 429 retries no longer `skipForward` through cache; shared cooldown latch; attribution probes cannot clear rate-limit soft-offline; uncross sync groups when sync-advance is off
+- **Portrait/views repeats** — keep seen IDs across routine resets; cache picks skip recently shown IDs; softer Prefer Sharp weighting
+- **Lock-screen sync flakiness** — unique per-wallpaper lock image path so Plasma reloads instead of caching the old file
+- **Blank after sleep/login** — bootstrap from cache on start; detect resume/unlock and reload GPU textures; reconnect without advancing into a flaky fetch
+
 ## 3.5.0 — 2026-09-06
 
 ### Added

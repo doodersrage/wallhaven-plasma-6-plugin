@@ -6,13 +6,20 @@ Wallhaven is published on OpenDesktop / KDE Store:
 
 ## Updating the listing
 
-When you ship a new release (current: **3.5.0**):
+When you ship a new release (current: **3.5.1**):
 
 1. Build/publish: `./dev-helper.sh release` → GitHub Release + `wallhaven-plasma-X.Y.Z.tar.xz`
 2. Upload the new file on the product **Files** tab at [opendesktop.org/p/2368647](https://www.opendesktop.org/p/2368647/)
-3. Paste release notes from `CHANGELOG.md` (3.5.0 section) into the store description / changelog field
+3. Paste release notes from `CHANGELOG.md` (3.5.1 section) into the store description / changelog field
 4. Replace screenshots if the UI changed (`./scripts/capture-screenshots.sh`)
 5. Confirm AppStream in git matches (`metainfo/org.robertsm.wallhaven.metainfo.xml` release entry)
+
+### 3.5.1 store blurb (copy/paste)
+
+```
+v3.5.1 — Reliability: stop rate-limit wallpaper storms, less portrait repeats,
+lock-screen sync that reloads, restore wallpaper after sleep/login.
+```
 
 ### 3.5.0 store blurb (copy/paste)
 

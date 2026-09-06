@@ -977,7 +977,7 @@ function presetPreviewThumbUrl(preset) {
     return "";
 }
 
-function pickSmartCachedId(index, cfg, cursor) {
+function pickSmartCachedId(index, cfg, cursor, seenIds) {
     var ids = listCachedIds(index, cfg);
     if (cfg && cfg.BrowseMode === "playlist" && cfg.OfflinePlaylistPinnedOnly) {
         var pinned = parsePinnedCacheIds(cfg.PinnedCacheIdsJson);
@@ -988,8 +988,31 @@ function pickSmartCachedId(index, cfg, cursor) {
     if (!ids.length) {
         return { id: "", cursor: cursor || 0 };
     }
+    seenIds = seenIds || [];
+    var unseen = [];
+    var i;
+    for (i = 0; i < ids.length; i++) {
+        if (seenIds.indexOf(String(ids[i])) === -1) {
+            unseen.push(ids[i]);
+        }
+    }
+    // Prefer unseen; only recycle the full set once everything has been shown.
+    var pool = unseen.length ? unseen : ids;
+
     if (!(cfg && cfg.SmartOfflineEnabled)) {
+        if (cfg && cfg.LocalSortings === "random") {
+            var randomId = pool[(Math.random() * pool.length) | 0];
+            return { id: randomId, cursor: Math.max(0, ids.indexOf(randomId)) };
+        }
         var next = ((cursor || 0) + 1) % ids.length;
+        // Walk forward until an unseen id (or full lap if all seen).
+        var attempts = 0;
+        while (attempts < ids.length
+                && unseen.length
+                && seenIds.indexOf(String(ids[next])) !== -1) {
+            next = (next + 1) % ids.length;
+            attempts++;
+        }
         return { id: ids[next], cursor: next };
     }
     // Prefer higher-resolution / pinned entries when available; else rotate.
@@ -1002,7 +1025,7 @@ function pickSmartCachedId(index, cfg, cursor) {
             ? (cfg.DaySearch || cfg.SearchText || "")
             : (cfg.NightSearch || cfg.SearchText || "")).toLowerCase();
     }
-    var scored = ids.map(function(id, idx) {
+    var scored = pool.map(function(id, idx) {
         var dims = diskCacheDimensionsForId(index, id);
         var area = dims ? (dims.dimension_x * dims.dimension_y) : 0;
         var pinBoost = pinnedAll.indexOf(id) !== -1 ? 1e12 : 0;
@@ -1037,14 +1060,47 @@ function pickSmartCachedId(index, cfg, cursor) {
     scored.sort(function(a, b) {
         return b.score - a.score;
     });
-    // Walk from last cursor through smart order for variety.
-    var start = Math.max(0, (cursor || 0) + 1) % scored.length;
-    var pick = scored[start % scored.length];
-    return { id: pick.id, cursor: start };
+    // Among the top score band, pick randomly so the same few "sharpest"
+    // portrait files are not locked into a fixed repeating order.
+    var topScore = scored[0].score;
+    var band = scored.filter(function(entry) {
+        return entry.score >= topScore * 0.92;
+    });
+    if (!band.length) {
+        band = scored;
+    }
+    var pick = band[(Math.random() * band.length) | 0];
+    return { id: pick.id, cursor: Math.max(0, ids.indexOf(pick.id)) };
+}
+
+function searchDedupeFingerprint(cfg) {
+    cfg = cfg || {};
+    return [
+        String(cfg.BrowseMode || "search"),
+        String(cfg.SearchText || ""),
+        String(cfg.Sortings || ""),
+        String(cfg.Order || ""),
+        String(cfg.Ratio || ""),
+        String(cfg.MinWidth || 0),
+        String(cfg.MinHeight || 0),
+        cfg.CategoryGeneral ? "1" : "0",
+        cfg.CategoryAnime ? "1" : "0",
+        cfg.CategoryPeople ? "1" : "0",
+        cfg.PuritySfw ? "1" : "0",
+        cfg.PuritySketchy ? "1" : "0",
+        cfg.PurityNsfw ? "1" : "0",
+        String(cfg.ColorFilter || ""),
+        String(cfg.ExactResolutions || ""),
+        String(cfg.TopRange || ""),
+        String(cfg.CollectionUser || ""),
+        String(cfg.CollectionId || ""),
+        String(cfg.FileTypeFilter || ""),
+        String(cfg.TagBlocklistJson || ""),
+    ].join("\x1f");
 }
 
 function pluginVersion() {
-    return "3.5.0";
+    return "3.5.1";
 }
 
 function buildPresetFromConfig(name, cfg) {
@@ -1119,6 +1175,53 @@ function parseRateLimitDelayMs(xhr, statusCode) {
         }
     }
     return 0;
+}
+
+// Shared cross-monitor rate-limit latch. One screen's 429 must stop the other
+// screens from hammering the same API key (favicon can still return 200).
+function rateLimitCooldownMs(retryAfterMs) {
+    var minMs = 5 * 60 * 1000;
+    var fromHeader = parseInt(retryAfterMs, 10) || 0;
+    return Math.max(minMs, fromHeader);
+}
+
+function buildRateLimitLatch(untilMs, statusCode) {
+    return JSON.stringify({
+        untilMs: Math.max(0, parseInt(untilMs, 10) || 0),
+        status: parseInt(statusCode, 10) || 429,
+        updatedAt: Date.now(),
+    });
+}
+
+function parseRateLimitLatch(raw) {
+    if (!raw) {
+        return null;
+    }
+    try {
+        var parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") {
+            return null;
+        }
+        var untilMs = parseInt(parsed.untilMs, 10) || 0;
+        if (untilMs <= 0) {
+            return null;
+        }
+        return {
+            untilMs: untilMs,
+            status: parseInt(parsed.status, 10) || 429,
+            updatedAt: parseInt(parsed.updatedAt, 10) || 0,
+        };
+    } catch (e) {
+        return null;
+    }
+}
+
+function rateLimitLatchActive(latch, nowMs) {
+    if (!latch) {
+        return false;
+    }
+    nowMs = nowMs || Date.now();
+    return (parseInt(latch.untilMs, 10) || 0) > nowMs;
 }
 
 function buildWallpaperPageUrl(id) {
@@ -2249,8 +2352,15 @@ function varietySymlinkName() {
     return "wallhaven-current.jpg";
 }
 
-function lockScreenImageFileName() {
-    return "wallhaven-lockscreen.jpg";
+function lockScreenImageFileName(wallpaperId) {
+    // Unique per wallpaper so kscreenlocker's org.kde.image plugin reloads.
+    // Overwriting a single stable path left Image=/…/wallhaven-lockscreen.jpg
+    // unchanged, and Plasma often kept showing the previous (cached) frame.
+    var id = String(wallpaperId || "").trim().replace(/[^A-Za-z0-9_-]/g, "");
+    if (id) {
+        return "wallhaven-lockscreen-" + id + ".jpg";
+    }
+    return "wallhaven-lockscreen-" + Date.now() + ".jpg";
 }
 
 function lockScreenImageUrl(path) {
@@ -2287,6 +2397,8 @@ function buildLockScreenSyncCommand(sourcePath, destPath) {
         return "";
     }
     var url = lockScreenImageUrl(dest);
+    var destDir = dest.lastIndexOf("/") >= 0 ? dest.substring(0, dest.lastIndexOf("/")) : "";
+    var destBase = dest.lastIndexOf("/") >= 0 ? dest.substring(dest.lastIndexOf("/") + 1) : dest;
     var parts = [];
     if (source !== dest) {
         parts.push("cp -f " + shellSingleQuote(source) + " " + shellSingleQuote(dest));
@@ -2295,6 +2407,13 @@ function buildLockScreenSyncCommand(sourcePath, destPath) {
     parts.push("kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image " + shellSingleQuote(url));
     parts.push("kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key PreviewImage " + shellSingleQuote(url));
     parts.push("kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key FillMode 2");
+    // Drop older lockscreen copies + the legacy single-file name so the cache
+    // dir does not grow forever. Keep the file we just pointed Plasma at.
+    if (destDir) {
+        parts.push("find " + shellSingleQuote(destDir)
+            + " -maxdepth 1 \\( -name 'wallhaven-lockscreen-*.jpg' -o -name 'wallhaven-lockscreen.jpg' \\)"
+            + " ! -name " + shellSingleQuote(destBase) + " -delete");
+    }
     return parts.join(" && ");
 }
 
@@ -2565,6 +2684,12 @@ function recordFetchMetrics(metrics, elapsedMs, fromCache) {
             ((metrics.avgFetchMs || 0) * (count - 1) + elapsedMs) / count,
         );
     }
+    return metrics;
+}
+
+function recordRateLimitMetrics(metrics) {
+    metrics = metrics || createMetricsState();
+    metrics.rateLimits = (metrics.rateLimits || 0) + 1;
     return metrics;
 }
 
@@ -3036,7 +3161,10 @@ function resolutionWeightFn(cfg, state) {
         return undefined;
     }
     return function (wallpaper) {
-        return wallpaperResolutionScore(wallpaper, state.screenWidth, state.screenHeight);
+        // Soften the curve so a few ultra-sharp portrait matches cannot
+        // dominate every weighted pick on a tall monitor.
+        var score = wallpaperResolutionScore(wallpaper, state.screenWidth, state.screenHeight);
+        return Math.sqrt(Math.max(0.05, score));
     };
 }
 

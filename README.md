@@ -2,7 +2,7 @@
 
 Fetch and cycle wallpapers from [wallhaven.cc](https://wallhaven.cc) on KDE Plasma 6: search, collections, favorites, slideshow effects, offline cache, presets, and full control from the panel, keyboard, KRunner, or D-Bus.
 
-**Current version:** 3.5.0  
+**Current version:** 3.5.1  
 **KDE Store / OpenDesktop:** [Wallhaven Extended (p/2368647)](https://www.opendesktop.org/p/2368647/)  
 **Releases:** [GitHub Releases](https://github.com/doodersrage/wallhaven-plasma-6-plugin/releases)
 
@@ -109,6 +109,12 @@ Full guide: [docs/CONTROL.md](docs/CONTROL.md).
 | [packaging/README.md](packaging/README.md) | Downstream packaging |
 
 ---
+
+## What's new in 3.5.1
+
+- Stop rate-limit cache storms; shared 429 cooldown across monitors
+- Less portrait/views repetition; lock-screen sync that actually reloads
+- Restore wallpaper after sleep/unlock/login from cache first
 
 ## What's new in 3.5.0
 

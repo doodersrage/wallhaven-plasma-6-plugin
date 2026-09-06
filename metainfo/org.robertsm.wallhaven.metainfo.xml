@@ -42,6 +42,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="3.5.1" date="2026-09-06">
+      <description>
+        <p>Reliability hotfixes: stop rate-limit wallpaper storms, preserve variety on portrait/views sorting, make lock-screen sync reload reliably, and restore wallpapers after sleep or login.</p>
+      </description>
+    </release>
     <release version="3.5.0" date="2026-09-06">
       <description>
         <p>Multi-monitor search trust UI and copy-to-other-screens, trip warm progress/cancel with cache fill percent, tighter search isolation for crossed sync groups, expanded locales, and control-bus regression harness.</p>
