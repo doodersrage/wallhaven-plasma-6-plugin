@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 3.3.0\n"
+"Project-Id-Version: org.robertsm.wallhaven 3.5.0\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -10,6 +10,9 @@ msgstr "0 = nur manuell. Pause auch über Hintergrundbild-Aktionen auf dem Deskt
 
 msgid "0% means no change on each slider. Rendered client-side; the cached image on disk is not modified."
 msgstr "0 % bedeutet keine Änderung. Wird clientseitig gerendert; das Bild im Cache bleibt unverändert."
+
+msgid "0 = no size limit (slot limit still applies). Unpinned oldest entries are pruned first."
+msgstr "0 = no size limit (slot limit still applies). Unpinned oldest entries are pruned first."
 
 msgid "12-25|christmas snow|Holiday surprise — 2026-09-01|back to school city"
 msgstr "12-25|weihnachten schnee|Feiertagsüberraschung — 2026-09-01|schulbeginn stadt"
@@ -50,6 +53,9 @@ msgstr "Konto-Sperrliste:"
 msgid "Adaptive preload:"
 msgstr "Adaptives Vorladen:"
 
+msgid "Add Next / Pause / Open actions on notifications"
+msgstr "Add Next / Pause / Open actions on notifications"
+
 msgid "Advance all monitors in the same group together"
 msgstr "Alle Monitore in derselben Gruppe gemeinsam weiterschalten"
 
@@ -77,6 +83,15 @@ msgstr "Anime:"
 msgid "Any"
 msgstr "Beliebig"
 
+msgid "API down · %1 cached"
+msgstr "API down · %1 cached"
+
+msgid "API down · no cache"
+msgstr "API down · no cache"
+
+msgid "API down — using cache (%1)"
+msgstr "API down — using cache (%1)"
+
 msgid "API health:"
 msgstr "API-Status:"
 
@@ -86,8 +101,14 @@ msgstr "API im Leerlauf"
 msgid "API key:"
 msgstr "API-Schlüssel:"
 
+msgid "API key cleared."
+msgstr "API key cleared."
+
 msgid "API key is valid."
 msgstr "API-Schlüssel ist gültig."
+
+msgid "API key looks invalid."
+msgstr "API key looks invalid."
 
 msgid "API key (optional)"
 msgstr "API-Schlüssel (optional)"
@@ -104,6 +125,9 @@ msgstr "API-Schlüssel-Validierung fehlgeschlagen (%1)."
 msgid "API OK"
 msgstr "API OK"
 
+msgid "API OK (key …%1)"
+msgstr "API OK (key …%1)"
+
 msgid "API order:"
 msgstr "API-Reihenfolge:"
 
@@ -113,14 +137,23 @@ msgstr "API-Ratenlimit ×%1"
 msgid "API sorting:"
 msgstr "API-Sortierung:"
 
+msgid "API unauthorized (401/403) — check or clear API key"
+msgstr "API unauthorized (401/403) — check or clear API key"
+
 msgid "Applied local playlist \\"
 msgstr "Lokale Playlist angewendet \\"
+
+msgid "Applied saved search “%1”."
+msgstr "Applied saved search “%1”."
 
 msgid "Applied Variety search: %1"
 msgstr "Variety-Suche angewendet: %1"
 
 msgid "Applies the upscaler to wallpapers already in the disk cache whose native resolution falls short of your screen. Cache entries saved before this setting existed have no recorded resolution and are skipped; they'll be covered next time they're re-cached."
 msgstr "Wendet den Upscaler auf Cache-Bilder an, deren Auflösung unter der Bildschirmgröße liegt. Ältere Cache-Einträge ohne gespeicherte Auflösung werden übersprungen."
+
+msgid "Apply"
+msgstr "Apply"
 
 msgid "Apply accent color via plasma-apply-colors when available"
 msgstr "Akzentfarbe über plasma-apply-colors anwenden, wenn verfügbar"
@@ -272,8 +305,17 @@ msgstr "Fehlerbericht-Datei:"
 msgid "Bundled packs (one-click import):"
 msgstr "Mitgelieferte Pakete (Ein-Klick-Import):"
 
+msgid "cache %1%"
+msgstr "Cache %1%"
+
 msgid "Cached:"
 msgstr "Im Cache:"
+
+msgid "Cache fill toward trip target: %1% (%2 / %3)"
+msgstr "Cache-Füllstand für Reiseziel: %1% (%2 / %3)"
+
+msgid "Cache fill toward trip target: %1% (%2 cached)"
+msgstr "Cache-Füllstand für Reiseziel: %1% (%2 zwischengespeichert)"
 
 msgid "Cache Manager"
 msgstr "Cache-Manager"
@@ -286,6 +328,24 @@ msgstr "Aktuelle Bilder lokal cachen; älteste ungenutzte werden ersetzt"
 
 msgid "Cache status:"
 msgstr "Cache-Status:"
+
+msgid "Cache warm already in progress (%1 / %2)."
+msgstr "Cache-Aufwärmen läuft bereits (%1 / %2)."
+
+msgid "Cache warm cancelled (%1 new)."
+msgstr "Cache-Aufwärmen abgebrochen (%1 neu)."
+
+msgid "Cache warm finished: %1 new, %2 already cached."
+msgstr "Cache warm finished: %1 new, %2 already cached."
+
+msgid "Cancel cache warm"
+msgstr "Cache-Aufwärmen abbrechen"
+
+msgid "Cancelling cache warm…"
+msgstr "Cache-Aufwärmen wird abgebrochen…"
+
+msgid "Cancel warm"
+msgstr "Aufwärmen abbrechen"
 
 msgid "Categories"
 msgstr "Kategorien"
@@ -302,6 +362,9 @@ msgstr "Lokalen Hintergrundbild-Ordner wählen"
 msgid "City name, or \\"
 msgstr "Stadtname, oder \\"
 
+msgid "Clear API key"
+msgstr "Clear API key"
+
 msgid "Clear blocklist"
 msgstr "Sperrliste leeren"
 
@@ -314,11 +377,20 @@ msgstr "Cache leeren:"
 msgid "Clear disk cache"
 msgstr "Festplatten-Cache leeren"
 
+msgid "Cleared a bad API key from settings. Re-enter it if you need NSFW/favorites."
+msgstr "Cleared a bad API key from settings. Re-enter it if you need NSFW/favorites."
+
 msgid "Cleared seen wallpaper history (%1 entries)."
 msgstr "Gesehene Hintergrundbilder gelöscht (%1 Einträge)."
 
 msgid "Clear history:"
 msgstr "Verlauf leeren:"
+
+msgid "Clear key"
+msgstr "Clear key"
+
+msgid "Clear key:"
+msgstr "Clear key:"
 
 msgid "Clear seen history"
 msgstr "Gesehene Historie löschen"
@@ -377,6 +449,9 @@ msgstr "GitHub-Issue-Vorlage kopiert."
 msgid "Copied page URL."
 msgstr "Seiten-URL kopiert."
 
+msgid "Copied search to %1 other screen(s)."
+msgstr "Suche auf %1 andere(n) Bildschirm(e) kopiert."
+
 msgid "Copied tags."
 msgstr "Tags kopiert."
 
@@ -389,11 +464,20 @@ msgstr "Debug-Info kopieren"
 msgid "Copy GitHub issue template"
 msgstr "GitHub-Issue-Vorlage kopieren"
 
+msgid "Copy ID"
+msgstr "Copy ID"
+
 msgid "Copy Page URL"
 msgstr "Seiten-URL kopieren"
 
 msgid "Copy preset share URL"
 msgstr "Voreinstellungs-URL kopieren"
+
+msgid "Copy search:"
+msgstr "Suche kopieren:"
+
+msgid "Copy search to other monitors"
+msgstr "Suche auf andere Monitore kopieren"
 
 msgid "Copy settings to clipboard"
 msgstr "Einstellungen in Zwischenablage kopieren"
@@ -406,6 +490,12 @@ msgstr "Tags kopieren"
 
 msgid "Copy the current wallpaper to the lock screen"
 msgstr "Aktuelles Hintergrundbild auf den Sperrbildschirm kopieren"
+
+msgid "Copy this search to other screens"
+msgstr "Diese Suche auf andere Bildschirme kopieren"
+
+msgid "Copy URL"
+msgstr "Copy URL"
 
 msgid "Copy Wallpaper ID"
 msgstr "Hintergrundbild-ID kopieren"
@@ -455,14 +545,23 @@ msgstr "Suchantwort konnte nicht verarbeitet werden."
 msgid "Could not read settings file."
 msgstr "Einstellungsdatei konnte nicht gelesen werden."
 
+msgid "Could not restore settings."
+msgstr "Could not restore settings."
+
 msgid "Could not save wallpaper."
 msgstr "Hintergrundbild konnte nicht gespeichert werden."
+
+msgid "Could not warm cache — no API results."
+msgstr "Could not warm cache — no API results."
 
 msgid "Crossfade"
 msgstr "Überblenden"
 
 msgid "Crossfade (ms):"
 msgstr "Überblenden (ms):"
+
+msgid "Current cache fill for trip target: %1%"
+msgstr "Aktueller Cache-Füllstand für Reiseziel: %1%"
 
 msgid "Current Wallpaper"
 msgstr "Aktuelles Hintergrundbild"
@@ -578,6 +677,9 @@ msgstr "Festplatten-Cache geleert."
 msgid "Dislike (mute these tags)"
 msgstr "Nicht mögen (diese Tags stummschalten)"
 
+msgid "Download matching wallpapers into cache now"
+msgstr "Download matching wallpapers into cache now"
+
 msgid "Download the full-resolution file from Wallhaven (requires curl)"
 msgstr "Vollauflösung von Wallhaven laden (benötigt curl)"
 
@@ -599,6 +701,9 @@ msgstr "z. B. 1920x1080,2560x1440"
 msgid "e.g. Anime night"
 msgstr "z. B. Anime Nacht"
 
+msgid "(empty)"
+msgstr "(leer)"
+
 msgid "Empty = screen height"
 msgstr "Leer = Bildschirmhöhe"
 
@@ -613,6 +718,15 @@ msgstr "Aktiviert"
 
 msgid "Enable Ken Burns above for music-reactive pacing to take effect."
 msgstr "Ken Burns oben aktivieren, damit musikreaktive Geschwindigkeit wirkt."
+
+msgid "End trip"
+msgstr "End trip"
+
+msgid "End trip mode"
+msgstr "End trip mode"
+
+msgid "engine idle?"
+msgstr "engine idle?"
 
 msgid "Enter an API key first."
 msgstr "Zuerst einen API-Schlüssel eingeben."
@@ -743,6 +857,12 @@ msgstr "Grün"
 msgid "Group: %1"
 msgstr "Gruppe: %1"
 
+msgid "Group %1 · “%2”"
+msgstr "Gruppe %1 · „%2“"
+
+msgid "grp %1"
+msgstr "Grp %1"
+
 msgid "/home/you/Pictures/Wallpapers"
 msgstr "/home/du/Bilder/Hintergrundbilder"
 
@@ -833,6 +953,15 @@ msgstr "Intervall-Streuung (%):"
 msgid "Interval (min):"
 msgstr "Intervall (Min.):"
 
+msgid "invalid API key"
+msgstr "invalid API key"
+
+msgid "Invalid API key"
+msgstr "Invalid API key"
+
+msgid "Invalid API key (…%1) — clear or re-enter"
+msgstr "Invalid API key (…%1) — clear or re-enter"
+
 msgid "Invalid export path."
 msgstr "Ungültiger Exportpfad."
 
@@ -857,8 +986,23 @@ msgstr "Ken-Burns-Geschwindigkeit:"
 msgid "Keyboard shortcuts:"
 msgstr "Tastenkürzel:"
 
+msgid "Key loaded from KWallet"
+msgstr "Key loaded from KWallet"
+
+msgid "Key set (…%1)"
+msgstr "Key set (…%1)"
+
 msgid "KWallet:"
 msgstr "KWallet:"
+
+msgid "KWallet disabled"
+msgstr "KWallet disabled"
+
+msgid "KWallet: load failed"
+msgstr "KWallet: load failed"
+
+msgid "KWallet: no key stored"
+msgstr "KWallet: no key stored"
 
 msgid "Laptop mode:"
 msgstr "Laptop-Modus:"
@@ -950,6 +1094,9 @@ msgstr "Manuell"
 msgid "Match wallpaper Advanced → Sync group. With multiple monitors, the plasmoid lists each screen and routes next/prev to that group."
 msgstr "Entspricht Erweitert → Sync-Gruppe. Bei mehreren Monitoren listet das Plasmoid jeden Bildschirm und leitet vor/zurück an den fokussierten."
 
+msgid "Max cache size (MB):"
+msgstr "Max cache size (MB):"
+
 msgid "Max cache slots:"
 msgstr "Max. Cache-Slots:"
 
@@ -992,6 +1139,9 @@ msgstr "Mo–Fr"
 msgid "Monitor: %1"
 msgstr "Monitor: %1"
 
+msgid "Monitor map:"
+msgstr "Monitor-Karte:"
+
 msgid "Monitors"
 msgstr "Monitore"
 
@@ -1022,6 +1172,9 @@ msgstr "Stummgeschaltete Tags: %1"
 msgid "Name and folder path are required to save a local playlist."
 msgstr "Name und Ordnerpfad sind erforderlich, um eine lokale Playlist zu speichern."
 
+msgid "Name for current search"
+msgstr "Name for current search"
+
 msgid "name or search words"
 msgstr "Name oder Suchwörter"
 
@@ -1046,6 +1199,9 @@ msgstr "Netzwerk & Wiederholungen"
 msgid "Never use the network; cycle cached wallpapers only"
 msgstr "Netzwerk nie nutzen; nur zwischengespeicherte Hintergrundbilder durchlaufen"
 
+msgid "Next"
+msgstr "Next"
+
 msgid "Next wallpaper"
 msgstr "Nächstes Hintergrundbild"
 
@@ -1058,11 +1214,17 @@ msgstr "Nacht-Intervall (Min.):"
 msgid "Night search:"
 msgstr "Nachtsuche:"
 
+msgid "No API key"
+msgstr "No API key"
+
 msgid "No cached wallpapers available."
 msgstr "Keine zwischengespeicherten Hintergrundbilder verfügbar."
 
 msgid "No cached wallpapers need upscaling right now."
 msgstr "Keine Cache-Bilder brauchen gerade Upscaling."
+
+msgid "No cache warm in progress."
+msgstr "Kein Cache-Aufwärmen aktiv."
 
 msgid "No collections found."
 msgstr "Keine Sammlungen gefunden."
@@ -1085,17 +1247,29 @@ msgstr "Kein image_fetch_search in Variety-Konfiguration."
 msgid "No images found in the local folder."
 msgstr "Keine Bilder im lokalen Ordner gefunden."
 
+msgid "No live wallpaper binding for key status."
+msgstr "No live wallpaper binding for key status."
+
+msgid "(no monitors reporting)"
+msgstr "(keine Monitore melden)"
+
 msgid "No more wallpapers match your current filters."
 msgstr "Keine weiteren Hintergrundbilder entsprechen den aktuellen Filtern."
 
 msgid "(none found)"
 msgstr "(nichts gefunden)"
 
+msgid "No other monitors to copy search to."
+msgstr "Keine anderen Monitore zum Kopieren der Suche."
+
 msgid "No previous wallpaper in history."
 msgstr "Kein vorheriges Hintergrundbild im Verlauf."
 
 msgid "No recent wallpapers yet. They appear here as the slideshow advances."
 msgstr "Noch keine aktuellen Bilder. Sie erscheinen hier, wenn die Diashow läuft."
+
+msgid "No search text to copy."
+msgstr "Kein Suchtext zum Kopieren."
 
 msgid "No settings match %1. Try another tab or clear the filter."
 msgstr "Keine Einstellungen für %1. Anderen Tab wählen oder Filter löschen."
@@ -1106,6 +1280,12 @@ msgstr "Noch keine Tags zum Bewerten."
 msgid "Not found on PATH; using plain scaling. Install: github.com/xinntao/Real-ESRGAN/releases"
 msgstr "Nicht im PATH; normale Skalierung. Installieren: github.com/xinntao/Real-ESRGAN/releases"
 
+msgid "Nothing to undo."
+msgstr "Nothing to undo."
+
+msgid "Notification actions:"
+msgstr "Notification actions:"
+
 msgid "Notifications"
 msgstr "Benachrichtigungen"
 
@@ -1114,6 +1294,9 @@ msgstr "Bei Ansichts-Meilensteinen und Tages-Serien benachrichtigen"
 
 msgid "Not synced yet this session."
 msgstr "In dieser Sitzung noch nicht synchronisiert."
+
+msgid "No unpinned cache entries to prune."
+msgstr "No unpinned cache entries to prune."
 
 msgid "No upscaler installed (realesrgan-ncnn-vulkan not found on PATH)."
 msgstr "Kein Upscaler installiert (realesrgan-ncnn-vulkan nicht im PATH)."
@@ -1130,8 +1313,17 @@ msgstr "Noch kein Hintergrundbild geladen. Wallhaven als Hintergrundtyp wählen 
 msgid "No wallpapers match your current filters."
 msgstr "Keine Hintergrundbilder entsprechen den aktuellen Filtern."
 
+msgid "NSFW"
+msgstr "NSFW"
+
 msgid "NSFW:"
 msgstr "NSFW:"
+
+msgid "NSFW needs a valid API key."
+msgstr "NSFW needs a valid API key."
+
+msgid "NSFW requires an API key"
+msgstr "NSFW requires an API key"
 
 msgid "Offline fallback:"
 msgstr "Offline-Fallback:"
@@ -1172,6 +1364,9 @@ msgstr "Nur angeheftete Cache-Einträge abspielen"
 msgid "On refresh:"
 msgstr "Bei Aktualisierung:"
 
+msgid "Open"
+msgstr "Open"
+
 msgid "Opened on Wallhaven — use the heart button to favorite (no public write API)."
 msgstr "Auf Wallhaven geöffnet — Herz-Schaltfläche zum Favorisieren (keine öffentliche Schreib-API)."
 
@@ -1183,6 +1378,9 @@ msgstr "Einstellungen öffnen, während Wallhaven aktiv ist, um den Live-API-Sta
 
 msgid "Open wallpaper page"
 msgstr "Hintergrundbildseite öffnen"
+
+msgid "Open wallpaper settings on a desktop to see cache fill."
+msgstr "Öffne die Hintergrundbild-Einstellungen auf einem Desktop, um den Cache-Füllstand zu sehen."
 
 msgid "Open wallpaper settings while Wallhaven is active to see the count"
 msgstr "Hintergrundbild-Einstellungen bei aktivem Wallhaven öffnen, um den Zähler zu sehen"
@@ -1219,6 +1417,9 @@ msgstr "Parallax-Stärke:"
 
 msgid "Parse collection URL"
 msgstr "Sammlungs-URL auswerten"
+
+msgid "Pause"
+msgstr "Pause"
 
 msgid "Pause:"
 msgstr "Pause:"
@@ -1331,6 +1532,18 @@ msgstr "Vorheriges Hintergrundbild"
 msgid "Previous Wallpaper"
 msgstr "Vorheriges Hintergrundbild"
 
+msgid "Prune cache"
+msgstr "Prune cache"
+
+msgid "Prune cache:"
+msgstr "Prune cache:"
+
+msgid "Pruned %1 unpinned cache entr(y/ies)."
+msgstr "Pruned %1 unpinned cache entr(y/ies)."
+
+msgid "Prune unpinned entries over slot limit"
+msgstr "Prune unpinned entries over slot limit"
+
 msgid "Purity"
 msgstr "Reinheit"
 
@@ -1388,6 +1601,9 @@ msgstr "Verlauf aktualisieren:"
 msgid "Refresh history gallery"
 msgstr "Verlaufs-Galerie aktualisieren"
 
+msgid "Refresh monitor sync map"
+msgstr "Monitor-Sync-Karte aktualisieren"
+
 msgid "Relevance"
 msgstr "Relevanz"
 
@@ -1420,6 +1636,15 @@ msgstr "Benötigt D-Bus-Dienst und realesrgan-ncnn-vulkan im PATH sowie aktivier
 
 msgid "Resolution & Ratio"
 msgstr "Auflösung & Seitenverhältnis"
+
+msgid "Restored previous settings."
+msgstr "Restored previous settings."
+
+msgid "Resume"
+msgstr "Resume"
+
+msgid "Resume online search"
+msgstr "Resume online search"
 
 msgid "Resume slideshow"
 msgstr "Diashow fortsetzen"
@@ -1454,6 +1679,9 @@ msgstr "Sa–So"
 msgid "Saturation:"
 msgstr "Sättigung:"
 
+msgid "Save"
+msgstr "Save"
+
 msgid "Save current API key to KWallet"
 msgstr "Aktuellen API-Schlüssel in KWallet speichern"
 
@@ -1465,6 +1693,15 @@ msgstr "Lokale Playlist gespeichert \\"
 
 msgid "Saved presets:"
 msgstr "Gespeicherte Voreinstellungen:"
+
+msgid "Saved search:"
+msgstr "Saved search:"
+
+msgid "Saved search “%1”."
+msgstr "Saved search “%1”."
+
+msgid "Saved search not found."
+msgstr "Saved search not found."
 
 msgid "Saved search profile for sync group \\"
 msgstr "Suchprofil für Sync-Gruppe gespeichert \\"
@@ -1502,6 +1739,9 @@ msgstr "Speichere Hintergrundbild…"
 msgid "🎉 Scheduled wallpaper switch — now searching \\"
 msgstr "🎉 Geplanter Wechsel — suche jetzt nach \\"
 
+msgid "Screen %1 · group %2 · “%3”"
+msgstr "Bildschirm %1 · Gruppe %2 · „%3“"
+
 msgid "Screen lock pause:"
 msgstr "Sperrbildschirm-Pause:"
 
@@ -1510,6 +1750,9 @@ msgstr "Suche"
 
 msgid "Search:"
 msgstr "Suche:"
+
+msgid "Search: %1"
+msgstr "Suche: %1"
 
 msgid "Search Presets"
 msgstr "Voreinstellungen suchen"
@@ -1565,6 +1808,9 @@ msgstr "Einrichtungsstatus:"
 msgid "Setup wizard:"
 msgstr "Einrichtungsassistent:"
 
+msgid "SFW"
+msgstr "SFW"
+
 msgid "SFW:"
 msgstr "SFW:"
 
@@ -1612,6 +1858,9 @@ msgstr "Einfach"
 
 msgid "Simple mode: Source + Playback. Tip: Offline playlist, local playlists, and smart offline are on Source. Switch to Advanced for filters, cache, and sync."
 msgstr "Einfacher Modus: Quelle + Wiedergabe. Tipp: Offline-Playlist, lokale Playlists und intelligenter Offline-Modus sind unter Quelle. Für Filter, Cache und Sync auf Erweitert wechseln."
+
+msgid "Sketchy"
+msgstr "Sketchy"
 
 msgid "Sketchy:"
 msgstr "Anzüglich:"
@@ -1679,6 +1928,9 @@ msgstr "Speichert den Schlüssel in KWallet-Ordner org.robertsm.wallhaven (Eintr
 msgid "Swipe the panel widget thumbnail left/right (or use its menu) to like/dislike the current wallpaper's tags."
 msgstr "Miniatur im Panel-Widget nach links/rechts wischen (oder Menü), um Tags zu mögen/abzulehnen."
 
+msgid "Switch to an online browse mode to warm the cache."
+msgstr "Switch to an online browse mode to warm the cache."
+
 msgid "Symlink cached wallpaper as wallhaven-current.jpg"
 msgstr "Zwischengespeichertes Hintergrundbild als wallhaven-current.jpg verlinken"
 
@@ -1736,6 +1988,9 @@ msgstr "Suche testen:"
 msgid "This screen:"
 msgstr "Dieser Bildschirm:"
 
+msgid "This screen search:"
+msgstr "Suche dieses Bildschirms:"
+
 msgid "thumbnails, .git, Screenshots"
 msgstr "thumbnails, .git, Screenshots"
 
@@ -1778,6 +2033,51 @@ msgstr "Oben rechts"
 msgid "Transition:"
 msgstr "Übergang:"
 
+msgid "Trip 24h"
+msgstr "Trip 24h"
+
+msgid "Trip cache fill:"
+msgstr "Reise-Cache-Füllstand:"
+
+msgid "trip mode"
+msgstr "trip mode"
+
+msgid "Trip mode:"
+msgstr "Trip mode:"
+
+msgid "Trip mode 24h (warm + cache only)"
+msgstr "Trip mode 24h (warm + cache only)"
+
+msgid "Trip mode cleared."
+msgstr "Trip mode cleared."
+
+msgid "Trip mode ended."
+msgstr "Trip mode ended."
+
+msgid "Trip mode on"
+msgstr "Trip mode on"
+
+msgid "Trip mode on · ~%1h left"
+msgstr "Trip mode on · ~%1h left"
+
+msgid "Trip mode on for %1 hour(s)."
+msgstr "Trip mode on for %1 hour(s)."
+
+msgid "Trip mode on for %1 hour(s) — cache only."
+msgstr "Trip mode on for %1 hour(s) — cache only."
+
+msgid "Trip mode: using cached wallpapers."
+msgstr "Trip mode: using cached wallpapers."
+
+msgid "Undo last settings change"
+msgstr "Undo last settings change"
+
+msgid "Undo settings"
+msgstr "Undo settings"
+
+msgid "Undo settings:"
+msgstr "Undo settings:"
+
 msgid "Unpin"
 msgstr "Loslösen"
 
@@ -1808,6 +2108,12 @@ msgstr "Externen KI-Upscaler für kleinere Bilder nutzen, falls installiert"
 msgid "Use cache only on cellular connections"
 msgstr "Cache nur bei Mobilfunkverbindungen nutzen"
 
+msgid "Use cache until API recovers"
+msgstr "Use cache until API recovers"
+
+msgid "Use cache until Wallhaven recovers"
+msgstr "Use cache until Wallhaven recovers"
+
 msgid "Used when no monitor is selected"
 msgstr "Wird genutzt, wenn kein Monitor gewählt ist"
 
@@ -1834,6 +2140,9 @@ msgstr "Heutige Wallhaven-Topliste verwenden (überschreibt Sortierung)"
 
 msgid "Use tools/wallhaven-ctl.sh, D-Bus (tools/wallhaven-dbus.py), or the Wallhaven Control plasmoid."
 msgstr "tools/wallhaven-ctl.sh, D-Bus (tools/wallhaven-dbus.py) oder das Wallhaven-Control-Plasmoid verwenden."
+
+msgid "Using cache until Wallhaven recovers."
+msgstr "Using cache until Wallhaven recovers."
 
 msgid "Validate key:"
 msgstr "Schlüssel validieren:"
@@ -1865,11 +2174,17 @@ msgstr "Wallhaven"
 msgid "Wallhaven D-Bus service is not running. Run: systemctl --user enable --now wallhaven-dbus.service"
 msgstr "Der Wallhaven-D-Bus-Dienst läuft nicht. Ausführen: systemctl --user enable --now wallhaven-dbus.service"
 
+msgid "Wallhaven is back — resuming online search."
+msgstr "Wallhaven is back — resuming online search."
+
 msgid "Wallhaven milestone"
 msgstr "Wallhaven-Meilenstein"
 
 msgid "wallhaven://preset/… or https://…/preset.json"
 msgstr "wallhaven://preset/… oder https://…/preset.json"
+
+msgid "Wallhaven rejected API key (…%1). Clear or re-enter it."
+msgstr "Wallhaven rejected API key (…%1). Clear or re-enter it."
 
 msgid "Wallhaven request failed after %1 attempts."
 msgstr "Wallhaven-Anfrage nach %1 Versuchen fehlgeschlagen."
@@ -1880,6 +2195,12 @@ msgstr "Wallhaven-Serie"
 msgid "Wallhaven time capsule"
 msgstr "Wallhaven-Zeitkapsel"
 
+msgid "Wallhaven unauthorized (%1). Check API key / NSFW settings."
+msgstr "Wallhaven unauthorized (%1). Check API key / NSFW settings."
+
+msgid "Wallhaven unreachable (%1). Using cache until it recovers."
+msgstr "Wallhaven unreachable (%1). Using cache until it recovers."
+
 msgid "Wallpaper #%1"
 msgstr "Hintergrundbild #%1"
 
@@ -1888,6 +2209,9 @@ msgstr "Hintergrundbild-Aktionen: Neu laden / Weiter / Ähnlich / Pause / Kopier
 
 msgid "Wallpaper details"
 msgstr "Hintergrundbild-Details"
+
+msgid "Wallpaper engine idle?"
+msgstr "Wallpaper engine idle?"
 
 msgid "Wallpaper History"
 msgstr "Hintergrundbild-Verlauf"
@@ -1909,6 +2233,30 @@ msgstr "Hintergrundbild gespeichert."
 
 msgid "Wallpaper settings…"
 msgstr "Hintergrundbild-Einstellungen…"
+
+msgid "Warm cache"
+msgstr "Warm cache"
+
+msgid "Warm cache:"
+msgstr "Warm cache:"
+
+msgid "Warm cache count:"
+msgstr "Warm cache count:"
+
+msgid "Warming… %1 / %2"
+msgstr "Aufwärmen… %1 / %2"
+
+msgid "Warming cache… %1 / %2"
+msgstr "Cache wird aufgewärmt… %1 / %2"
+
+msgid "Warming cache before trip mode…"
+msgstr "Warming cache before trip mode…"
+
+msgid "Warming cache with up to %1 wallpaper(s)…"
+msgstr "Warming cache with up to %1 wallpaper(s)…"
+
+msgid "Warm progress:"
+msgstr "Aufwärm-Fortschritt:"
 
 msgid "Watch Variety config for changes"
 msgstr "Variety-Konfiguration auf Änderungen überwachen"

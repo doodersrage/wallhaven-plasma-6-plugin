@@ -227,6 +227,11 @@ WallpaperItem {
         return i18n("No API key");
     }
     readonly property bool tripModeActive: Wallhaven.tripModeActive(cfg && cfg.TripModeUntilMs)
+    property bool _warmActive: false
+    property int _warmDone: 0
+    property int _warmTarget: 0
+    property bool _warmCancelRequested: false
+    property string monitorTrustMapText: ""
     property int _nextSlideshowAt: 0
     property var _metrics: Wallhaven.createMetricsState()
     property int _batteryPercent: 100
@@ -520,17 +525,12 @@ WallpaperItem {
         if (!cmd) {
             return false;
         }
-        var myGroup = String(cfg.SyncAdvanceGroup || "default");
-        var myScreen = String(diskCacheNamespace || "");
-        var cmdGroup = String(cmd.group || "default");
-        if (cmdGroup === myGroup) {
-            return true;
-        }
-        // Allow addressing a screen by its cache namespace even when groups differ.
-        if (myScreen && cmdGroup === myScreen) {
-            return true;
-        }
-        return false;
+        return Wallhaven.controlCommandTargetsGroup(
+            cmd.group,
+            cfg.SyncAdvanceGroup || "default",
+            diskCacheNamespace || "",
+            cmd.cmd,
+        );
     }
 
     function isSettingsControlCommand(cmdName) {
@@ -538,6 +538,7 @@ WallpaperItem {
         return name === "search" || name === "applysearch" || name === "savesearch"
             || name === "purity" || name === "trip" || name === "endtrip"
             || name === "clearkey" || name === "testkey" || name === "warm"
+            || name === "cancelwarm" || name === "copysearch"
             || name === "importpreset";
     }
 
@@ -631,11 +632,17 @@ WallpaperItem {
         case "warm":
             root.warmDiskCache(cmd.query ? parseInt(cmd.query, 10) : 0);
             break;
+        case "cancelwarm":
+            root.cancelWarmCache();
+            break;
         case "trip":
             root.enterTripModeWithWarm(cmd.query ? parseInt(cmd.query, 10) : 24, cfg.CacheWarmCount || 12);
             break;
         case "endtrip":
             root.clearTripMode(true);
+            break;
+        case "copysearch":
+            root.copySearchToOtherScreens(cmd.query || "");
             break;
         case "undo":
             root.undoLastSettingsChange();
@@ -998,8 +1005,68 @@ WallpaperItem {
             engine.showStatus(i18n("Switch to an online browse mode to warm the cache."), "warn");
             return;
         }
+        if (root._warmActive) {
+            engine.showStatus(i18n("Cache warm already in progress (%1 / %2).", root._warmDone, root._warmTarget), "info");
+            return;
+        }
         engine.showStatus(i18n("Warming cache with up to %1 wallpaper(s)…", count), "info");
         engine.warmCache(count);
+    }
+
+    function cancelWarmCache() {
+        if (!root._warmActive) {
+            engine.showStatus(i18n("No cache warm in progress."), "info");
+            return;
+        }
+        root._warmCancelRequested = true;
+        engine.showStatus(i18n("Cancelling cache warm…"), "info");
+        publishStatus();
+    }
+
+    function copySearchToOtherScreens(overrideQuery) {
+        var query = String(overrideQuery || cfg.SearchText || "").trim();
+        if (!query) {
+            engine.showStatus(i18n("No search text to copy."), "warn");
+            return;
+        }
+        var myGroup = String(cfg.SyncAdvanceGroup || diskCacheNamespace || "default");
+        dbusHelper.wallhavenMessage("ListMonitorStatuses", "", [], function(reply) {
+            var list = [];
+            try {
+                list = JSON.parse(Wallhaven.dbusReplyAsString(reply) || "[]");
+            } catch (e) {
+                list = [];
+            }
+            if (!Array.isArray(list)) {
+                list = [];
+            }
+            var targets = Wallhaven.otherMonitorSyncGroups(list, myGroup);
+            if (!targets.length) {
+                engine.showStatus(i18n("No other monitors to copy search to."), "info");
+                return;
+            }
+            for (var i = 0; i < targets.length; i++) {
+                dbusHelper.wallhavenMessage("Search", "ss", [query, targets[i]]);
+            }
+            engine.showStatus(i18n("Copied search to %1 other screen(s).", targets.length), "info");
+            root.refreshMonitorTrustMap();
+        });
+    }
+
+    function refreshMonitorTrustMap() {
+        dbusHelper.wallhavenMessage("ListMonitorStatuses", "", [], function(reply) {
+            var list = [];
+            try {
+                list = JSON.parse(Wallhaven.dbusReplyAsString(reply) || "[]");
+            } catch (e) {
+                list = [];
+            }
+            if (!Array.isArray(list)) {
+                list = [];
+            }
+            var lines = Wallhaven.formatMonitorTrustLines(list);
+            root.monitorTrustMapText = lines || i18n("(no monitors reporting)");
+        });
     }
 
     function recordSearchHistory(query) {
@@ -1395,6 +1462,15 @@ WallpaperItem {
             purityNsfw: !!cfg.PurityNsfw,
             tripModeUntilMs: parseInt(cfg.TripModeUntilMs, 10) || 0,
             tripModeActive: root.tripModeActive,
+            searchText: cfg.SearchText || "",
+            warmActive: root._warmActive,
+            warmDone: root._warmDone,
+            warmTarget: root._warmTarget,
+            tripWarmTarget: cfg.CacheWarmCount || 0,
+            cacheFillPercent: Wallhaven.tripCacheFillPercent(
+                diskCacheEntryCount,
+                cfg.CacheWarmCount || 0,
+            ),
             statusUpdatedAtMs: Date.now(),
         });
         // Prefer pathless Publish* helpers; fall back to WriteTextFile with a
@@ -2387,18 +2463,38 @@ WallpaperItem {
 
         function warmCache(count, onDone) {
             count = Math.max(1, Math.min(48, parseInt(count, 10) || 12));
+            if (root._warmActive) {
+                showStatus(i18n("Cache warm already in progress (%1 / %2).", root._warmDone, root._warmTarget), "info");
+                return;
+            }
             var warmed = 0;
             var skipped = 0;
+            root._warmActive = true;
+            root._warmDone = 0;
+            root._warmTarget = count;
+            root._warmCancelRequested = false;
+            root.publishStatus();
+            function finishWarm() {
+                root._warmActive = false;
+                root._warmCancelRequested = false;
+                root.publishStatus();
+                if (onDone)
+                    onDone(warmed);
+            }
             fetchApiData(function(json) {
                 if (!json || !json.data || !json.data.length) {
                     showStatus(i18n("Could not warm cache — no API results."), "warn");
-                    if (onDone)
-                        onDone(0);
+                    finishWarm();
                     return;
                 }
                 var data = json.data;
                 var i = 0;
                 function step() {
+                    if (root._warmCancelRequested) {
+                        showStatus(i18n("Cache warm cancelled (%1 new).", warmed), "info");
+                        finishWarm();
+                        return;
+                    }
                     while (i < data.length && warmed + skipped < count * 3 && warmed < count) {
                         var wp = data[i++];
                         if (!wp || !wp.id) {
@@ -2429,11 +2525,19 @@ WallpaperItem {
                         );
                         var path = root.diskCacheLocalPath(slot);
                         var url = Wallhaven.wallpaperUrl(wp, cfg.ImageQuality);
+                        showStatus(i18n("Warming… %1 / %2", warmed + 1, count), "info");
                         dbusHelper.runArgv([
                             "curl", "-fsSL", "--max-time", "90", "-o", path, url,
                         ], function() {
+                            if (root._warmCancelRequested) {
+                                showStatus(i18n("Cache warm cancelled (%1 new).", warmed), "info");
+                                finishWarm();
+                                return;
+                            }
                             warmed++;
+                            root._warmDone = warmed;
                             root.persistDiskCacheIndex();
+                            root.publishStatus();
                             step();
                         });
                         return;
@@ -2442,14 +2546,11 @@ WallpaperItem {
                         i18n("Cache warm finished: %1 new, %2 already cached.", warmed, skipped),
                         "info",
                     );
-                    root.publishStatus();
-                    if (onDone)
-                        onDone(warmed);
+                    finishWarm();
                 }
                 step();
             });
         }
-
         function applyState(state) {
             page = state.page;
             index = state.index;
@@ -3658,12 +3759,13 @@ WallpaperItem {
         // desktop banner, but only pop one system notification per unique text
         // within a quiet window (and at most one error/warn every 45s).
         var now = Date.now();
-        var sameText = String(text) === root._lastNotifyText;
-        var quietMs = isError ? 45000 : 20000;
-        if (sameText && (now - root._lastNotifyAtMs) < 90000) {
-            return;
-        }
-        if (isError && (now - root._lastNotifyAtMs) < quietMs) {
+        if (Wallhaven.shouldThrottleNotification(
+            root._lastNotifyAtMs,
+            root._lastNotifyText,
+            now,
+            text,
+            isError,
+        )) {
             return;
         }
         root._lastNotifyAtMs = now;

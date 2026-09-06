@@ -377,6 +377,116 @@ function tripModeUntilMsFromHours(hours, nowMs) {
     return nowMs + (hours * 3600 * 1000);
 }
 
+
+function tripCacheFillPercent(cacheCount, warmTarget) {
+    cacheCount = Math.max(0, parseInt(cacheCount, 10) || 0);
+    warmTarget = Math.max(0, parseInt(warmTarget, 10) || 0);
+    if (!warmTarget) {
+        return cacheCount > 0 ? 100 : 0;
+    }
+    return Math.min(100, Math.round((cacheCount / warmTarget) * 100));
+}
+
+function otherMonitorSyncGroups(monitors, myGroup) {
+    myGroup = String(myGroup || "default");
+    var seen = {};
+    var out = [];
+    for (var i = 0; i < (monitors || []).length; i++) {
+        var mon = monitors[i];
+        if (!mon) {
+            continue;
+        }
+        var group = String(mon.syncGroup || mon.cacheNamespace || "").trim();
+        if (!group || group === myGroup || seen[group]) {
+            continue;
+        }
+        seen[group] = true;
+        out.push(group);
+    }
+    return out;
+}
+
+function isSettingsControlCommand(cmdName) {
+    var name = String(cmdName || "");
+    return name === "search" || name === "applysearch" || name === "savesearch"
+        || name === "purity" || name === "trip" || name === "endtrip"
+        || name === "clearkey" || name === "testkey" || name === "warm"
+        || name === "cancelwarm" || name === "copysearch"
+        || name === "importpreset";
+}
+
+function controlCommandTargetsGroup(cmdGroup, myGroup, myScreen, cmdName) {
+    cmdGroup = String(cmdGroup || "default");
+    myGroup = String(myGroup || "default");
+    myScreen = String(myScreen || "");
+    if (cmdGroup === myGroup) {
+        return true;
+    }
+    // Settings commands never use the screen-namespace alias.
+    if (isSettingsControlCommand(cmdName)) {
+        return false;
+    }
+    if (myScreen && cmdGroup === myScreen) {
+        return true;
+    }
+    return false;
+}
+
+function shouldThrottleNotification(lastAtMs, lastText, nowMs, text, isError) {
+    nowMs = nowMs || Date.now();
+    lastAtMs = parseInt(lastAtMs, 10) || 0;
+    text = String(text || "");
+    lastText = String(lastText || "");
+    if (!text) {
+        return true;
+    }
+    var sameText = text === lastText;
+    var quietMs = isError ? 45000 : 20000;
+    if (sameText && (nowMs - lastAtMs) < 90000) {
+        return true;
+    }
+    if (isError && (nowMs - lastAtMs) < quietMs) {
+        return true;
+    }
+    return false;
+}
+
+function formatMonitorTrustLines(monitors) {
+    var lines = [];
+    for (var i = 0; i < (monitors || []).length; i++) {
+        var mon = monitors[i];
+        if (!mon) {
+            continue;
+        }
+        var screen = String(mon.screenName || mon.cacheNamespace || ("#" + (i + 1)));
+        var group = String(mon.syncGroup || mon.cacheNamespace || "default");
+        var search = String(mon.searchText || "").trim();
+        lines.push(screen + " · group " + group + " · " + (search || "(empty)"));
+    }
+    return lines.join("\n");
+}
+
+function buildControlCommandsBatch(entries) {
+    var commands = [];
+    var base = Date.now();
+    for (var i = 0; i < (entries || []).length; i++) {
+        var entry = entries[i];
+        if (!entry || !entry.cmd) {
+            continue;
+        }
+        var payload = {
+            cmd: String(entry.cmd),
+            ts: parseInt(entry.ts, 10) || (base + i),
+            group: entry.group ? String(entry.group) : "default",
+        };
+        if (entry.query) {
+            payload.query = String(entry.query);
+        }
+        commands.push(payload);
+    }
+    return JSON.stringify({ commands: commands });
+}
+
 function walletStatusLabel(state) {
     state = state || {};
     if (state.useWallet === false) {
@@ -934,7 +1044,7 @@ function pickSmartCachedId(index, cfg, cursor) {
 }
 
 function pluginVersion() {
-    return "3.4.1";
+    return "3.5.0";
 }
 
 function buildPresetFromConfig(name, cfg) {
@@ -2091,6 +2201,12 @@ function buildStatusSnapshot(data) {
         purityNsfw: !!data.purityNsfw,
         tripModeUntilMs: parseInt(data.tripModeUntilMs, 10) || 0,
         tripModeActive: !!data.tripModeActive,
+        searchText: data.searchText ? String(data.searchText) : "",
+        warmActive: !!data.warmActive,
+        warmDone: Math.max(0, parseInt(data.warmDone, 10) || 0),
+        warmTarget: Math.max(0, parseInt(data.warmTarget, 10) || 0),
+        tripWarmTarget: Math.max(0, parseInt(data.tripWarmTarget, 10) || 0),
+        cacheFillPercent: Math.max(0, Math.min(100, parseInt(data.cacheFillPercent, 10) || 0)),
         statusUpdatedAtMs: parseInt(data.statusUpdatedAtMs, 10) || Date.now(),
         updatedAt: new Date().toISOString(),
     });

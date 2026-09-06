@@ -306,7 +306,16 @@ msgstr ""
 msgid "Bundled packs (one-click import):"
 msgstr ""
 
+msgid "cache %1%"
+msgstr ""
+
 msgid "Cached:"
+msgstr ""
+
+msgid "Cache fill toward trip target: %1% (%2 / %3)"
+msgstr ""
+
+msgid "Cache fill toward trip target: %1% (%2 cached)"
 msgstr ""
 
 msgid "Cache Manager"
@@ -321,7 +330,22 @@ msgstr ""
 msgid "Cache status:"
 msgstr ""
 
+msgid "Cache warm already in progress (%1 / %2)."
+msgstr ""
+
+msgid "Cache warm cancelled (%1 new)."
+msgstr ""
+
 msgid "Cache warm finished: %1 new, %2 already cached."
+msgstr ""
+
+msgid "Cancel cache warm"
+msgstr ""
+
+msgid "Cancelling cache warm…"
+msgstr ""
+
+msgid "Cancel warm"
 msgstr ""
 
 msgid "Categories"
@@ -426,6 +450,9 @@ msgstr ""
 msgid "Copied page URL."
 msgstr ""
 
+msgid "Copied search to %1 other screen(s)."
+msgstr ""
+
 msgid "Copied tags."
 msgstr ""
 
@@ -447,6 +474,12 @@ msgstr ""
 msgid "Copy preset share URL"
 msgstr ""
 
+msgid "Copy search:"
+msgstr ""
+
+msgid "Copy search to other monitors"
+msgstr ""
+
 msgid "Copy settings to clipboard"
 msgstr ""
 
@@ -457,6 +490,9 @@ msgid "Copy Tags"
 msgstr ""
 
 msgid "Copy the current wallpaper to the lock screen"
+msgstr ""
+
+msgid "Copy this search to other screens"
 msgstr ""
 
 msgid "Copy URL"
@@ -523,6 +559,9 @@ msgid "Crossfade"
 msgstr ""
 
 msgid "Crossfade (ms):"
+msgstr ""
+
+msgid "Current cache fill for trip target: %1%"
 msgstr ""
 
 msgid "Current Wallpaper"
@@ -661,6 +700,9 @@ msgid "e.g. 1920x1080,2560x1440"
 msgstr ""
 
 msgid "e.g. Anime night"
+msgstr ""
+
+msgid "(empty)"
 msgstr ""
 
 msgid "Empty = screen height"
@@ -814,6 +856,12 @@ msgid "Green"
 msgstr ""
 
 msgid "Group: %1"
+msgstr ""
+
+msgid "Group %1 · “%2”"
+msgstr ""
+
+msgid "grp %1"
 msgstr ""
 
 msgid "/home/you/Pictures/Wallpapers"
@@ -1092,6 +1140,9 @@ msgstr ""
 msgid "Monitor: %1"
 msgstr ""
 
+msgid "Monitor map:"
+msgstr ""
+
 msgid "Monitors"
 msgstr ""
 
@@ -1173,6 +1224,9 @@ msgstr ""
 msgid "No cached wallpapers need upscaling right now."
 msgstr ""
 
+msgid "No cache warm in progress."
+msgstr ""
+
 msgid "No collections found."
 msgstr ""
 
@@ -1197,16 +1251,25 @@ msgstr ""
 msgid "No live wallpaper binding for key status."
 msgstr ""
 
+msgid "(no monitors reporting)"
+msgstr ""
+
 msgid "No more wallpapers match your current filters."
 msgstr ""
 
 msgid "(none found)"
 msgstr ""
 
+msgid "No other monitors to copy search to."
+msgstr ""
+
 msgid "No previous wallpaper in history."
 msgstr ""
 
 msgid "No recent wallpapers yet. They appear here as the slideshow advances."
+msgstr ""
+
+msgid "No search text to copy."
 msgstr ""
 
 msgid "No settings match %1. Try another tab or clear the filter."
@@ -1315,6 +1378,9 @@ msgid "Open settings while Wallhaven is the active wallpaper to see live API hea
 msgstr ""
 
 msgid "Open wallpaper page"
+msgstr ""
+
+msgid "Open wallpaper settings on a desktop to see cache fill."
 msgstr ""
 
 msgid "Open wallpaper settings while Wallhaven is active to see the count"
@@ -1536,6 +1602,9 @@ msgstr ""
 msgid "Refresh history gallery"
 msgstr ""
 
+msgid "Refresh monitor sync map"
+msgstr ""
+
 msgid "Relevance"
 msgstr ""
 
@@ -1671,6 +1740,9 @@ msgstr ""
 msgid "🎉 Scheduled wallpaper switch — now searching \"
 msgstr ""
 
+msgid "Screen %1 · group %2 · “%3”"
+msgstr ""
+
 msgid "Screen lock pause:"
 msgstr ""
 
@@ -1678,6 +1750,9 @@ msgid "Search"
 msgstr ""
 
 msgid "Search:"
+msgstr ""
+
+msgid "Search: %1"
 msgstr ""
 
 msgid "Search Presets"
@@ -1914,6 +1989,9 @@ msgstr ""
 msgid "This screen:"
 msgstr ""
 
+msgid "This screen search:"
+msgstr ""
+
 msgid "thumbnails, .git, Screenshots"
 msgstr ""
 
@@ -1957,6 +2035,9 @@ msgid "Transition:"
 msgstr ""
 
 msgid "Trip 24h"
+msgstr ""
+
+msgid "Trip cache fill:"
 msgstr ""
 
 msgid "trip mode"
@@ -2163,10 +2244,19 @@ msgstr ""
 msgid "Warm cache count:"
 msgstr ""
 
+msgid "Warming… %1 / %2"
+msgstr ""
+
+msgid "Warming cache… %1 / %2"
+msgstr ""
+
 msgid "Warming cache before trip mode…"
 msgstr ""
 
 msgid "Warming cache with up to %1 wallpaper(s)…"
+msgstr ""
+
+msgid "Warm progress:"
 msgstr ""
 
 msgid "Watch Variety config for changes"

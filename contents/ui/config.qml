@@ -1587,6 +1587,22 @@ ColumnLayout {
                     }
                 }
 
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.75
+                    visible: rowVisible(["trip", "offline", "travel"])
+                    text: {
+                        if (!liveWallpaper)
+                            return "";
+                        var count = liveWallpaper.diskCacheEntryCount || 0;
+                        var target = cacheWarmCountSpin.value || 0;
+                        var pct = target > 0 ? Math.min(100, Math.round((count / target) * 100)) : (count > 0 ? 100 : 0);
+                        return i18n("Current cache fill for trip target: %1%", pct);
+                    }
+                }
+
                 QtControls2.Button {
                     Kirigami.FormData.label: " "
                     visible: rowVisible(["trip", "offline", "travel"])
@@ -3061,9 +3077,48 @@ ColumnLayout {
                     visible: advancedVisible(["warm", "cache"])
                     text: i18n("Download matching wallpapers into cache now")
                     enabled: liveWallpaper !== null && diskCacheCheck.checked
+                        && !(liveWallpaper && liveWallpaper._warmActive)
                     onClicked: {
                         if (liveWallpaper && liveWallpaper.warmDiskCache)
                             liveWallpaper.warmDiskCache(cacheWarmCountSpin.value);
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    visible: advancedVisible(["warm", "cache", "cancel"])
+                    text: i18n("Cancel cache warm")
+                    enabled: liveWallpaper !== null && !!(liveWallpaper && liveWallpaper._warmActive)
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.cancelWarmCache)
+                            liveWallpaper.cancelWarmCache();
+                    }
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Warm progress:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    visible: advancedVisible(["warm", "cache", "progress"])
+                        && !!(liveWallpaper && liveWallpaper._warmActive)
+                    text: liveWallpaper
+                        ? i18n("Warming… %1 / %2", liveWallpaper._warmDone || 0, liveWallpaper._warmTarget || 0)
+                        : ""
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Trip cache fill:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.8
+                    visible: advancedVisible(["trip", "cache", "fill"])
+                    text: {
+                        if (!liveWallpaper)
+                            return i18n("Open wallpaper settings on a desktop to see cache fill.");
+                        var count = liveWallpaper.diskCacheEntryCount || 0;
+                        var target = cacheWarmCountSpin.value || 0;
+                        var pct = target > 0 ? Math.min(100, Math.round((count / target) * 100)) : (count > 0 ? 100 : 0);
+                        return i18n("Cache fill toward trip target: %1% (%2 / %3)", pct, count, target);
                     }
                 }
 
@@ -3633,6 +3688,52 @@ ColumnLayout {
                         if (liveWallpaper && liveWallpaper.useScreenNameAsSyncGroup)
                             liveWallpaper.useScreenNameAsSyncGroup();
                     }
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("This screen search:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    visible: advancedVisible(["sync", "search", "monitor"])
+                    text: {
+                        var screen = liveWallpaper ? (liveWallpaper.diskCacheNamespace || "") : "";
+                        var group = syncGroupField.text || "default";
+                        var search = (searchTextField.text || "").trim() || i18n("(empty)");
+                        return screen
+                            ? i18n("Screen %1 · group %2 · “%3”", screen, group, search)
+                            : i18n("Group %1 · “%2”", group, search);
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Copy search:")
+                    visible: advancedVisible(["copy", "search", "monitors"])
+                    text: i18n("Copy this search to other screens")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.copySearchToOtherScreens)
+                            liveWallpaper.copySearchToOtherScreens();
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Monitor map:")
+                    visible: advancedVisible(["monitor", "map", "sync"])
+                    text: i18n("Refresh monitor sync map")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.refreshMonitorTrustMap)
+                            liveWallpaper.refreshMonitorTrustMap();
+                    }
+                }
+
+                QtControls2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.85
+                    visible: advancedVisible(["monitor", "map", "sync"])
+                        && !!(liveWallpaper && liveWallpaper.monitorTrustMapText)
+                    text: liveWallpaper ? (liveWallpaper.monitorTrustMapText || "") : ""
                 }
 
                 QtControls2.Label {

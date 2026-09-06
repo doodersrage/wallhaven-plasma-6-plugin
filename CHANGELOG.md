@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.5.0 — 2026-09-06
+
+### Added
+- **Multi-monitor trust** — settings and plasmoid show each screen’s sync group/search; copy search to other screens without clobbering via shared default
+- **Trip warm polish** — warm progress in banner/plasmoid/settings, cancel warm, cache fill % toward trip target
+- **Locales** — Portuguese (Brazil), Dutch, and Polish catalogs
+- **Regression harness** — control-bus isolation + notify throttle unit coverage; Python fan-out tests
+
+### Fixed
+- **Crossed sync-group search bleed** — search/purity/settings match sync group only (not screen namespace), so swapped group names no longer overwrite sibling monitors
+
+### Changed
+- Status bus publishes search text, warm progress, and trip cache fill
+- Store/Flathub/AUR docs updated for 3.5.0
+
 ## 3.4.1 — 2026-09-04
 
 ### Fixed

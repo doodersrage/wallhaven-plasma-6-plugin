@@ -67,3 +67,9 @@ qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.CommandWithQuery
 Query-bearing commands use `CommandWithQuery` (or `Search` for plain search). Simple commands use `CommandInGroup`.
 
 MPRIS media keys work via `org.mpris.MediaPlayer2.wallhaven`. Wallhaven also *reads* any other running MPRIS player (Spotify, VLC, …) when **Music-reactive pacing** is enabled, to speed up the Ken Burns pan while music is playing.
+
+
+## 3.5 commands
+
+- `cancelwarm` — stop an in-progress cache warm
+- `copysearch [query]` — push search to other monitor sync groups

@@ -42,6 +42,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="3.5.0" date="2026-09-06">
+      <description>
+        <p>Multi-monitor search trust UI and copy-to-other-screens, trip warm progress/cancel with cache fill percent, tighter search isolation for crossed sync groups, expanded locales, and control-bus regression harness.</p>
+      </description>
+    </release>
     <release version="3.4.1" date="2026-09-04">
       <description>
         <p>Hotfix: stop notification floods from retries/filters; isolate per-screen sync groups so search no longer overwrites every monitor; keep next/pause fan-out.</p>

@@ -37,6 +37,25 @@ function testIntervalJitter() {
 function testControlBus() {
     var cmd = Wallhaven.parseControlCommand('{"cmd":"next","ts":100,"group":"default"}');
     assert(cmd.cmd === "next" && cmd.group === "default", "control parse");
+
+    var multi = Wallhaven.parseControlCommands(JSON.stringify({
+        commands: [
+            { cmd: "search", ts: 1, group: "HDMI-1", query: "ocean" },
+            { cmd: "next", ts: 2, group: "DP-1" },
+        ],
+    }));
+    assert(multi.length === 2, "parse control command batch length");
+    assert(multi[0].cmd === "search" && multi[0].group === "HDMI-1" && multi[0].query === "ocean", "batch search targeted");
+    assert(multi[1].cmd === "next" && multi[1].group === "DP-1", "batch next targeted");
+
+    var built = JSON.parse(Wallhaven.buildControlCommand("search", "eDP-1", "nebula"));
+    assert(built.cmd === "search" && built.group === "eDP-1" && built.query === "nebula", "build control command");
+
+    var batch = JSON.parse(Wallhaven.buildControlCommandsBatch([
+        { cmd: "next", group: "A" },
+        { cmd: "next", group: "B" },
+    ]));
+    assert(batch.commands.length === 2 && batch.commands[0].group === "A", "build control batch");
 }
 
 function testBase64() {
@@ -748,10 +767,53 @@ function testV34Helpers() {
         puritySfw: true,
         tripModeActive: true,
         statusUpdatedAtMs: 123,
+        searchText: "ocean",
+        warmActive: true,
+        warmDone: 2,
+        warmTarget: 8,
+        tripWarmTarget: 12,
+        cacheFillPercent: 40,
     }));
     assert(snap.searchHistory[0] === "a", "status history");
     assert(snap.tripModeActive === true, "status trip");
     assert(snap.statusUpdatedAtMs === 123, "status clock");
+    assert(snap.searchText === "ocean", "status search text");
+    assert(snap.warmActive === true && snap.warmDone === 2 && snap.warmTarget === 8, "status warm");
+    assert(snap.cacheFillPercent === 40, "status fill");
+}
+
+function testV35Helpers() {
+    assert(Wallhaven.tripCacheFillPercent(6, 12) === 50, "trip fill half");
+    assert(Wallhaven.tripCacheFillPercent(20, 12) === 100, "trip fill capped");
+    assert(Wallhaven.tripCacheFillPercent(0, 0) === 0, "trip fill empty");
+    assert(Wallhaven.tripCacheFillPercent(3, 0) === 100, "trip fill no target with cache");
+
+    var others = Wallhaven.otherMonitorSyncGroups([
+        { syncGroup: "HDMI-1", searchText: "a" },
+        { syncGroup: "HDMI-1", searchText: "dup" },
+        { syncGroup: "DP-1", searchText: "b" },
+        { cacheNamespace: "eDP-1" },
+    ], "HDMI-1");
+    assert(others.indexOf("DP-1") !== -1 && others.indexOf("eDP-1") !== -1, "other sync groups");
+    assert(others.indexOf("HDMI-1") === -1, "exclude my group");
+
+    assert(Wallhaven.controlCommandTargetsGroup("HDMI-1", "HDMI-1", "HDMI-1") === true, "targets own group");
+    assert(Wallhaven.controlCommandTargetsGroup("DP-1", "HDMI-1", "HDMI-1") === false, "rejects sibling group");
+    assert(Wallhaven.controlCommandTargetsGroup("HDMI-1", "default", "HDMI-1", "next") === true, "nav targets screen namespace");
+    assert(Wallhaven.controlCommandTargetsGroup("HDMI-1", "default", "HDMI-1", "search") === false, "search ignores namespace alias");
+    assert(Wallhaven.isSettingsControlCommand("search") === true, "search is settings cmd");
+    assert(Wallhaven.isSettingsControlCommand("next") === false, "next is not settings cmd");
+
+    assert(Wallhaven.shouldThrottleNotification(1000, "err", 2000, "err", true) === true, "same text quiet");
+    assert(Wallhaven.shouldThrottleNotification(1000, "err", 100000, "err", true) === false, "same text after window");
+    assert(Wallhaven.shouldThrottleNotification(1000, "a", 10000, "b", true) === true, "error quiet window");
+    assert(Wallhaven.shouldThrottleNotification(1000, "a", 30000, "b", false) === false, "non-error allowed");
+
+    var lines = Wallhaven.formatMonitorTrustLines([
+        { screenName: "A", syncGroup: "ga", searchText: "ocean" },
+        { cacheNamespace: "B", syncGroup: "gb" },
+    ]);
+    assert(lines.indexOf("ocean") !== -1 && lines.indexOf("(empty)") !== -1, "monitor trust lines");
 }
 
 [
@@ -803,6 +865,7 @@ function testV34Helpers() {
     testExportIncludesEnhanceSettings,
     testNeedsUpscale,
     testV34Helpers,
+    testV35Helpers,
 ].forEach(function(run) {
     run();
 });

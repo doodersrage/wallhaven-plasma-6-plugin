@@ -1,7 +1,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: org.robertsm.wallhaven 3.5.0\n"
-"Language: en\n"
+"Language: nl\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 
@@ -312,10 +312,10 @@ msgid "Cached:"
 msgstr "Cached:"
 
 msgid "Cache fill toward trip target: %1% (%2 / %3)"
-msgstr "Cache fill toward trip target: %1% (%2 / %3)"
+msgstr "Cachevulling richting reisdoel: %1% (%2 / %3)"
 
 msgid "Cache fill toward trip target: %1% (%2 cached)"
-msgstr "Cache fill toward trip target: %1% (%2 cached)"
+msgstr "Cachevulling richting reisdoel: %1% (%2 gecached)"
 
 msgid "Cache Manager"
 msgstr "Cache Manager"
@@ -330,22 +330,22 @@ msgid "Cache status:"
 msgstr "Cache status:"
 
 msgid "Cache warm already in progress (%1 / %2)."
-msgstr "Cache warm already in progress (%1 / %2)."
+msgstr "Cache-opwarming is al bezig (%1 / %2)."
 
 msgid "Cache warm cancelled (%1 new)."
-msgstr "Cache warm cancelled (%1 new)."
+msgstr "Cache-opwarming geannuleerd (%1 nieuw)."
 
 msgid "Cache warm finished: %1 new, %2 already cached."
 msgstr "Cache warm finished: %1 new, %2 already cached."
 
 msgid "Cancel cache warm"
-msgstr "Cancel cache warm"
+msgstr "Cache-opwarming annuleren"
 
 msgid "Cancelling cache warm…"
-msgstr "Cancelling cache warm…"
+msgstr "Cache-opwarming annuleren…"
 
 msgid "Cancel warm"
-msgstr "Cancel warm"
+msgstr "Opwarming annuleren"
 
 msgid "Categories"
 msgstr "Categories"
@@ -450,7 +450,7 @@ msgid "Copied page URL."
 msgstr "Copied page URL."
 
 msgid "Copied search to %1 other screen(s)."
-msgstr "Copied search to %1 other screen(s)."
+msgstr "Zoekopdracht gekopieerd naar %1 ander(e) scherm(en)."
 
 msgid "Copied tags."
 msgstr "Copied tags."
@@ -474,10 +474,10 @@ msgid "Copy preset share URL"
 msgstr "Copy preset share URL"
 
 msgid "Copy search:"
-msgstr "Copy search:"
+msgstr "Zoekopdracht kopiëren:"
 
 msgid "Copy search to other monitors"
-msgstr "Copy search to other monitors"
+msgstr "Zoekopdracht naar andere monitoren kopiëren"
 
 msgid "Copy settings to clipboard"
 msgstr "Copy settings to clipboard"
@@ -492,7 +492,7 @@ msgid "Copy the current wallpaper to the lock screen"
 msgstr "Copy the current wallpaper to the lock screen"
 
 msgid "Copy this search to other screens"
-msgstr "Copy this search to other screens"
+msgstr "Deze zoekopdracht naar andere schermen kopiëren"
 
 msgid "Copy URL"
 msgstr "Copy URL"
@@ -561,7 +561,7 @@ msgid "Crossfade (ms):"
 msgstr "Crossfade (ms):"
 
 msgid "Current cache fill for trip target: %1%"
-msgstr "Current cache fill for trip target: %1%"
+msgstr "Huidige cachevulling voor reisdoel: %1%"
 
 msgid "Current Wallpaper"
 msgstr "Current Wallpaper"
@@ -702,7 +702,7 @@ msgid "e.g. Anime night"
 msgstr "e.g. Anime night"
 
 msgid "(empty)"
-msgstr "(empty)"
+msgstr "(leeg)"
 
 msgid "Empty = screen height"
 msgstr "Empty = screen height"
@@ -858,7 +858,7 @@ msgid "Group: %1"
 msgstr "Group: %1"
 
 msgid "Group %1 · “%2”"
-msgstr "Group %1 · “%2”"
+msgstr "Groep %1 · “%2”"
 
 msgid "grp %1"
 msgstr "grp %1"
@@ -1140,7 +1140,7 @@ msgid "Monitor: %1"
 msgstr "Monitor: %1"
 
 msgid "Monitor map:"
-msgstr "Monitor map:"
+msgstr "Monitorkaart:"
 
 msgid "Monitors"
 msgstr "Monitors"
@@ -1224,7 +1224,7 @@ msgid "No cached wallpapers need upscaling right now."
 msgstr "No cached wallpapers need upscaling right now."
 
 msgid "No cache warm in progress."
-msgstr "No cache warm in progress."
+msgstr "Geen cache-opwarming bezig."
 
 msgid "No collections found."
 msgstr "No collections found."
@@ -1251,7 +1251,7 @@ msgid "No live wallpaper binding for key status."
 msgstr "No live wallpaper binding for key status."
 
 msgid "(no monitors reporting)"
-msgstr "(no monitors reporting)"
+msgstr "(geen monitoren rapporteren)"
 
 msgid "No more wallpapers match your current filters."
 msgstr "No more wallpapers match your current filters."
@@ -1260,7 +1260,7 @@ msgid "(none found)"
 msgstr "(none found)"
 
 msgid "No other monitors to copy search to."
-msgstr "No other monitors to copy search to."
+msgstr "Geen andere monitoren om de zoekopdracht naartoe te kopiëren."
 
 msgid "No previous wallpaper in history."
 msgstr "No previous wallpaper in history."
@@ -1269,7 +1269,7 @@ msgid "No recent wallpapers yet. They appear here as the slideshow advances."
 msgstr "No recent wallpapers yet. They appear here as the slideshow advances."
 
 msgid "No search text to copy."
-msgstr "No search text to copy."
+msgstr "Geen zoektekst om te kopiëren."
 
 msgid "No settings match %1. Try another tab or clear the filter."
 msgstr "No settings match %1. Try another tab or clear the filter."
@@ -1380,7 +1380,7 @@ msgid "Open wallpaper page"
 msgstr "Open wallpaper page"
 
 msgid "Open wallpaper settings on a desktop to see cache fill."
-msgstr "Open wallpaper settings on a desktop to see cache fill."
+msgstr "Open de achtergrondinstellingen op een bureaublad om de cachevulling te zien."
 
 msgid "Open wallpaper settings while Wallhaven is active to see the count"
 msgstr "Open wallpaper settings while Wallhaven is active to see the count"
@@ -1602,7 +1602,7 @@ msgid "Refresh history gallery"
 msgstr "Refresh history gallery"
 
 msgid "Refresh monitor sync map"
-msgstr "Refresh monitor sync map"
+msgstr "Monitorsynchronisatiekaart vernieuwen"
 
 msgid "Relevance"
 msgstr "Relevance"
@@ -1740,7 +1740,7 @@ msgid "🎉 Scheduled wallpaper switch — now searching \\"
 msgstr "🎉 Scheduled wallpaper switch — now searching \\"
 
 msgid "Screen %1 · group %2 · “%3”"
-msgstr "Screen %1 · group %2 · “%3”"
+msgstr "Scherm %1 · groep %2 · “%3”"
 
 msgid "Screen lock pause:"
 msgstr "Screen lock pause:"
@@ -1752,7 +1752,7 @@ msgid "Search:"
 msgstr "Search:"
 
 msgid "Search: %1"
-msgstr "Search: %1"
+msgstr "Zoeken: %1"
 
 msgid "Search Presets"
 msgstr "Search Presets"
@@ -1989,7 +1989,7 @@ msgid "This screen:"
 msgstr "This screen:"
 
 msgid "This screen search:"
-msgstr "This screen search:"
+msgstr "Zoekopdracht van dit scherm:"
 
 msgid "thumbnails, .git, Screenshots"
 msgstr "thumbnails, .git, Screenshots"
@@ -2037,7 +2037,7 @@ msgid "Trip 24h"
 msgstr "Trip 24h"
 
 msgid "Trip cache fill:"
-msgstr "Trip cache fill:"
+msgstr "Reiscache-vulling:"
 
 msgid "trip mode"
 msgstr "trip mode"
@@ -2244,10 +2244,10 @@ msgid "Warm cache count:"
 msgstr "Warm cache count:"
 
 msgid "Warming… %1 / %2"
-msgstr "Warming… %1 / %2"
+msgstr "Opwarmen… %1 / %2"
 
 msgid "Warming cache… %1 / %2"
-msgstr "Warming cache… %1 / %2"
+msgstr "Cache opwarmen… %1 / %2"
 
 msgid "Warming cache before trip mode…"
 msgstr "Warming cache before trip mode…"
@@ -2256,7 +2256,7 @@ msgid "Warming cache with up to %1 wallpaper(s)…"
 msgstr "Warming cache with up to %1 wallpaper(s)…"
 
 msgid "Warm progress:"
-msgstr "Warm progress:"
+msgstr "Opwarmvoortgang:"
 
 msgid "Watch Variety config for changes"
 msgstr "Watch Variety config for changes"

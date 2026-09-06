@@ -16,7 +16,8 @@ Usage: $(basename "$0") <command> [args...]
 
 Commands:
   next|prev|reload|pause|resume|like|dislike|pin|unpin|info
-  copyid|copyurl|warm|prune|endtrip|undo|clearkey|testkey
+  copyid|copyurl|warm|cancelwarm|prune|endtrip|undo|clearkey|testkey
+  copysearch [query]
   outageoffline|resumeonline
   search <query>
   history <wallpaper-id>
@@ -140,6 +141,14 @@ if [[ "${CMD}" == "purity" ]]; then
     exit 0
 fi
 
+
+if [[ "${CMD}" == "copysearch" ]]; then
+    shift
+    QUERY="${*:-}"
+    send_with_query copysearch "${QUERY}"
+    exit 0
+fi
+
 if [[ "${CMD}" == "trip" ]]; then
     shift
     HOURS="${1:-24}"
@@ -170,7 +179,7 @@ if [[ "${CMD}" == "warm" ]]; then
 fi
 
 case "${CMD}" in
-    next|prev|reload|pause|resume|like|dislike|pin|unpin|copyid|copyurl|prune|endtrip|undo|clearkey|testkey|outageoffline|resumeonline) ;;
+    next|prev|reload|pause|resume|like|dislike|pin|unpin|copyid|copyurl|prune|endtrip|undo|clearkey|testkey|outageoffline|resumeonline|cancelwarm) ;;
     -h|--help|help) usage; exit 0 ;;
     *) echo "Unknown command: ${CMD}"; usage; exit 1 ;;
 esac

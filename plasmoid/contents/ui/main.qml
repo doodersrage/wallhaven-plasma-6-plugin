@@ -55,6 +55,12 @@ PlasmoidItem {
         purityNsfw: false,
         tripModeActive: false,
         tripModeUntilMs: 0,
+        searchText: "",
+        warmActive: false,
+        warmDone: 0,
+        warmTarget: 0,
+        tripWarmTarget: 0,
+        cacheFillPercent: 0,
         statusUpdatedAtMs: 0,
         updatedAt: "",
     })
@@ -223,6 +229,12 @@ PlasmoidItem {
             purityNsfw: !!parsed.purityNsfw,
             tripModeActive: !!parsed.tripModeActive,
             tripModeUntilMs: parseInt(parsed.tripModeUntilMs, 10) || 0,
+            searchText: parsed.searchText ? String(parsed.searchText) : "",
+            warmActive: !!parsed.warmActive,
+            warmDone: Math.max(0, parseInt(parsed.warmDone, 10) || 0),
+            warmTarget: Math.max(0, parseInt(parsed.warmTarget, 10) || 0),
+            tripWarmTarget: Math.max(0, parseInt(parsed.tripWarmTarget, 10) || 0),
+            cacheFillPercent: Math.max(0, Math.min(100, parseInt(parsed.cacheFillPercent, 10) || 0)),
             statusUpdatedAtMs: parseInt(parsed.statusUpdatedAtMs, 10) || 0,
             updatedAt: parsed.updatedAt || "",
         };
@@ -877,13 +889,42 @@ PlasmoidItem {
             color: Kirigami.Theme.neutralTextColor
             text: {
                 var until = parseInt(statusData.tripModeUntilMs, 10) || 0;
+                var fill = parseInt(statusData.cacheFillPercent, 10) || 0;
+                var base;
                 if (until > 0) {
                     var leftMs = Math.max(0, until - Date.now());
                     var hrs = Math.ceil(leftMs / 3600000);
-                    return i18n("Trip mode on · ~%1h left", hrs);
+                    base = i18n("Trip mode on · ~%1h left", hrs);
+                } else {
+                    base = i18n("Trip mode on");
                 }
-                return i18n("Trip mode on");
+                return fill > 0 ? (base + " · " + i18n("cache %1%", fill)) : base;
             }
+        }
+
+        QtControls2.Label {
+            Layout.fillWidth: true
+            visible: !!statusData.warmActive
+            wrapMode: Text.WordWrap
+            font.pointSize: 7
+            text: i18n("Warming cache… %1 / %2", statusData.warmDone || 0, statusData.warmTarget || 0)
+        }
+
+        QtControls2.Button {
+            Layout.fillWidth: true
+            visible: !!statusData.warmActive
+            text: i18n("Cancel warm")
+            enabled: !root.dbusOffline
+            onClicked: root.sendCommand("cancelwarm")
+        }
+
+        QtControls2.Label {
+            Layout.fillWidth: true
+            visible: !statusData.tripModeActive && (statusData.cacheFillPercent > 0 || statusData.cacheCount > 0)
+            wrapMode: Text.WordWrap
+            font.pointSize: 7
+            opacity: 0.75
+            text: i18n("Cache fill toward trip target: %1% (%2 cached)", statusData.cacheFillPercent || 0, statusData.cacheCount || 0)
         }
 
         QtControls2.Label {
@@ -928,8 +969,14 @@ PlasmoidItem {
             }
             QtControls2.Button {
                 text: i18n("Warm cache")
-                enabled: !root.dbusOffline
+                enabled: !root.dbusOffline && !statusData.warmActive
                 onClicked: root.sendCommand("warm")
+            }
+            QtControls2.Button {
+                text: i18n("Cancel warm")
+                visible: !!statusData.warmActive
+                enabled: !root.dbusOffline
+                onClicked: root.sendCommand("cancelwarm")
             }
             QtControls2.Button {
                 text: i18n("Prune cache")
@@ -994,7 +1041,14 @@ PlasmoidItem {
                         text: {
                             var screen = modelData.screenName || modelData.cacheNamespace || ("#" + (index + 1));
                             var id = modelData.id ? ("#" + modelData.id) : i18n("idle");
-                            return screen + " · " + id;
+                            var group = modelData.syncGroup ? String(modelData.syncGroup) : "";
+                            var search = modelData.searchText ? String(modelData.searchText).trim() : "";
+                            var bits = [screen, id];
+                            if (group)
+                                bits.push(i18n("grp %1", group));
+                            if (search)
+                                bits.push(search);
+                            return bits.join(" · ");
                         }
                     }
                     QtControls2.ToolButton {
@@ -1023,7 +1077,7 @@ PlasmoidItem {
 
         QtControls2.Label {
             Layout.fillWidth: true
-            visible: statusData.screenName !== "" || statusData.syncGroup !== ""
+            visible: statusData.screenName !== "" || statusData.syncGroup !== "" || statusData.searchText !== ""
             font.pointSize: 7
             opacity: 0.7
             text: {
@@ -1032,8 +1086,18 @@ PlasmoidItem {
                     parts.push(i18n("Monitor: %1", statusData.screenName));
                 if (statusData.syncGroup)
                     parts.push(i18n("Group: %1", statusData.syncGroup));
+                if (statusData.searchText)
+                    parts.push(i18n("Search: %1", statusData.searchText));
                 return parts.join(" · ");
             }
+        }
+
+        QtControls2.Button {
+            Layout.fillWidth: true
+            visible: root.monitorStatuses.length > 1
+            text: i18n("Copy search to other monitors")
+            enabled: !root.dbusOffline && !!(statusData.searchText && String(statusData.searchText).trim())
+            onClicked: root.sendCommand("copysearch", statusData.searchText || "")
         }
 
         QtControls2.Label {

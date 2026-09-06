@@ -115,6 +115,7 @@ run_tests() {
     bash "${SCRIPT_DIR}/tests/validate-qml.sh"
     if python3 -c "import dbus, gi" >/dev/null 2>&1; then
         python3 "${SCRIPT_DIR}/tests/test-variety-dbus.py"
+        python3 "${SCRIPT_DIR}/tests/test-control-fanout.py"
     else
         echo "Skipping tests/test-variety-dbus.py (python3-dbus/python3-gi not installed)"
     fi
