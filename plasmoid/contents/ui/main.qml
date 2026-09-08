@@ -67,9 +67,10 @@ PlasmoidItem {
     property var monitorStatuses: []
     property int selectedMonitorIndex: -1
     property bool dbusOffline: false
-    property int countdownMs: 0
-    property int _lastSeenCountdownMs: -1
-    property int _stuckCountdownTicks: 0
+    property double countdownMs: 0
+    property double _countdownDeadlineMs: 0
+    property string _countdownSourceId: ""
+    property double _lastStatusUpdatedAtMs: 0
     property real swipeOffset: 0
     property bool swiping: false
     readonly property string historyFile: cacheDir + "/wallhaven-history.json"
@@ -93,7 +94,7 @@ PlasmoidItem {
         var parsed = Date.parse(statusData.updatedAt || "");
         if (!isNaN(parsed) && parsed > 0)
             return (now - parsed) > 90000;
-        return !!(statusData.slideshowActive && !statusData.paused && root._stuckCountdownTicks >= 5);
+        return false;
     }
     readonly property var searchHistoryChips: {
         var list = statusData.searchHistory || [];
@@ -238,7 +239,26 @@ PlasmoidItem {
             statusUpdatedAtMs: parseInt(parsed.statusUpdatedAtMs, 10) || 0,
             updatedAt: parsed.updatedAt || "",
         };
-        countdownMs = statusData.nextChangeMs;
+        var nextMs = statusData.nextChangeMs;
+        var sourceId = String(statusData.id || "");
+        var updatedAt = statusData.statusUpdatedAtMs || 0;
+        // Anchor countdown to a deadline so async status reloads don't reset the
+        // display every second (that froze the UI and false-triggered "idle?").
+        if (statusData.paused || !statusData.slideshowActive || nextMs <= 0) {
+            root._countdownDeadlineMs = 0;
+            root._countdownSourceId = sourceId;
+            root._lastStatusUpdatedAtMs = updatedAt;
+            countdownMs = 0;
+        } else if (sourceId !== root._countdownSourceId
+                || updatedAt !== root._lastStatusUpdatedAtMs
+                || root._countdownDeadlineMs <= 0) {
+            root._countdownDeadlineMs = Date.now() + nextMs;
+            root._countdownSourceId = sourceId;
+            root._lastStatusUpdatedAtMs = updatedAt;
+            countdownMs = nextMs;
+        } else {
+            countdownMs = Math.max(0, root._countdownDeadlineMs - Date.now());
+        }
     }
 
     function loadMonitorStatuses() {
@@ -446,18 +466,10 @@ PlasmoidItem {
         repeat: true
         onTriggered: {
             root.loadStatus();
-            if (countdownMs > 0 && !statusData.paused) {
-                countdownMs = Math.max(0, countdownMs - 1000);
-            }
-            if (statusData.slideshowActive && !statusData.paused && countdownMs > 0) {
-                if (countdownMs === root._lastSeenCountdownMs)
-                    root._stuckCountdownTicks = root._stuckCountdownTicks + 1;
-                else
-                    root._stuckCountdownTicks = 0;
-                root._lastSeenCountdownMs = countdownMs;
-            } else {
-                root._stuckCountdownTicks = 0;
-                root._lastSeenCountdownMs = -1;
+            if (root._countdownDeadlineMs > 0 && !statusData.paused && statusData.slideshowActive) {
+                countdownMs = Math.max(0, root._countdownDeadlineMs - Date.now());
+            } else if (statusData.paused || !statusData.slideshowActive) {
+                countdownMs = 0;
             }
         }
     }

@@ -1,5 +1,43 @@
 # Changelog
 
+## 3.5.3 — 2026-09-08
+
+### Fixed
+- **Control-bus next storm** — `_lastControlTs` / sync / slideshow watermarks were `property int` and overflowed epoch-ms values, so a leftover `next` fanout re-fired every 400ms on every monitor; now `double` + stale-command guard
+- **Empty-override cache throttle hole** — recovery calls with `statusOverride=""` bypassed the 3s advance throttle and keep-current; throttle now keys off argument presence and returns false (does not burn skip budget)
+- **endBusy double-advance** — queued control + sync no longer both flush; `skipForward` clears pendings without re-scheduling
+- **Blank reload honesty** — `reloadCurrentImage` fails closed when resolve yields no local source under soft-offline
+- **Lock sync on non-origin screen** — SyncLockScreen writes again on any enabled screen (flock serializes)
+- **ctl/dbus CLI** — control-file writes no longer corrupt queries or start the D-Bus server; corrupt status JSON no longer crashes MPRIS
+- **Stuck soft-offline after 200-while-latched** — API 200 during an active 429 latch no longer leaves `outageOffline` stuck once the latch expires; `resumeonline` force-clears
+- **RunArgv hardening** — per-command policies (curl only to `*.wallhaven.cc` into cache; path-bound `rm`/`cp`/`test`/`stat`; deny free-form `bash -lc` unless allowlisted); control command names/queries sanitized
+- **Plasmoid countdown** — deadline-based timer; no more frozen countdown / false “engine idle?”
+- **SyncAdvance echo storm** — followers call `skipForward(true)` and never rebroadcast
+- **Stuck non-429 soft-offline** — quiet `/api/v1` probe on backoff clears outage (favicon still never clears it)
+- **Dropped next/prev/reload** — queue while `engine.busy` and flush in `endBusy`
+- **Keep-current honesty** — soft-offline paths use `wallpaperIsVisible()`; recovery cache advances are throttled without burning the skip budget
+- **Warm/original curl** — require RunArgv `ok` + non-empty file before indexing; allowlist `curl` on the D-Bus helper
+- **Lock screen sync** — flock + age-gated prune; one retry for the same wallpaper id; SyncLockScreen works on any enabled screen
+
+### Tests
+- Expanded reliability symbol smoke; live sync-storm, busy-queue, and control-ts-storm scripts; CI runs reliability-smoke + control fanout
+
+## 3.5.2 — 2026-09-08
+
+### Fixed
+- **Blank main monitor** — hard-reload `file://` textures after sleep/unlock (same-path Image reassign was a no-op); stop stuck fade-through-black overlays; blank-frame watchdog; second-chance paint after login settle
+- **Error banner, blank forever** — image Error/hung Loading heal via watchdog; error-cap paths bootstrap cache instead of leaving an empty desktop
+- **Offline keep-current** — only keep the current URL when it is actually visible; otherwise cycle cache
+- **Sync-advance while busy** — queue the tick and apply it in `endBusy` instead of dropping it
+- **Failed transition wipe** — wait for Image.Ready before crossfade/slide/zoom/fade-black; abort keeps the last good layer
+- **Empty filters / bad API key** — still paint from cache when the scene would otherwise stay blank
+- **Pause/resume fan-out** — idempotent pause/resume (no more toggle desync across monitors)
+- **Control bus `default` nav** — nav commands with group `default` reach isolated per-screen groups; status filename namespaces backstop fan-out
+- **Lock screen sync OK** — `RunArgv` reports shell exit status; sync failure is recorded instead of always success
+- **Lock screen intermittent** — serialize syncs with `flock`, age-gated prune so overlapping runs cannot delete the active file, sync from the visible frame immediately (don’t wait on disk-cache), and retry once on failure
+- **Offline cache storm** — under 429/soft-offline, never paint remote thumbs; skip ids with no local file; throttle error-driven advances; blank recovery reloads current only; Ready no longer clears the offline skip budget unless the hit was local
+- **Retry while busy** — deferred fetch retries re-arm instead of being discarded
+
 ## 3.5.1 — 2026-09-06
 
 ### Fixed

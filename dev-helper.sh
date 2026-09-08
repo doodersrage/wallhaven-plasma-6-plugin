@@ -113,11 +113,20 @@ restart_plasma() {
 run_tests() {
     node "${SCRIPT_DIR}/tests/test-wallhaven.js"
     bash "${SCRIPT_DIR}/tests/validate-qml.sh"
+    bash "${SCRIPT_DIR}/tests/test-reliability-smoke.sh"
     if python3 -c "import dbus, gi" >/dev/null 2>&1; then
         python3 "${SCRIPT_DIR}/tests/test-variety-dbus.py"
         python3 "${SCRIPT_DIR}/tests/test-control-fanout.py"
     else
         echo "Skipping tests/test-variety-dbus.py (python3-dbus/python3-gi not installed)"
+    fi
+    if systemctl --user is-active wallhaven-dbus.service >/dev/null 2>&1; then
+        bash "${SCRIPT_DIR}/tests/test-soft-offline-storm.sh"
+        bash "${SCRIPT_DIR}/tests/test-sync-advance-storm.sh"
+        bash "${SCRIPT_DIR}/tests/test-control-busy-queue.sh"
+        bash "${SCRIPT_DIR}/tests/test-control-ts-storm.sh"
+    else
+        echo "Skipping live dbus storm/queue tests (wallhaven-dbus.service not active)"
     fi
 }
 
@@ -260,9 +269,14 @@ uninstall_shortcuts() {
 }
 
 deploy_all() {
-    run_check
+    # Install + restart first so live dbus regressions exercise the code being shipped.
+    if compgen -G "${SCRIPT_DIR}/po/*.po" >/dev/null; then
+        compile_translations
+    fi
     install_dbus_service
     restart_plasma
+    sleep 4
+    run_check
     echo "Deploy complete: plugin installed, D-Bus service running, plasmashell restarted"
     echo "Add 'Wallhaven Control' widget; configure wallpaper in System Settings."
 }

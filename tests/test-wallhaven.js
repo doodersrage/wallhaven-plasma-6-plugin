@@ -56,6 +56,21 @@ function testControlBus() {
         { cmd: "next", group: "B" },
     ]));
     assert(batch.commands.length === 2 && batch.commands[0].group === "A", "build control batch");
+
+    var now = Date.now();
+    assert(Wallhaven.isFreshBusTimestamp(now, now, 300000) === true, "fresh bus ts accepted");
+    assert(Wallhaven.isFreshBusTimestamp(now - 1000, now, 300000) === true, "recent bus ts accepted");
+    assert(Wallhaven.isFreshBusTimestamp(now - 400000, now, 300000) === false, "stale bus ts rejected");
+    assert(Wallhaven.isFreshBusTimestamp(now + 120000, now, 300000) === false, "far-future bus ts rejected");
+    assert(Wallhaven.isFreshBusTimestamp(0, now, 300000) === false, "zero bus ts rejected");
+    // Regression: epoch-ms values must remain comparable (QML int overflows these).
+    assert(now > 2147483647, "test clock is past int32 ms overflow");
+
+    assert(Wallhaven.shouldThrottleCacheAdvance(false, "", 1000, 2000, 3000) === true, "empty override still throttles");
+    assert(Wallhaven.shouldThrottleCacheAdvance(false, "err", 1000, 2000, 3000) === true, "message override throttles");
+    assert(Wallhaven.shouldThrottleCacheAdvance(false, undefined, 1000, 2000, 3000) === false, "slideshow tick not throttled");
+    assert(Wallhaven.shouldThrottleCacheAdvance(true, "", 1000, 2000, 3000) === false, "history not throttled");
+    assert(Wallhaven.shouldThrottleCacheAdvance(false, "", 1000, 5000, 3000) === false, "throttle window elapsed");
 }
 
 function testBase64() {
@@ -423,13 +438,17 @@ function testLockScreenSyncCommand() {
         || Wallhaven.lockScreenImageFileName("a/b c").indexOf("wallhaven-lockscreen-") === 0, "sanitizes id");
 
     var cmd = Wallhaven.buildLockScreenSyncCommand("/tmp/src.jpg", "/tmp/wallhaven-lockscreen-abc.jpg");
+    assert(cmd.indexOf("flock -w 30") !== -1, "serializes with flock");
     assert(cmd.indexOf("cp -f") !== -1, "copies to lockscreen file");
+    assert(cmd.indexOf(".tmp") !== -1, "atomic temp copy");
+    assert(cmd.indexOf("test -s") !== -1, "verifies dest non-empty");
     assert(cmd.indexOf("--group Wallpaper") !== -1, "nested wallpaper group");
     assert(cmd.indexOf("--group org.kde.image") !== -1, "image plugin group");
     assert(cmd.indexOf("--key Image ") !== -1, "Image key");
     assert(cmd.indexOf("file:///tmp/wallhaven-lockscreen-abc.jpg") !== -1, "file url");
     assert(cmd.indexOf("--key Wallpaper ") === -1, "does not write bogus Greeter Wallpaper key");
     assert(cmd.indexOf("wallhaven-lockscreen-*.jpg") !== -1, "prunes prior lockscreen copies");
+    assert(cmd.indexOf("-mmin +30") !== -1, "age-gated prune avoids races");
     var same = Wallhaven.buildLockScreenSyncCommand("/tmp/lock.jpg", "/tmp/lock.jpg");
     assert(same.indexOf("cp -f") === -1, "skips copy when already at dest");
 
@@ -437,8 +456,33 @@ function testLockScreenSyncCommand() {
         "file:///tmp/src.jpg",
         "file://localhost/tmp/lock.jpg",
     );
-    assert(fromUrl.indexOf("cp -f '/tmp/src.jpg'") !== -1, "strips file:// from source");
-    assert(fromUrl.indexOf("cp -f 'file://") === -1, "cp never gets file:// source");
+    assert(fromUrl.indexOf("'/tmp/src.jpg'") !== -1, "strips file:// from source");
+    assert(fromUrl.indexOf("file:///tmp/src.jpg") === -1 || fromUrl.indexOf("cp -f 'file://") === -1, "cp never gets file:// source");
+
+    assert(Wallhaven.shouldBroadcastSyncAdvance(false) === true, "local skip broadcasts");
+    assert(Wallhaven.shouldBroadcastSyncAdvance(true) === false, "sync follower does not broadcast");
+    assert(Wallhaven.shouldBroadcastSyncAdvance(undefined) === true, "undefined fromSync broadcasts");
+
+    assert(Wallhaven.shouldClearSoftOutage(true, 429, false) === true, "429 latch expiry clears");
+    assert(Wallhaven.shouldClearSoftOutage(true, 200, false) === true, "200-while-latched clears after expiry");
+    assert(Wallhaven.shouldClearSoftOutage(true, 200, true) === false, "still rate-limited keeps outage");
+    assert(Wallhaven.shouldClearSoftOutage(true, 503, false) === false, "non-429 outage needs probe");
+    assert(Wallhaven.shouldClearSoftOutage(false, 200, false) === false, "already online");
+
+    assert(Wallhaven.isLockSyncPrimaryWinner("DP-1", 0, 0, []) === true, "empty screens allow sync");
+    assert(Wallhaven.isLockSyncPrimaryWinner("DP-1", 0, 0, [
+        { name: "DP-1", virtualX: 0, virtualY: 0 },
+        { name: "HDMI-1", virtualX: 1920, virtualY: 0 },
+    ]) === true, "origin screen wins lock sync");
+    assert(Wallhaven.isLockSyncPrimaryWinner("HDMI-1", 1920, 0, [
+        { name: "DP-1", virtualX: 0, virtualY: 0 },
+        { name: "HDMI-1", virtualX: 1920, virtualY: 0 },
+    ]) === false, "secondary screen loses lock sync");
+
+    var index = { ids: ["abc", ""], categories: { abc: "general" }, usedAt: { abc: 1 } };
+    assert(Wallhaven.releaseDiskCacheId(index, "abc") === 0, "release returns slot");
+    assert(index.ids[0] === "", "release clears slot id");
+    assert(!index.categories.abc, "release clears metadata");
 }
 
 function testDiskCacheNamespaceAndCategories() {
@@ -821,6 +865,9 @@ function testV35Helpers() {
     assert(Wallhaven.controlCommandTargetsGroup("DP-1", "HDMI-1", "HDMI-1") === false, "rejects sibling group");
     assert(Wallhaven.controlCommandTargetsGroup("HDMI-1", "default", "HDMI-1", "next") === true, "nav targets screen namespace");
     assert(Wallhaven.controlCommandTargetsGroup("HDMI-1", "default", "HDMI-1", "search") === false, "search ignores namespace alias");
+    assert(Wallhaven.controlCommandTargetsGroup("default", "HDMI-1", "HDMI-1", "next") === true, "default nav broadcasts");
+    assert(Wallhaven.controlCommandTargetsGroup("default", "HDMI-1", "HDMI-1", "search") === false, "default search does not broadcast");
+    assert(Wallhaven.isNavControlCommand("pause") === true, "pause is nav cmd");
     assert(Wallhaven.isSettingsControlCommand("search") === true, "search is settings cmd");
     assert(Wallhaven.isSettingsControlCommand("next") === false, "next is not settings cmd");
 

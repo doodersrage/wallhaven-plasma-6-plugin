@@ -39,10 +39,13 @@ CONTROL_FILE = os.path.join(PLASMA_CACHE, "wallhaven-control.json")
 STATUS_FILE = os.path.join(PLASMA_CACHE, "wallhaven-status.json")
 DBUS_CONFIG_FILE = os.path.join(PLASMA_CACHE, "wallhaven-dbus-config.json")
 ALLOWED_COMMANDS = {
-    "python3",
     "bash",
     "rm",
     "cp",
+    "curl",
+    "test",
+    "stat",
+    "systemsettings",
     "kwallet-query",
     "plasma-apply-colors",
     "kwriteconfig6",
@@ -55,7 +58,44 @@ UPSCALER_MODEL = "realesrgan-x4plus"
 UPSCALE_TIMEOUT_SEC = 120
 BATTERY_CAPACITY_RE = re.compile(r"^/sys/class/power_supply/BAT\d+/capacity$")
 HOME_READ_BLOCKED = (".ssh", ".gnupg", ".local/share/keyrings/")
+CURL_HOST_RE = re.compile(r"^https://([a-z0-9-]+\.)*wallhaven\.cc(?:/|$)", re.IGNORECASE)
+CONTROL_CMD_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
+MAX_CONTROL_QUERY_CHARS = 2000
+MAX_BASH_SCRIPT_CHARS = 8000
 
+# bash -lc scripts the wallpaper/plasmoid are allowed to run (whole-string match).
+BASH_SCRIPT_ALLOWLIST = (
+    # Non-empty cache file probe (legacy callers; prefer argv ["test","-s",path]).
+    re.compile(r"^test -s (?:'[^']+'|\"[^\"]+\")$"),
+    # Lock-screen sync: flock + copy + kwriteconfig6 + age-gated prune.
+    re.compile(
+        r"^flock -w 30 '[^']+' bash -c '.+kwriteconfig6 --file kscreenlockerrc.+$",
+        re.DOTALL,
+    ),
+    # Variety wallpaper symlink under a user-chosen folder.
+    re.compile(
+        r"^mkdir -p '[^']+' && ln -sf '[^']+' '[^']+/wallhaven-current(?:\.[A-Za-z0-9]+)?'$"
+    ),
+    # Plasma accent color helper.
+    re.compile(
+        r"^command -v plasma-apply-colors >/dev/null && plasma-apply-colors --accent-color '#[0-9A-Fa-f]{6}' \|\| true$"
+    ),
+    # KDE (+ optional GNOME) accent sync.
+    re.compile(
+        r"^kwriteconfig6 --file kdeglobals --group General --key AccentColor '[0-9]+,[0-9]+,[0-9]+';\s*"
+        r"(?:command -v gsettings >/dev/null 2>&1 && gsettings set org\.gnome\.desktop\.interface accent-color "
+        r"'[a-z]+' 2>/dev/null; true)?$"
+    ),
+    # KWallet write (API key).
+    re.compile(
+        r"^printf '%s' '[^']*' \| kwallet-query -w wallhaven -f org\.robertsm\.wallhaven apikey 2>/dev/null"
+        r" \|\| printf '%s' '[^']*' \| kwallet-query --write-password apikey -f org\.robertsm\.wallhaven -w kdewallet 2>/dev/null$"
+    ),
+    # KWallet read into a plasmashell-cache temp file.
+    re.compile(
+        r"^kwallet-query -r apikey -f org\.robertsm\.wallhaven -w wallhaven > '[^']+' 2>/dev/null$"
+    ),
+)
 
 def config_home() -> str:
     return os.path.realpath(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")))
@@ -130,15 +170,176 @@ def _silent_remove(path: str) -> None:
         pass
 
 
-def run_argv(argv: list[str]) -> None:
+def validate_home_path(path: str) -> str:
+    """Writable/readable path under $HOME, excluding secret dirs."""
+    return validate_read_path(path)
+
+
+def _deny(reason: str) -> None:
+    raise dbus.exceptions.DBusException(
+        f"org.freedesktop.DBus.Error.AccessDenied: {reason}",
+    )
+
+
+def _bash_script_allowed(script: str) -> bool:
+    text = str(script or "")
+    if not text or len(text) > MAX_BASH_SCRIPT_CHARS:
+        return False
+    # Reject obvious escapes / nested shells beyond the lock-screen flock pattern.
+    if "`" in text or "$(" in text or "${" in text:
+        # lock-screen script must not use expansions either
+        return False
+    for pattern in BASH_SCRIPT_ALLOWLIST:
+        if pattern.match(text):
+            return True
+    return False
+
+
+def _validate_curl_argv(argv: list[str]) -> list[str]:
+    # curl -fsSL --max-time N -o <cache> <https://*.wallhaven.cc/...>
+    if len(argv) != 7:
+        _deny("curl: unexpected argc")
+    if argv[1:3] != ["-fsSL", "--max-time"]:
+        _deny("curl: flags must be -fsSL --max-time")
+    try:
+        timeout = int(argv[3])
+    except ValueError as exc:
+        _deny("curl: invalid max-time")
+        raise exc
+    if timeout < 1 or timeout > 300:
+        _deny("curl: max-time out of range")
+    if argv[4] != "-o":
+        _deny("curl: missing -o")
+    out_path = validate_cache_path(argv[5])
+    url = argv[6]
+    if not CURL_HOST_RE.match(url):
+        _deny("curl: URL host not allowed")
+    if any(ch.isspace() for ch in url) or "'" in url or '"' in url:
+        _deny("curl: URL has illegal characters")
+    return ["curl", "-fsSL", "--max-time", str(timeout), "-o", out_path, url]
+
+
+def _validate_rm_argv(argv: list[str]) -> list[str]:
+    # rm -f <cache_path>  (single file only; never -r)
+    if len(argv) != 3 or argv[1] != "-f":
+        _deny("rm: only 'rm -f <cache-file>' is allowed")
+    path = validate_cache_path(argv[2])
+    if path.endswith(os.sep) or os.path.isdir(path):
+        _deny("rm: refusing directory path")
+    return ["rm", "-f", path]
+
+
+def _validate_cp_argv(argv: list[str]) -> list[str]:
+    # cp <cache_src> <home_or_cache_dest>
+    if len(argv) != 3:
+        _deny("cp: only 'cp <src> <dest>' is allowed")
+    src = validate_cache_path(argv[1])
+    dest = validate_home_path(argv[2])
+    return ["cp", src, dest]
+
+
+def _validate_test_argv(argv: list[str]) -> list[str]:
+    if len(argv) != 3 or argv[1] != "-s":
+        _deny("test: only 'test -s <cache-file>' is allowed")
+    return ["test", "-s", validate_cache_path(argv[2])]
+
+
+def _validate_stat_argv(argv: list[str]) -> list[str]:
+    if len(argv) != 4 or argv[1] != "-c" or argv[2] != "%s":
+        _deny("stat: only 'stat -c %s <cache-file>' is allowed")
+    return ["stat", "-c", "%s", validate_cache_path(argv[3])]
+
+
+def _validate_systemsettings_argv(argv: list[str]) -> list[str]:
+    if argv == ["systemsettings", "kcm_wallpaper"]:
+        return argv
+    _deny("systemsettings: only kcm_wallpaper is allowed")
+
+
+def _validate_plasma_apply_colors_argv(argv: list[str]) -> list[str]:
+    if len(argv) != 3 or argv[1] != "--accent-color":
+        _deny("plasma-apply-colors: unexpected argv")
+    color = argv[2]
+    if not re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
+        _deny("plasma-apply-colors: invalid color")
+    return ["plasma-apply-colors", "--accent-color", color]
+
+
+def _validate_bash_argv(argv: list[str]) -> list[str]:
+    if len(argv) != 3 or argv[1] != "-lc":
+        _deny("bash: only 'bash -lc <script>' is allowed")
+    script = argv[2]
+    if not _bash_script_allowed(script):
+        _deny("bash: script not on allowlist")
+    # Extra path checks for test -s / kwallet redirect / lock dest.
+    if script.startswith("test -s "):
+        quoted = script[len("test -s "):]
+        path = quoted[1:-1] if len(quoted) >= 2 and quoted[0] in "'\"" else quoted
+        validate_cache_path(path)
+    elif "kwallet-query -r apikey" in script and " > '" in script:
+        out = script.split(" > '", 1)[1].rsplit("' 2>/dev/null", 1)[0]
+        validate_cache_path(out)
+    elif script.startswith("flock -w 30 "):
+        if "kwriteconfig6 --file kscreenlockerrc" not in script:
+            _deny("bash: lock sync missing kscreenlockerrc writes")
+        if "wallhaven-lockscreen" not in script:
+            _deny("bash: lock sync missing wallhaven-lockscreen path")
+        head = re.match(r"^flock -w 30 '([^']+)' bash -c '", script)
+        if not head:
+            _deny("bash: lock sync flock shape invalid")
+        validate_cache_path(head.group(1))
+        cache_base = os.path.realpath(PLASMA_CACHE)
+        if cache_base not in script and PLASMA_CACHE not in script:
+            _deny("bash: lock sync must reference plasmashell cache")
+    return ["bash", "-lc", script]
+
+
+def validate_run_argv(argv: list[str]) -> list[str]:
+    """Return a sanitized argv or raise AccessDenied/InvalidArgs."""
     if not argv:
         raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: empty argv")
-    program = os.path.basename(str(argv[0]))
+    if len(argv) > 16:
+        _deny("argv too long")
+    cleaned = [str(part) for part in argv]
+    for part in cleaned:
+        if "\x00" in part:
+            _deny("nul byte in argv")
+    program = os.path.basename(cleaned[0])
+    if cleaned[0] not in (program, f"/usr/bin/{program}", f"/bin/{program}"):
+        # Allow plain name or absolute standard paths only.
+        which = shutil.which(program) or ""
+        if cleaned[0] != which:
+            _deny(f"command path not allowed: {cleaned[0]}")
     if program not in ALLOWED_COMMANDS:
-        raise dbus.exceptions.DBusException(
-            f"org.freedesktop.DBus.Error.AccessDenied: command not allowed: {program}",
-        )
-    subprocess.run(argv, check=False)
+        _deny(f"command not allowed: {program}")
+    cleaned[0] = program
+    if program == "curl":
+        return _validate_curl_argv(cleaned)
+    if program == "rm":
+        return _validate_rm_argv(cleaned)
+    if program == "cp":
+        return _validate_cp_argv(cleaned)
+    if program == "test":
+        return _validate_test_argv(cleaned)
+    if program == "stat":
+        return _validate_stat_argv(cleaned)
+    if program == "systemsettings":
+        return _validate_systemsettings_argv(cleaned)
+    if program == "plasma-apply-colors":
+        return _validate_plasma_apply_colors_argv(cleaned)
+    if program == "bash":
+        return _validate_bash_argv(cleaned)
+    if program in {"kwallet-query", "kwriteconfig6"}:
+        # Direct invocations are unused by the plugin today; keep deny-by-default.
+        _deny(f"{program}: use the approved bash -lc wrappers")
+    _deny(f"no policy for {program}")
+    return cleaned
+
+
+def run_argv(argv: list[str]) -> int:
+    safe = validate_run_argv(argv)
+    result = subprocess.run(safe, check=False)
+    return int(result.returncode or 0)
 
 
 def parse_variety_search(ini_text: str) -> str:
@@ -239,19 +440,25 @@ def watch_variety_config(group: str) -> None:
 
 
 def list_sync_groups() -> list[str]:
-    """Unique sync groups from per-monitor status files (fallback: default)."""
+    """Unique sync groups from per-monitor status files (fallback: namespaces / default)."""
     groups: list[str] = []
     try:
         for name in os.listdir(PLASMA_CACHE):
             if not name.startswith("wallhaven-status-") or not name.endswith(".json"):
                 continue
+            ns = name[len("wallhaven-status-") : -len(".json")].strip()
             path = os.path.join(PLASMA_CACHE, name)
             try:
                 with open(path, encoding="utf-8") as handle:
                     data = json.load(handle)
             except (OSError, json.JSONDecodeError):
+                # Unreadable status still names a live screen namespace.
+                if ns and ns not in groups:
+                    groups.append(ns)
                 continue
             group = str(data.get("syncGroup") or data.get("cacheNamespace") or "").strip()
+            if not group:
+                group = ns
             if group and group not in groups:
                 groups.append(group)
     except OSError:
@@ -268,10 +475,17 @@ def list_sync_groups() -> list[str]:
 
 
 def write_command(cmd: str, group: str = "default", query: str = "") -> None:
+    name = str(cmd or "").strip().lower()
+    if not CONTROL_CMD_RE.match(name):
+        raise ValueError(f"invalid control command: {cmd!r}")
+    target = re.sub(r"[^A-Za-z0-9_.-]", "_", str(group or "default"))[:64] or "default"
+    text = str(query or "")
+    if len(text) > MAX_CONTROL_QUERY_CHARS:
+        text = text[:MAX_CONTROL_QUERY_CHARS]
     os.makedirs(os.path.dirname(CONTROL_FILE), exist_ok=True)
-    payload: dict[str, object] = {"cmd": cmd, "ts": int(time.time() * 1000), "group": group}
-    if query:
-        payload["query"] = query
+    payload: dict[str, object] = {"cmd": name, "ts": int(time.time() * 1000), "group": target}
+    if text:
+        payload["query"] = text
     with open(CONTROL_FILE, "w", encoding="utf-8") as handle:
         json.dump(payload, handle)
 
@@ -284,28 +498,36 @@ _NAV_FANOUT = {
 
 def write_command_fanout(cmd: str, group: str = "default", query: str = "") -> None:
     """Write one control command; fan-out nav cmds when group is the shared default."""
-    target = group or "default"
-    if cmd in _NAV_FANOUT and target == "default":
+    name = str(cmd or "").strip().lower()
+    if not CONTROL_CMD_RE.match(name):
+        raise ValueError(f"invalid control command: {cmd!r}")
+    target = re.sub(r"[^A-Za-z0-9_.-]", "_", str(group or "default"))[:64] or "default"
+    text = str(query or "")
+    if len(text) > MAX_CONTROL_QUERY_CHARS:
+        text = text[:MAX_CONTROL_QUERY_CHARS]
+    if name in _NAV_FANOUT and target == "default":
         groups = list_sync_groups()
         base = int(time.time() * 1000)
         commands = []
         for i, g in enumerate(groups):
-            entry: dict[str, object] = {"cmd": cmd, "ts": base + i, "group": g}
-            if query:
-                entry["query"] = query
+            safe_group = re.sub(r"[^A-Za-z0-9_.-]", "_", str(g or "default"))[:64] or "default"
+            entry: dict[str, object] = {"cmd": name, "ts": base + i, "group": safe_group}
+            if text:
+                entry["query"] = text
             commands.append(entry)
         os.makedirs(os.path.dirname(CONTROL_FILE), exist_ok=True)
         with open(CONTROL_FILE, "w", encoding="utf-8") as handle:
             json.dump({"commands": commands}, handle)
         return
-    write_command(cmd, target, query)
+    write_command(name, target, text)
 
 
 def read_status() -> dict:
     try:
         with open(STATUS_FILE, encoding="utf-8") as handle:
-            return json.load(handle)
-    except OSError:
+            data = json.load(handle)
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
         return {}
 
 
@@ -419,7 +641,7 @@ class WallhavenControl(dbus.service.Object):
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def GetPluginVersion(self) -> str:
-        return "3.5.1"
+        return "3.5.3"
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def ListMonitorStatuses(self) -> str:
@@ -539,8 +761,8 @@ class WallhavenControl(dbus.service.Object):
             ) from exc
         if not isinstance(argv, list):
             raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: argv must be a list")
-        run_argv([str(part) for part in argv])
-        return "ok"
+        code = run_argv([str(part) for part in argv])
+        return "ok" if code == 0 else f"fail:{code}"
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def UpscalerAvailable(self) -> str:
@@ -823,12 +1045,13 @@ class WallhavenRunner(dbus.service.Object):
 
 def main() -> int:
     group = os.environ.get("WALLHAVEN_SYNC_GROUP", "default")
-    if len(sys.argv) > 1 and sys.argv[1] in {
+    cli_cmds = {
         "next", "prev", "reload", "pause", "resume", "open", "block", "copytags", "like", "dislike",
         "pin", "unpin", "copyid", "copyurl", "warm", "prune", "endtrip", "undo", "clearkey", "testkey",
-        "info",
-    }:
-        write_command(sys.argv[1], group)
+        "info", "cancelwarm", "outageoffline", "resumeonline", "copysearch",
+    }
+    if len(sys.argv) > 1 and sys.argv[1] in cli_cmds:
+        write_command_fanout(sys.argv[1], group)
         print(f"Sent '{sys.argv[1]}' via control bus")
         return 0
     if len(sys.argv) > 2 and sys.argv[1] == "search":
@@ -840,11 +1063,15 @@ def main() -> int:
         print("Sent preset import via control bus")
         return 0
     if len(sys.argv) > 2 and sys.argv[1] in {
-        "history", "applysearch", "savesearch", "purity", "trip", "warm",
+        "history", "applysearch", "savesearch", "purity", "trip", "warm", "copysearch",
     }:
         write_command(sys.argv[1], group, " ".join(sys.argv[2:]))
         print(f"Sent '{sys.argv[1]}' via control bus")
         return 0
+    if len(sys.argv) > 1:
+        print(f"Unknown command: {sys.argv[1]}", file=sys.stderr)
+        print("Pass a control command, or run with no args to start the D-Bus service.", file=sys.stderr)
+        return 2
 
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SessionBus()

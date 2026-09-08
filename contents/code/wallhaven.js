@@ -415,6 +415,66 @@ function isSettingsControlCommand(cmdName) {
         || name === "importpreset";
 }
 
+function isNavControlCommand(cmdName) {
+    var name = String(cmdName || "");
+    return name === "next" || name === "prev" || name === "pause" || name === "resume"
+        || name === "reload" || name === "outageoffline" || name === "resumeonline";
+}
+
+// SyncAdvance peers must not rebroadcast — that caused echo ping-pong storms.
+function shouldBroadcastSyncAdvance(fromSync) {
+    return !fromSync;
+}
+
+// Soft-offline must clear after the shared 429 latch expires even if a 200
+// arrived while clearApiOutageOffline was still blocked by isRateLimitedNow().
+function shouldClearSoftOutage(outageOffline, lastStatus, rateLimitedNow) {
+    if (!outageOffline || rateLimitedNow) {
+        return false;
+    }
+    var status = Number(lastStatus) || 0;
+    return status === 429 || status === 200;
+}
+
+// Prefer the leftmost/topmost screen (stable multi-monitor leader) for lock writes.
+// When screens is empty/unavailable, allow sync (single-instance / unknown layout).
+function isLockSyncPrimaryWinner(myName, myVirtualX, myVirtualY, screens) {
+    myName = String(myName || "");
+    var mx = Number(myVirtualX) || 0;
+    var my = Number(myVirtualY) || 0;
+    if (!screens || !screens.length) {
+        return true;
+    }
+    var bestName = null;
+    var bestX = Infinity;
+    var bestY = Infinity;
+    for (var i = 0; i < screens.length; i++) {
+        var s = screens[i] || {};
+        var name = String(s.name || "");
+        var vx = Number(s.virtualX) || 0;
+        var vy = Number(s.virtualY) || 0;
+        if (bestName === null
+                || vx < bestX
+                || (vx === bestX && vy < bestY)
+                || (vx === bestX && vy === bestY && name < bestName)) {
+            bestName = name;
+            bestX = vx;
+            bestY = vy;
+        }
+    }
+    if (bestName === null) {
+        return true;
+    }
+    if (myName && myName === bestName) {
+        return true;
+    }
+    // Name quirks: still win if we sit at the elected origin.
+    if (mx === bestX && my === bestY) {
+        return true;
+    }
+    return false;
+}
+
 function controlCommandTargetsGroup(cmdGroup, myGroup, myScreen, cmdName) {
     cmdGroup = String(cmdGroup || "default");
     myGroup = String(myGroup || "default");
@@ -422,9 +482,14 @@ function controlCommandTargetsGroup(cmdGroup, myGroup, myScreen, cmdName) {
     if (cmdGroup === myGroup) {
         return true;
     }
-    // Settings commands never use the screen-namespace alias.
+    // Settings commands never use the screen-namespace alias or default broadcast.
     if (isSettingsControlCommand(cmdName)) {
         return false;
+    }
+    // When fan-out cannot resolve real sync groups it writes group "default".
+    // After per-screen isolation, that must still reach every monitor for nav.
+    if (cmdGroup === "default" && isNavControlCommand(cmdName)) {
+        return true;
     }
     if (myScreen && cmdGroup === myScreen) {
         return true;
@@ -1100,7 +1165,7 @@ function searchDedupeFingerprint(cfg) {
 }
 
 function pluginVersion() {
-    return "3.5.1";
+    return "3.5.3";
 }
 
 function buildPresetFromConfig(name, cfg) {
@@ -1491,6 +1556,21 @@ function evictDiskCacheOccupant(index, occupant) {
     if (index.tags) {
         delete index.tags[occupant];
     }
+}
+
+// Drop a failed warm/original write so the slot can be reused.
+function releaseDiskCacheId(index, id) {
+    id = String(id || "");
+    if (!index || !id) {
+        return -1;
+    }
+    var slot = diskCacheSlotForId(index, id);
+    if (slot < 0) {
+        return -1;
+    }
+    evictDiskCacheOccupant(index, id);
+    index.ids[slot] = "";
+    return slot;
 }
 
 function diskCacheUsedAt(index, id) {
@@ -2089,6 +2169,40 @@ function buildControlCommand(cmd, group, query) {
     return JSON.stringify(payload);
 }
 
+// Control/sync watermarks must use float ms. QML `property int` overflows at 2^31-1
+// (~24 days of epoch ms), so every poll re-fired the same next forever.
+function isFreshBusTimestamp(ts, nowMs, maxAgeMs) {
+    var stamp = Number(ts) || 0;
+    var now = Number(nowMs) || Date.now();
+    var maxAge = Number(maxAgeMs);
+    if (!(maxAge > 0)) {
+        maxAge = 300000;
+    }
+    if (!(stamp > 0)) {
+        return false;
+    }
+    // Reject far-future clock skew and ancient leftovers after suspend/restart.
+    if (stamp > now + 60000) {
+        return false;
+    }
+    return (now - stamp) <= maxAge;
+}
+
+// Recovery/error cache advances pass a statusOverride (possibly ""). Normal
+// offline slideshow ticks omit the argument entirely (undefined).
+function shouldThrottleCacheAdvance(fromHistory, statusOverride, lastAdvanceMs, nowMs, windowMs) {
+    if (fromHistory || statusOverride === undefined) {
+        return false;
+    }
+    var last = Number(lastAdvanceMs) || 0;
+    var now = Number(nowMs) || Date.now();
+    var window = Number(windowMs);
+    if (!(window > 0)) {
+        window = 3000;
+    }
+    return last > 0 && (now - last) < window;
+}
+
 function parseVarietySearch(iniText) {
     if (!iniText) {
         return "";
@@ -2399,21 +2513,33 @@ function buildLockScreenSyncCommand(sourcePath, destPath) {
     var url = lockScreenImageUrl(dest);
     var destDir = dest.lastIndexOf("/") >= 0 ? dest.substring(0, dest.lastIndexOf("/")) : "";
     var destBase = dest.lastIndexOf("/") >= 0 ? dest.substring(dest.lastIndexOf("/") + 1) : dest;
+    var lockFile = destDir
+        ? destDir + "/wallhaven-lockscreen.lock"
+        : "/tmp/wallhaven-lockscreen.lock";
     var parts = [];
-    if (source !== dest) {
-        parts.push("cp -f " + shellSingleQuote(source) + " " + shellSingleQuote(dest));
-    }
-    parts.push("kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image");
-    parts.push("kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image " + shellSingleQuote(url));
-    parts.push("kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key PreviewImage " + shellSingleQuote(url));
-    parts.push("kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key FillMode 2");
-    // Drop older lockscreen copies + the legacy single-file name so the cache
-    // dir does not grow forever. Keep the file we just pointed Plasma at.
-    if (destDir) {
-        parts.push("find " + shellSingleQuote(destDir)
-            + " -maxdepth 1 \\( -name 'wallhaven-lockscreen-*.jpg' -o -name 'wallhaven-lockscreen.jpg' \\)"
-            + " ! -name " + shellSingleQuote(destBase) + " -delete");
-    }
+    // Serialize concurrent monitor syncs: overlapping find -delete used to remove
+    // the file another pipeline had just pointed kscreenlockerrc at.
+    parts.push("flock -w 30 " + shellSingleQuote(lockFile) + " bash -c " + shellSingleQuote([
+        "set -e",
+        "test -f " + shellSingleQuote(source),
+        (source !== dest
+            ? ("cp -f " + shellSingleQuote(source) + " " + shellSingleQuote(dest) + ".tmp"
+                + " && mv -f " + shellSingleQuote(dest) + ".tmp " + shellSingleQuote(dest))
+            : "true"),
+        "test -s " + shellSingleQuote(dest),
+        "kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image",
+        "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image " + shellSingleQuote(url),
+        "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key PreviewImage " + shellSingleQuote(url),
+        "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key FillMode 2",
+        // Only prune older leftovers so a stale overlapping sync cannot delete a
+        // freshly written dest that the config already references.
+        (destDir
+            ? ("find " + shellSingleQuote(destDir)
+                + " -maxdepth 1 \\( -name 'wallhaven-lockscreen-*.jpg' -o -name 'wallhaven-lockscreen.jpg' \\)"
+                + " ! -name " + shellSingleQuote(destBase) + " -mmin +30 -delete")
+            : "true"),
+        "test -s " + shellSingleQuote(dest),
+    ].join(" && ")));
     return parts.join(" && ");
 }
 
