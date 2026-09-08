@@ -114,7 +114,7 @@ Full guide: [docs/CONTROL.md](docs/CONTROL.md).
 
 - Stop SyncAdvance peer echo storms; queue next/prev/reload while busy
 - Auto-clear non-429 soft-offline via quiet API probe (never favicon)
-- Warm/original downloads require curl success; lock sync primary-winner only
+- Warm/original downloads require curl success; lock sync on any enabled screen
 
 ## What's new in 3.5.2
 
