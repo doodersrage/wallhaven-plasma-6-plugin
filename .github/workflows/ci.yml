@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Install build dependencies
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq gettext python3-dbus python3-gi
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gettext python3-dbus python3-gi ripgrep
 
       - name: Validate plugin structure
         run: |
