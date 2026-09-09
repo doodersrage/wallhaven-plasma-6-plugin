@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.5.4 — 2026-09-09
+
+### Fixes
+- **Blank lock-screen pages** — SyncLockScreen keeps a stable `wallhaven-lockscreen-current.jpg` mirror; every monitor (including those without SyncLockScreen) repairs missing/stale greeter `Image=` from that shared copy on startup, wake, and failed sync
+- Config help clarifies one syncing screen feeds all lock pages
+
 ## 3.5.3 — 2026-09-08
 
 ### Fixed

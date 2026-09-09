@@ -1165,7 +1165,7 @@ function searchDedupeFingerprint(cfg) {
 }
 
 function pluginVersion() {
-    return "3.5.3";
+    return "3.5.4";
 }
 
 function buildPresetFromConfig(name, cfg) {
@@ -2477,6 +2477,12 @@ function lockScreenImageFileName(wallpaperId) {
     return "wallhaven-lockscreen-" + Date.now() + ".jpg";
 }
 
+function lockScreenCurrentFileName() {
+    // Always-present fallback that screens without SyncLockScreen (and wake
+    // recovery) can re-point kscreenlockerrc at when a unique Image path is gone.
+    return "wallhaven-lockscreen-current.jpg";
+}
+
 function lockScreenImageUrl(path) {
     var dest = String(path || "");
     if (!dest) {
@@ -2513,6 +2519,8 @@ function buildLockScreenSyncCommand(sourcePath, destPath) {
     var url = lockScreenImageUrl(dest);
     var destDir = dest.lastIndexOf("/") >= 0 ? dest.substring(0, dest.lastIndexOf("/")) : "";
     var destBase = dest.lastIndexOf("/") >= 0 ? dest.substring(dest.lastIndexOf("/") + 1) : dest;
+    var currentName = lockScreenCurrentFileName();
+    var currentPath = destDir ? (destDir + "/" + currentName) : currentName;
     var lockFile = destDir
         ? destDir + "/wallhaven-lockscreen.lock"
         : "/tmp/wallhaven-lockscreen.lock";
@@ -2527,20 +2535,88 @@ function buildLockScreenSyncCommand(sourcePath, destPath) {
                 + " && mv -f " + shellSingleQuote(dest) + ".tmp " + shellSingleQuote(dest))
             : "true"),
         "test -s " + shellSingleQuote(dest),
+        // Stable mirror for screens that do not sync — never leave lock Image empty.
+        "cp -f " + shellSingleQuote(dest) + " " + shellSingleQuote(currentPath) + ".tmp"
+            + " && mv -f " + shellSingleQuote(currentPath) + ".tmp " + shellSingleQuote(currentPath),
+        "test -s " + shellSingleQuote(currentPath),
         "kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image",
         "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image " + shellSingleQuote(url),
         "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key PreviewImage " + shellSingleQuote(url),
         "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key FillMode 2",
-        // Only prune older leftovers so a stale overlapping sync cannot delete a
-        // freshly written dest that the config already references.
+        // Age-gated prune; never delete the active unique file, current mirror, or
+        // whatever path kscreenlockerrc still references (repaired/stale ids).
         (destDir
-            ? ("find " + shellSingleQuote(destDir)
+            ? ("ACTIVE=$(kreadconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image 2>/dev/null | sed -e 's|^file://||' -e 's|^file:||'); "
+                + "ACTIVE_BASE=$(basename \"${ACTIVE:-}\"); "
+                + "find " + shellSingleQuote(destDir)
                 + " -maxdepth 1 \\( -name 'wallhaven-lockscreen-*.jpg' -o -name 'wallhaven-lockscreen.jpg' \\)"
-                + " ! -name " + shellSingleQuote(destBase) + " -mmin +30 -delete")
+                + " ! -name " + shellSingleQuote(destBase)
+                + " ! -name " + shellSingleQuote(currentName)
+                + " ! -name \"${ACTIVE_BASE:-.}\""
+                + " -mmin +30 -delete")
             : "true"),
         "test -s " + shellSingleQuote(dest),
+        "test -s " + shellSingleQuote(currentPath),
     ].join(" && ")));
     return parts.join(" && ");
+}
+
+// Repair blank lock screens: if Image= points at a missing file (or is empty),
+// re-point every greeter page at wallhaven-lockscreen-current.jpg (or the newest
+// unique copy). Safe to run from monitors that do not have SyncLockScreen on —
+// they mirror whatever the syncing monitor last published.
+function buildLockScreenEnsureCommand(cacheDir) {
+    function plainPath(value) {
+        var path = String(value || "");
+        if (path.indexOf("file://") === 0) {
+            path = path.substring(7);
+            if (path.indexOf("localhost/") === 0) {
+                path = path.substring(9);
+            }
+        } else if (path.indexOf("file:") === 0) {
+            path = path.substring(5);
+        }
+        return path.replace(/\/+$/, "");
+    }
+    var dir = plainPath(cacheDir);
+    if (!dir) {
+        return "";
+    }
+    var currentName = lockScreenCurrentFileName();
+    var currentPath = dir + "/" + currentName;
+    var lockFile = dir + "/wallhaven-lockscreen.lock";
+    // Prefer an existing Image= when fresh (<90s): sibling monitors then only
+    // refresh current.jpg instead of stampeding unique repaired-*.jpg paths.
+    // Stale or missing Image= gets a new unique path so Plasma reloads textures.
+    var inner = [
+        "set -e",
+        "DIR=" + shellSingleQuote(dir),
+        "CURRENT=" + shellSingleQuote(currentPath),
+        "IMG=$(kreadconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image 2>/dev/null | sed -e 's|^file://||' -e 's|^file:||')",
+        "if [ -n \"$IMG\" ] && [ -s \"$IMG\" ]; then "
+            + "NOW=$(date +%s); MTIME=$(stat -c %Y \"$IMG\" 2>/dev/null || echo 0); AGE=$((NOW - MTIME)); "
+            + "if [ \"$AGE\" -lt 90 ]; then "
+            + "cp -f \"$IMG\" \"$CURRENT.tmp\" && mv -f \"$CURRENT.tmp\" \"$CURRENT\"; "
+            + "kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image; "
+            + "exit 0; fi; "
+            + "fi",
+        "SRC=\"\"",
+        "if [ -n \"$IMG\" ] && [ -s \"$IMG\" ]; then SRC=\"$IMG\"; "
+            + "elif [ -s \"$CURRENT\" ]; then SRC=\"$CURRENT\"; "
+            + "else SRC=$(ls -1t \"$DIR\"/wallhaven-lockscreen-*.jpg 2>/dev/null | head -n 1 || true); fi",
+        "if [ -z \"$SRC\" ] || [ ! -s \"$SRC\" ]; then exit 1; fi",
+        "DEST=\"$DIR/wallhaven-lockscreen-repaired-$(date +%s).jpg\"",
+        "cp -f \"$SRC\" \"$DEST.tmp\" && mv -f \"$DEST.tmp\" \"$DEST\"",
+        "cp -f \"$DEST\" \"$CURRENT.tmp\" && mv -f \"$CURRENT.tmp\" \"$CURRENT\"",
+        "test -s \"$DEST\"",
+        "test -s \"$CURRENT\"",
+        "URL=\"file://$DEST\"",
+        "kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image",
+        "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image \"$URL\"",
+        "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key PreviewImage \"$URL\"",
+        "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key FillMode 2",
+    ].join("; ");
+    return "flock -w 30 " + shellSingleQuote(lockFile) + " bash -c " + shellSingleQuote(inner);
 }
 
 function parsePinnedCacheIds(raw) {

@@ -2559,7 +2559,7 @@ ColumnLayout {
                     wrapMode: Text.WordWrap
                     opacity: 0.7
                     visible: lockScreenCheck.checked
-                    text: i18n("Lock screen uses a static Plasma image copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer enabling disk cache (and optional original download) so the lock screen gets a full-resolution file.")
+                    text: i18n("One screen with this enabled feeds the lock wallpaper for every monitor. Screens without it still repair a blank lock page from the shared copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer disk cache (and optional original download) for a full-resolution lock image.")
                 }
 
                 QtControls2.Label {

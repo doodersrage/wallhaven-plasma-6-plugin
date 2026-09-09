@@ -1759,6 +1759,30 @@ WallpaperItem {
                 lockSyncRetryTimer.restart();
             } else {
                 root._lockSyncRetry = null;
+                // Last resort: repair from current mirror / any leftover file.
+                root.ensureLockScreenImage("sync-failed");
+            }
+        });
+    }
+
+    // Any monitor can repair a blank lock Image. Screens without SyncLockScreen
+    // mirror whatever the syncing monitor last published (current.jpg / leftovers).
+    function ensureLockScreenImage(reason) {
+        var command = Wallhaven.buildLockScreenEnsureCommand(diskCacheDir);
+        if (!command) {
+            return;
+        }
+        logDebug("ensureLockScreenImage(" + reason + ")");
+        dbusHelper.runArgv(["bash", "-lc", command], function(reply) {
+            var text = String(reply || "").trim();
+            if (text === "ok") {
+                lockScreenLastSyncOk = true;
+                lockScreenLastSyncAt = new Date().toISOString();
+                lockScreenLastSyncPath = diskCacheDir + "/" + Wallhaven.lockScreenCurrentFileName();
+                publishStatus();
+                logDebug("Lock screen ensure OK (" + reason + ")");
+            } else {
+                logDebug("Lock screen ensure failed (" + reason + ") reply=" + text);
             }
         });
     }
@@ -2869,6 +2893,8 @@ WallpaperItem {
         if (!reloadCurrentImage() && !bootstrapWallpaperFromCache()) {
             engine.showStatus(i18n("Restoring wallpaper after sleep…"), "info");
         }
+        // Repair blank lock-screen pages on every monitor (mirrors SyncLockScreen).
+        root.ensureLockScreenImage("wake:" + reason);
         wakeConnectivityBurst.restart();
     }
 
@@ -6165,6 +6191,8 @@ WallpaperItem {
         root.restartIntervalTimer();
         root.publishStatus();
         root._resumeWatchLastMs = Date.now();
+        // Every monitor repairs blank lock Image= (mirrors the SyncLockScreen feed).
+        Qt.callLater(function() { root.ensureLockScreenImage("startup"); });
         if (cfg.PauseOnBatteryLow) {
             batteryPollTimer.start();
         }

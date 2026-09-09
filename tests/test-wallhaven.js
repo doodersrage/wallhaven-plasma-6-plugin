@@ -447,10 +447,18 @@ function testLockScreenSyncCommand() {
     assert(cmd.indexOf("--key Image ") !== -1, "Image key");
     assert(cmd.indexOf("file:///tmp/wallhaven-lockscreen-abc.jpg") !== -1, "file url");
     assert(cmd.indexOf("--key Wallpaper ") === -1, "does not write bogus Greeter Wallpaper key");
+    assert(cmd.indexOf("wallhaven-lockscreen-current.jpg") !== -1, "maintains current mirror");
     assert(cmd.indexOf("wallhaven-lockscreen-*.jpg") !== -1, "prunes prior lockscreen copies");
     assert(cmd.indexOf("-mmin +30") !== -1, "age-gated prune avoids races");
+    assert(cmd.indexOf("kreadconfig6") !== -1, "prune preserves active Image path");
     var same = Wallhaven.buildLockScreenSyncCommand("/tmp/lock.jpg", "/tmp/lock.jpg");
-    assert(same.indexOf("cp -f") === -1, "skips copy when already at dest");
+    assert(same.indexOf("cp -f") !== -1 && same.indexOf("wallhaven-lockscreen-current.jpg") !== -1, "same dest still refreshes current mirror");
+
+    var ensure = Wallhaven.buildLockScreenEnsureCommand("/tmp/plasmashell");
+    assert(ensure.indexOf("flock -w 30") !== -1, "ensure serializes");
+    assert(ensure.indexOf("wallhaven-lockscreen-current.jpg") !== -1, "ensure uses current mirror");
+    assert(ensure.indexOf("wallhaven-lockscreen-repaired-") !== -1, "ensure writes repaired unique file");
+    assert(ensure.indexOf("kwriteconfig6 --file kscreenlockerrc") !== -1, "ensure rewrites greeter Image");
 
     var fromUrl = Wallhaven.buildLockScreenSyncCommand(
         "file:///tmp/src.jpg",

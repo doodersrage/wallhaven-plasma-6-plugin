@@ -42,6 +42,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="3.5.4" date="2026-09-09">
+      <description>
+        <p>Repair blank lock-screen pages by mirroring SyncLockScreen onto every greeter via a shared current.jpg fallback.</p>
+      </description>
+    </release>
     <release version="3.5.3" date="2026-09-08">
       <description>
         <p>Reliability hardening: stop SyncAdvance echo storms, queue nav while busy, quiet API probe to clear non-429 soft-offline, require successful warm/original downloads, and lock-screen sync from the primary-winner screen only.</p>

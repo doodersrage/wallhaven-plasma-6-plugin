@@ -108,6 +108,13 @@ match_q --fixed-strings '"test", "-s"' "${MAIN}" || match_q --fixed-strings "['t
 # Lock sync: same-id retry budget (flock serializes multi-monitor writers).
 match_q 'attempts:' "${MAIN}"
 match_q 'function isLockSyncPrimaryWinner' "${JS}"
+match_q 'function ensureLockScreenImage' "${MAIN}"
+match_q 'function buildLockScreenEnsureCommand' "${JS}"
+match_q 'function lockScreenCurrentFileName' "${JS}"
+match_q --fixed-strings 'wallhaven-lockscreen-current.jpg' "${JS}"
+match_q --fixed-strings 'ensureLockScreenImage("startup")' "${MAIN}"
+match_q --fixed-strings 'ensureLockScreenImage("wake:' "${MAIN}"
+match_q --fixed-strings 'ensureLockScreenImage("sync-failed")' "${MAIN}"
 
 # Cache throttle must not look like a successful advance.
 match_q 'function shouldThrottleCacheAdvance' "${JS}"
