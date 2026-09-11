@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.5.5 — 2026-09-11
+
+### Fixes
+- **Lock screen stuck / sync failed** — D-Bus `RunArgv` allowlist rejected lock sync/ensure scripts that use `$(...)` / `${...}` for safe prune and repair, so greeter `Image=` never updated while grabToImage still wrote orphan lock files
+- **Deploy** — `dbus-install` now restarts `wallhaven-dbus.service` so script changes are not left on a stale process (`enable --now` alone does not reload a running unit)
+
 ## 3.5.4 — 2026-09-09
 
 ### Fixes

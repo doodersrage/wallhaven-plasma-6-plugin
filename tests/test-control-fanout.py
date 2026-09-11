@@ -196,6 +196,43 @@ class RunArgvExitTests(unittest.TestCase):
                 safe = self.mod.validate_run_argv(["bash", "-lc", script])
                 self.assertEqual(safe[0], "bash")
 
+    def test_run_argv_allows_lockscreen_flock_with_expansions(self) -> None:
+        """Prune/ensure scripts need $(kreadconfig6) / ${ACTIVE_BASE}; must not be denied."""
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(self.mod, "PLASMA_CACHE", tmp):
+                lock = str(Path(tmp) / "wallhaven-lockscreen.lock")
+                dest = str(Path(tmp) / "wallhaven-lockscreen-abc.jpg")
+                current = str(Path(tmp) / "wallhaven-lockscreen-current.jpg")
+
+                def sq(value: str) -> str:
+                    return "'" + value.replace("'", "'\\''") + "'"
+
+                inner = "; ".join([
+                    "set -e",
+                    "ACTIVE=$(kreadconfig6 --file kscreenlockerrc --group Greeter "
+                    "--group Wallpaper --group org.kde.image --group General --key Image "
+                    "2>/dev/null | sed -e 's|^file://||')",
+                    'ACTIVE_BASE=$(basename "${ACTIVE:-}")',
+                    "cp -f " + sq(dest) + " " + sq(current),
+                    "kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image",
+                    "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper "
+                    "--group org.kde.image --group General --key Image " + sq("file://" + dest),
+                    'find ' + sq(tmp) + ' -maxdepth 1 -name \'wallhaven-lockscreen-*.jpg\' '
+                    '! -name "${ACTIVE_BASE:-.}" -mmin +30 -delete',
+                ])
+                script = "flock -w 30 " + sq(lock) + " bash -c " + sq(inner)
+                self.assertIn("$(", script)
+                self.assertIn("${", script)
+                self.assertTrue(self.mod._bash_script_allowed(script))
+                safe = self.mod.validate_run_argv(["bash", "-lc", script])
+                self.assertEqual(safe[0], "bash")
+
+    def test_run_argv_rejects_non_lock_bash_with_expansions(self) -> None:
+        with self.assertRaises(Exception):
+            self.mod.validate_run_argv([
+                "bash", "-lc", "echo $(whoami) && kwriteconfig6 --file kdeglobals --group General --key AccentColor '1,2,3'",
+            ])
+
     def test_write_command_rejects_invalid_cmd(self) -> None:
         with self.assertRaises(ValueError):
             self.mod.write_command("rm -rf /", "default")

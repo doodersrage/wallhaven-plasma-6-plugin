@@ -192,12 +192,12 @@ install_dbus_service() {
         return 1
     fi
 
-    # A unit that crash-looped past systemd's StartLimitBurst is left
-    # "failed" and ignores further 'enable --now' calls until this is
-    # cleared -- which is exactly what running deploy repeatedly against a
-    # missing dependency looks like from the outside ("still not running").
+    # enable --now does not reload an already-running unit, so code changes in
+    # wallhaven-dbus.py would stay dead until a manual restart (lock sync broke
+    # that way after 3.5.4). Always restart after install.
     systemctl --user reset-failed wallhaven-dbus.service >/dev/null 2>&1 || true
-    systemctl --user enable --now wallhaven-dbus.service
+    systemctl --user enable wallhaven-dbus.service
+    systemctl --user restart wallhaven-dbus.service
 
     sleep 1
     if systemctl --user is-active --quiet wallhaven-dbus.service; then

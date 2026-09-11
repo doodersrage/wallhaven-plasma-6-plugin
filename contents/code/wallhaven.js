@@ -1165,7 +1165,7 @@ function searchDedupeFingerprint(cfg) {
 }
 
 function pluginVersion() {
-    return "3.5.4";
+    return "3.5.5";
 }
 
 function buildPresetFromConfig(name, cfg) {

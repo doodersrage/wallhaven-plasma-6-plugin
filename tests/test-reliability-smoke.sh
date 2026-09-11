@@ -74,7 +74,7 @@ match_q --fixed-strings 'return "ok" if code == 0 else f"fail:{code}"' "${DBUS}"
 match_q '"curl"' "${DBUS}"
 match_q 'def validate_run_argv' "${DBUS}"
 match_q 'CURL_HOST_RE' "${DBUS}"
-match_q 'BASH_SCRIPT_ALLOWLIST' "${DBUS}"
+match_q 'is_lock_flock' "${DBUS}" || match_q 'Lock-screen flock scripts intentionally use' "${DBUS}"
 match_q 'fadeBlackOut.stop()' "${MAIN}"
 match_q 'wallpaperIsVisible()' "${MAIN}"
 

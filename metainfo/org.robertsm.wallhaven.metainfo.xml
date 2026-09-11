@@ -42,6 +42,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="3.5.5" date="2026-09-11">
+      <description>
+        <p>Fix lock screen sync failures caused by D-Bus rejecting prune/ensure shell expansions.</p>
+      </description>
+    </release>
     <release version="3.5.4" date="2026-09-09">
       <description>
         <p>Repair blank lock-screen pages by mirroring SyncLockScreen onto every greeter via a shared current.jpg fallback.</p>

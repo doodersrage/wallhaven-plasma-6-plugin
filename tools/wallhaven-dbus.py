@@ -185,9 +185,17 @@ def _bash_script_allowed(script: str) -> bool:
     text = str(script or "")
     if not text or len(text) > MAX_BASH_SCRIPT_CHARS:
         return False
-    # Reject obvious escapes / nested shells beyond the lock-screen flock pattern.
-    if "`" in text or "$(" in text or "${" in text:
-        # lock-screen script must not use expansions either
+    # Backticks are never allowed (easy escape hatch).
+    if "`" in text:
+        return False
+    # Lock-screen flock scripts intentionally use $(...) / ${...} for
+    # kreadconfig/prune/ensure. Other bash -lc callers must stay expansion-free.
+    is_lock_flock = (
+        text.startswith("flock -w 30 ")
+        and "kwriteconfig6 --file kscreenlockerrc" in text
+        and "wallhaven-lockscreen" in text
+    )
+    if not is_lock_flock and ("$(" in text or "${" in text):
         return False
     for pattern in BASH_SCRIPT_ALLOWLIST:
         if pattern.match(text):
@@ -641,7 +649,7 @@ class WallhavenControl(dbus.service.Object):
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def GetPluginVersion(self) -> str:
-        return "3.5.4"
+        return "3.5.5"
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def ListMonitorStatuses(self) -> str:
