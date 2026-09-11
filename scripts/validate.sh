@@ -46,6 +46,18 @@ grep -q "version=\"${version}\"" metainfo/org.robertsm.wallhaven.metainfo.xml ||
     echo "metainfo.xml missing release entry for ${version}" >&2
     exit 1
 }
+grep -q "pkgver=${version}" packaging/PKGBUILD.release || {
+    echo "packaging/PKGBUILD.release pkgver must match metadata.json (${version})" >&2
+    exit 1
+}
+grep -q "pkgver=${version}.r" packaging/PKGBUILD || grep -q "pkgver=${version}" packaging/PKGBUILD || {
+    echo "packaging/PKGBUILD pkgver must match metadata.json (${version})" >&2
+    exit 1
+}
+grep -q "^Version:[[:space:]]*${version}$" packaging/wallhaven-plasma.spec || {
+    echo "packaging/wallhaven-plasma.spec Version must match metadata.json (${version})" >&2
+    exit 1
+}
 
 python3 -m py_compile tools/wallhaven-dbus.py
 
