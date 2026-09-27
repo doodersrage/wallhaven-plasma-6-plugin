@@ -8,7 +8,7 @@ Wallhaven for Plasma 6 is a **wallpaper plugin** (runs inside `plasmashell`), a 
 |-------|------|------|
 | Wallpaper engine | `contents/ui/main.qml` | Slideshow, fetch, render, cache, effects |
 | Pure logic | `contents/code/wallhaven.js` | URLs, picking, cache LRU, presets, migration (`.pragma library`) |
-| Settings | `contents/ui/config.qml` | KConfig bindings (`cfg_*`), Simple/Advanced UI |
+| Settings | `contents/ui/config.qml` | KConfig bindings (`cfg_*`), Essentials page + 6 tabs (Wallpapers, Filters, Slideshow, Desktop, Storage, Maintenance) |
 | Config schema | `contents/config/main.xml` | All persisted keys (`ConfigSchemaVersion`) |
 | D-Bus service | `tools/wallhaven-dbus.py` | File I/O, upscaler, MPRIS, Variety watch, status helpers |
 | Plasmoid | `plasmoid/contents/ui/main.qml` | Thumbnail, controls, history, per-monitor picker |

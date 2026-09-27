@@ -2,7 +2,7 @@
 
 Fetch and cycle wallpapers from [wallhaven.cc](https://wallhaven.cc) on KDE Plasma 6: search, collections, favorites, slideshow effects, offline cache, presets, and full control from the panel, keyboard, KRunner, or D-Bus.
 
-**Current version:** 3.5.6  
+**Current version:** 3.6.0  
 **KDE Store / OpenDesktop:** [Wallhaven Extended (p/2368647)](https://www.opendesktop.org/p/2368647/)  
 **Releases:** [GitHub Releases](https://github.com/doodersrage/wallhaven-plasma-6-plugin/releases)
 
@@ -18,7 +18,7 @@ Fetch and cycle wallpapers from [wallhaven.cc](https://wallhaven.cc) on KDE Plas
 | **Effects** | Crossfade and other transitions, Ken Burns (optional music-reactive pacing), parallax, image enhance, panel tint / accent, **reduced motion** |
 | **Cache** | Rolling LRU disk cache, per-monitor namespaces, pin/evict, optional original download, AI upscaler hook, **smart offline** picks |
 | **Control** | Panel plasmoid (per-monitor picker), Meta+Ctrl+Alt shortcuts, KRunner, D-Bus / CLI, multi-monitor sync groups + search profiles |
-| **Extras** | Simple/Advanced settings UI, curated/community presets, HTTPS preset import, Variety bridge, lock-screen image sync, KWallet API key, secret-scrubbing exports, DE/FR/ES/IT UI |
+| **Extras** | Essentials / All settings UI, curated/community presets, HTTPS preset import, Variety bridge, lock-screen image sync, KWallet API key, secret-scrubbing exports, DE/FR/ES/IT UI |
 
 Almost everything beyond basic search is **opt-in** and off by default.
 
@@ -109,6 +109,11 @@ Full guide: [docs/CONTROL.md](docs/CONTROL.md).
 | [packaging/README.md](packaging/README.md) | Downstream packaging |
 
 ---
+
+## What's new in 3.6.0
+- Wallpaper settings reorganized: a short **Essentials** page by default, and **All settings** in six tabs (Wallpapers, Filters, Slideshow, Desktop, Storage, Maintenance)
+- Misplaced options moved to where you'd look for them; duplicate labels renamed
+- Complete DE/FR/ES/IT/pt-BR/NL/PL translations
 
 ## What's new in 3.5.6
 - Wallhaven Control panel widget loads again (broken since 2.7.0)

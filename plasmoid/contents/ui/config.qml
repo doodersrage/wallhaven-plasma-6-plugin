@@ -16,7 +16,7 @@ Kirigami.FormLayout {
         Layout.fillWidth: true
         wrapMode: Text.WordWrap
         opacity: 0.7
-        text: i18n("Match wallpaper Advanced → Sync group. With multiple monitors, the plasmoid lists each screen and routes next/prev to that group.")
+        text: i18n("Match the wallpaper's Desktop → Multiple monitors → Sync group. With multiple monitors, the plasmoid lists each screen and routes next/prev to that group.")
     }
 
     function saveConfig() {}

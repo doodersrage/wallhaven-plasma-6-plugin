@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.6.0 — 2026-09-27
+
+### Changed
+- **Wallpaper settings reorganized** — a short **Essentials** page (source, search, categories, purity, interval, pause rules, transition, lock screen, API key) is the default; **All settings** groups every option into six task-based tabs: Wallpapers, Filters, Slideshow, Desktop, Storage, Maintenance. No option was removed
+- Moved misplaced options: day/night, weekday and time-capsule searches and presets now sit with the other wallpaper sources; API key, cache and offline options under Storage; lock screen, panel colors, notifications and multi-monitor under Desktop; blocked IDs next to the tag blocklist
+- Renamed duplicate labels (two "Image quality" rows are now **Download size** and **Sharpness**); "Local sorting" only shows for Local folder
+- Completed DE/FR/ES/IT/pt-BR/NL/PL translations for new and previously untranslated strings
+
 ## 3.5.6 — 2026-09-27
 
 ### Fixes

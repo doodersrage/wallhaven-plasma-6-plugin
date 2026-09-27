@@ -688,7 +688,7 @@ class WallhavenControl(dbus.service.Object):
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def GetPluginVersion(self) -> str:
-        return "3.5.6"
+        return "3.6.0"
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def ListMonitorStatuses(self) -> str:

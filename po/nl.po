@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 3.5.6\n"
+"Project-Id-Version: org.robertsm.wallhaven 3.6.0\n"
 "Language: nl\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -59,23 +59,23 @@ msgstr "Add Next / Pause / Open actions on notifications"
 msgid "Advance all monitors in the same group together"
 msgstr "Advance all monitors in the same group together"
 
-msgid "Advanced"
-msgstr "Advanced"
-
-msgid "Advanced mode shows all tabs and options."
-msgstr "Advanced mode shows all tabs and options."
-
 msgid "All portrait"
 msgstr "All portrait"
 
 msgid "All results are blocked. Clear the blocklist or try another search."
 msgstr "All results are blocked. Clear the blocklist or try another search."
 
+msgid "All settings"
+msgstr "Alle instellingen"
+
 msgid "All wide"
 msgstr "All wide"
 
 msgid "Also push the wallpaper accent to GTK apps and kdeglobals"
 msgstr "Also push the wallpaper accent to GTK apps and kdeglobals"
+
+msgid "Anime"
+msgstr "Anime"
 
 msgid "Anime:"
 msgstr "Anime:"
@@ -218,6 +218,9 @@ msgstr "Attribution corner:"
 msgid "Auto-hide (sec):"
 msgstr "Auto-hide (sec):"
 
+msgid "Automatic search changes"
+msgstr "Automatische zoekwijzigingen"
+
 msgid "Auto panel accent:"
 msgstr "Auto panel accent:"
 
@@ -226,6 +229,12 @@ msgstr "Auto-switch the search on a specific date. One per line: date|search que
 
 msgid "Avoid recent duplicates (saved across restarts, up to 2000 IDs)"
 msgstr "Avoid recent duplicates (saved across restarts, up to 2000 IDs)"
+
+msgid "Backup"
+msgstr "Back-up"
+
+msgid "Battery is low"
+msgstr "De batterij bijna leeg is"
 
 msgid "Battery pause:"
 msgstr "Battery pause:"
@@ -247,9 +256,6 @@ msgstr "Blocked IDs:"
 
 msgid "Blocked wallpaper %1."
 msgstr "Blocked wallpaper %1."
-
-msgid "Blocklist"
-msgstr "Blocklist"
 
 msgid "Blocklist cleared."
 msgstr "Blocklist cleared."
@@ -312,7 +318,7 @@ msgid "Cached:"
 msgstr "Cached:"
 
 msgid "Cached file missing. Showing another…"
-msgstr "Cached file missing. Showing another…"
+msgstr "Gecachet bestand ontbreekt. Een ander wordt getoond…"
 
 msgid "Cache fill toward trip target: %1% (%2 / %3)"
 msgstr "Cachevulling richting reisdoel: %1% (%2 / %3)"
@@ -320,8 +326,8 @@ msgstr "Cachevulling richting reisdoel: %1% (%2 / %3)"
 msgid "Cache fill toward trip target: %1% (%2 cached)"
 msgstr "Cachevulling richting reisdoel: %1% (%2 gecached)"
 
-msgid "Cache Manager"
-msgstr "Cache Manager"
+msgid "Cache manager"
+msgstr "Cachebeheer"
 
 msgid "Cache original file:"
 msgstr "Cache original file:"
@@ -351,13 +357,19 @@ msgid "Cancel warm"
 msgstr "Opwarming annuleren"
 
 msgid "Cannot warm cache while Wallhaven is unreachable or rate-limited."
-msgstr "Cannot warm cache while Wallhaven is unreachable or rate-limited."
+msgstr "Kan de cache niet vullen zolang Wallhaven onbereikbaar of beperkt is."
 
 msgid "Categories"
 msgstr "Categories"
 
+msgid "Categories:"
+msgstr "Categorieën:"
+
 msgid "Category, purity, ratio, color, blacklist, and time-of-day filters apply to Search mode only. Collection and Favorites use the collection API as-is."
 msgstr "Category, purity, ratio, color, blacklist, and time-of-day filters apply to Search mode only. Collection and Favorites use the collection API as-is."
+
+msgid "Change every:"
+msgstr "Wisselen elke:"
 
 msgid "Checking…"
 msgstr "Checking…"
@@ -446,6 +458,9 @@ msgstr "Contrast:"
 msgid "Control bus:"
 msgstr "Control bus:"
 
+msgid "Control & shortcuts"
+msgstr "Bediening & sneltoetsen"
+
 msgid "Copied debug info."
 msgstr "Copied debug info."
 
@@ -516,7 +531,7 @@ msgid "Could not import settings file."
 msgstr "Could not import settings file."
 
 msgid "Could not load cached wallpapers. Waiting for Wallhaven…"
-msgstr "Could not load cached wallpapers. Waiting for Wallhaven…"
+msgstr "Kon gecachete achtergronden niet laden. Wachten op Wallhaven…"
 
 msgid "Could not load community presets."
 msgstr "Could not load community presets."
@@ -581,8 +596,8 @@ msgstr "Cyan Blue"
 msgid "Cycles JPG/PNG/WebP files under this folder (home directory only). No Wallhaven network requests."
 msgstr "Cycles JPG/PNG/WebP files under this folder (home directory only). No Wallhaven network requests."
 
-msgid "Cycles the disk cache (and optional pinned-only subset) with no network fetches. Pin wallpapers under Advanced → Cache."
-msgstr "Cycles the disk cache (and optional pinned-only subset) with no network fetches. Pin wallpapers under Advanced → Cache."
+msgid "Cycles the disk cache (and optional pinned-only subset) with no network fetches. Pin wallpapers under Storage → Cache manager."
+msgstr "Doorloopt de schijfcache (optioneel alleen vastgezette items) zonder netwerk. Zet achtergronden vast onder Opslag → Cachebeheer."
 
 msgid "Cycle through multiple collections on each advance"
 msgstr "Cycle through multiple collections on each advance"
@@ -659,6 +674,9 @@ msgstr "Delete selected preset"
 msgid "Descending"
 msgstr "Descending"
 
+msgid "Desktop"
+msgstr "Bureaublad"
+
 msgid "Desktop Art"
 msgstr "Desktop Art"
 
@@ -677,6 +695,9 @@ msgstr "Diagnostics"
 msgid "Disable Ken Burns and parallax motion (accessibility / battery)"
 msgstr "Disable Ken Burns and parallax motion (accessibility / battery)"
 
+msgid "Disk cache"
+msgstr "Schijfcache"
+
 msgid "Disk cache:"
 msgstr "Disk cache:"
 
@@ -689,6 +710,9 @@ msgstr "Dislike (mute these tags)"
 msgid "Download matching wallpapers into cache now"
 msgstr "Download matching wallpapers into cache now"
 
+msgid "Download size:"
+msgstr "Downloadgrootte:"
+
 msgid "Download the full-resolution file from Wallhaven (requires curl)"
 msgstr "Download the full-resolution file from Wallhaven (requires curl)"
 
@@ -700,9 +724,6 @@ msgstr "Each monitor keeps separate cache files so filters on one screen do not 
 
 msgid "Each screen keeps its own cache files (namespace %1). People/NSFW filters apply per monitor."
 msgstr "Each screen keeps its own cache files (namespace %1). People/NSFW filters apply per monitor."
-
-msgid "Effects"
-msgstr "Effects"
 
 msgid "e.g. 1920x1080,2560x1440"
 msgstr "e.g. 1920x1080,2560x1440"
@@ -743,6 +764,9 @@ msgstr "Enter an API key first."
 msgid "Enter an API key or a collection username first."
 msgstr "Enter an API key or a collection username first."
 
+msgid "Essentials"
+msgstr "Basis"
+
 msgid "Evict"
 msgstr "Evict"
 
@@ -772,9 +796,6 @@ msgstr "Export Wallhaven Bug Report"
 
 msgid "Export Wallhaven Settings"
 msgstr "Export Wallhaven Settings"
-
-msgid "External Control"
-msgstr "External Control"
 
 msgid "Fade through black"
 msgstr "Fade through black"
@@ -815,9 +836,6 @@ msgstr "Filter collections:"
 msgid "Filters"
 msgstr "Filters"
 
-msgid "Filters are in Advanced settings mode. Switch Settings mode to Advanced on the Source tab."
-msgstr "Filters are in Advanced settings mode. Switch Settings mode to Advanced on the Source tab."
-
 msgid "Filter settings…"
 msgstr "Filter settings…"
 
@@ -839,8 +857,8 @@ msgstr "Font scale (%):"
 msgid "Forest"
 msgstr "Forest"
 
-msgid "Fun & Discovery"
-msgstr "Fun & Discovery"
+msgid "General"
+msgstr "Algemeen"
 
 msgid "General:"
 msgstr "General:"
@@ -850,9 +868,6 @@ msgstr "Getting started:"
 
 msgid "GitHub issue:"
 msgstr "GitHub issue:"
-
-msgid "Global shortcuts"
-msgstr "Global shortcuts"
 
 msgid "Gold"
 msgstr "Gold"
@@ -871,6 +886,9 @@ msgstr "Groep %1 · “%2”"
 
 msgid "grp %1"
 msgstr "grp %1"
+
+msgid "History & undo"
+msgstr "Geschiedenis & ongedaan maken"
 
 msgid "/home/you/Pictures/Wallpapers"
 msgstr "/home/you/Pictures/Wallpapers"
@@ -893,6 +911,9 @@ msgstr "Idle threshold (min):"
 msgid "id, tag, category…"
 msgstr "id, tag, category…"
 
+msgid "Image"
+msgstr "Afbeelding"
+
 msgid "Image enhance:"
 msgstr "Image enhance:"
 
@@ -901,9 +922,6 @@ msgstr "Image failed to load. Showing cached wallpaper."
 
 msgid "Image failed to load. Trying another…"
 msgstr "Image failed to load. Trying another…"
-
-msgid "Image quality:"
-msgstr "Image quality:"
 
 msgid "Images decode to screen size. Inactive crossfade layers are released, and settings preview writes are deferred."
 msgstr "Images decode to screen size. Inactive crossfade layers are released, and settings preview writes are deferred."
@@ -1076,11 +1094,14 @@ msgstr "Local playlists:"
 msgid "Local sorting:"
 msgstr "Local sorting:"
 
+msgid "Lock screen"
+msgstr "Vergrendelscherm"
+
 msgid "Lock screen:"
 msgstr "Lock screen:"
 
 msgid "Lock screen sync failed."
-msgstr "Lock screen sync failed."
+msgstr "Synchronisatie van het vergrendelscherm mislukt."
 
 msgid "lock sync failed"
 msgstr "lock sync failed"
@@ -1097,11 +1118,14 @@ msgstr "Lock sync OK · %1"
 msgid "Lock sync status:"
 msgstr "Lock sync status:"
 
+msgid "Maintenance"
+msgstr "Onderhoud"
+
 msgid "Manual"
 msgstr "Manual"
 
-msgid "Match wallpaper Advanced → Sync group. With multiple monitors, the plasmoid lists each screen and routes next/prev to that group."
-msgstr "Match wallpaper Advanced → Sync group. With multiple monitors, the plasmoid lists each screen and routes next/prev to that group."
+msgid "Match the wallpaper's Desktop → Multiple monitors → Sync group. With multiple monitors, the plasmoid lists each screen and routes next/prev to that group."
+msgstr "Komt overeen met Bureaublad → Meerdere schermen → Synchronisatiegroep van de achtergrond. Met meerdere schermen toont de plasmoid elk scherm en stuurt volgende/vorige naar die groep."
 
 msgid "Max cache size (MB):"
 msgstr "Max cache size (MB):"
@@ -1120,6 +1144,9 @@ msgstr "Milestone toasts:"
 
 msgid "Min height:"
 msgstr "Min height:"
+
+msgid "minutes (0 = manual only)"
+msgstr "minuten (0 = alleen handmatig)"
 
 msgid "Min width:"
 msgstr "Min width:"
@@ -1163,11 +1190,11 @@ msgstr "More like current"
 msgid "More-like-current mode needs a wallpaper on screen first."
 msgstr "More-like-current mode needs a wallpaper on screen first."
 
-msgid "Most advanced options are hidden in Simple mode. Switch Settings mode to Advanced on the Source tab."
-msgstr "Most advanced options are hidden in Simple mode. Switch Settings mode to Advanced on the Source tab."
-
 msgid "mountains nature"
 msgstr "mountains nature"
+
+msgid "Multiple monitors"
+msgstr "Meerdere schermen"
 
 msgid "Music-reactive pacing:"
 msgstr "Music-reactive pacing:"
@@ -1187,6 +1214,9 @@ msgstr "Name for current search"
 msgid "name or search words"
 msgstr "name or search words"
 
+msgid "Network"
+msgstr "Netwerk"
+
 msgid "Network error during search test."
 msgstr "Network error during search test."
 
@@ -1201,9 +1231,6 @@ msgstr "Network error while validating API key."
 
 msgid "Network restored. Resuming…"
 msgstr "Network restored. Resuming…"
-
-msgid "Network & Retries"
-msgstr "Network & Retries"
 
 msgid "Never use the network; cycle cached wallpapers only"
 msgstr "Never use the network; cycle cached wallpapers only"
@@ -1355,6 +1382,9 @@ msgstr "Offline playlist"
 msgid "Offline tag filter:"
 msgstr "Offline tag filter:"
 
+msgid "Offline & trips"
+msgstr "Offline & reizen"
+
 msgid "Olive"
 msgstr "Olive"
 
@@ -1365,7 +1395,7 @@ msgid "On errors:"
 msgstr "On errors:"
 
 msgid "One screen with this enabled feeds the lock wallpaper for every monitor. Screens without it still repair a blank lock page from the shared copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer disk cache (and optional original download) for a full-resolution lock image."
-msgstr "One screen with this enabled feeds the lock wallpaper for every monitor. Screens without it still repair a blank lock page from the shared copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer disk cache (and optional original download) for a full-resolution lock image."
+msgstr "Eén scherm met deze optie levert de vergrendelachtergrond voor alle monitoren. Schermen zonder herstellen een lege vergrendelpagina uit de gedeelde kopie. Ken Burns, verbetering en parallax blijven op het bureaublad. Gebruik de schijfcache (en optioneel de originele download) voor een vergrendelbeeld in volledige resolutie."
 
 msgid "Only cycle cached wallpapers whose stored tags contain all these words."
 msgstr "Only cycle cached wallpapers whose stored tags contain all these words."
@@ -1375,6 +1405,9 @@ msgstr "Only play pinned cache entries"
 
 msgid "On refresh:"
 msgstr "On refresh:"
+
+msgid "On-screen overlay"
+msgstr "Schermoverlay"
 
 msgid "Open"
 msgstr "Open"
@@ -1397,8 +1430,11 @@ msgstr "Open de achtergrondinstellingen op een bureaublad om de cachevulling te 
 msgid "Open wallpaper settings while Wallhaven is active to see the count"
 msgstr "Open wallpaper settings while Wallhaven is active to see the count"
 
-msgid "Optional API key for NSFW/favorites. Later: try Offline playlist, local folder playlists, or smart offline on the Source tab."
-msgstr "Optional API key for NSFW/favorites. Later: try Offline playlist, local folder playlists, or smart offline on the Source tab."
+msgid "Optional API key for NSFW/favorites. Later: try Offline playlist or local folder playlists (All settings → Wallpapers) and smart offline (All settings → Storage)."
+msgstr "Optionele API-sleutel voor NSFW/favorieten. Later: probeer de offline afspeellijst of lokale mapafspeellijsten (Alle instellingen → Achtergronden) en slim offline (Alle instellingen → Opslag)."
+
+msgid "Optional — needed for NSFW and favorites"
+msgstr "Optioneel — nodig voor NSFW en favorieten"
 
 msgid "Optional path for Variety integration"
 msgstr "Optional path for Variety integration"
@@ -1412,11 +1448,11 @@ msgstr "Orange"
 msgid "Original (full wallpaper)"
 msgstr "Original (full wallpaper)"
 
-msgid "Other"
-msgstr "Other"
-
 msgid "Panel blur hint (%):"
 msgstr "Panel blur hint (%):"
+
+msgid "Panel & theme colors"
+msgstr "Paneel- & themakleuren"
 
 msgid "Panel tint hint:"
 msgstr "Panel tint hint:"
@@ -1435,6 +1471,9 @@ msgstr "Pause"
 
 msgid "Pause:"
 msgstr "Pause:"
+
+msgid "Pause automatically"
+msgstr "Automatisch pauzeren"
 
 msgid "Pause automatic slideshow"
 msgstr "Pause automatic slideshow"
@@ -1457,14 +1496,17 @@ msgstr "Pause the slideshow while the screen is locked"
 msgid "Pause this monitor"
 msgstr "Pause this monitor"
 
+msgid "Pause when:"
+msgstr "Pauzeren wanneer:"
+
 msgid "Pause when the session has been idle for several minutes"
 msgstr "Pause when the session has been idle for several minutes"
 
+msgid "People"
+msgstr "Mensen"
+
 msgid "People:"
 msgstr "People:"
-
-msgid "Performance"
-msgstr "Performance"
 
 msgid "Per-monitor cache:"
 msgstr "Per-monitor cache:"
@@ -1492,9 +1534,6 @@ msgstr "Pink Red"
 
 msgid "Pinned only:"
 msgstr "Pinned only:"
-
-msgid "Playback"
-msgstr "Playback"
 
 msgid "Playlist — cached wallpaper."
 msgstr "Playlist — cached wallpaper."
@@ -1559,8 +1598,14 @@ msgstr "Prune unpinned entries over slot limit"
 msgid "Purity"
 msgstr "Purity"
 
+msgid "Purity:"
+msgstr "Zuiverheid:"
+
 msgid "Purple"
 msgstr "Purple"
+
+msgid "Quick profiles"
+msgstr "Snelle profielen"
 
 msgid "Random"
 msgstr "Random"
@@ -1575,7 +1620,7 @@ msgid "Rate limited by Wallhaven. Retry %1/%2 in %3s…"
 msgstr "Rate limited by Wallhaven. Retry %1/%2 in %3s…"
 
 msgid "Rate limited by Wallhaven. Using cache until it recovers."
-msgstr "Rate limited by Wallhaven. Using cache until it recovers."
+msgstr "Beperkt door Wallhaven. Cache wordt gebruikt tot het herstelt."
 
 msgid "Rate-limit hits this session: %1. Last at %2."
 msgstr "Rate-limit hits this session: %1. Last at %2."
@@ -1634,6 +1679,9 @@ msgstr "Reload Wallpaper"
 msgid "Remember search settings per sync group"
 msgstr "Remember search settings per sync group"
 
+msgid "Repeats"
+msgstr "Herhalingen"
+
 msgid "Request failed (%1). Retry %2/%3 in %4s…"
 msgstr "Request failed (%1). Retry %2/%3 in %4s…"
 
@@ -1656,7 +1704,7 @@ msgid "Restored previous settings."
 msgstr "Restored previous settings."
 
 msgid "Restoring wallpaper after sleep…"
-msgstr "Restoring wallpaper after sleep…"
+msgstr "Achtergrond herstellen na slaapstand…"
 
 msgid "Resume"
 msgstr "Resume"
@@ -1718,6 +1766,9 @@ msgstr "Saved search:"
 msgid "Saved search “%1”."
 msgstr "Saved search “%1”."
 
+msgid "Saved searches & presets"
+msgstr "Opgeslagen zoekopdrachten & voorinstellingen"
+
 msgid "Saved search not found."
 msgstr "Saved search not found."
 
@@ -1760,6 +1811,9 @@ msgstr "🎉 Scheduled wallpaper switch — now searching \\"
 msgid "Screen %1 · group %2 · “%3”"
 msgstr "Scherm %1 · groep %2 · “%3”"
 
+msgid "Screen is locked"
+msgstr "Het scherm vergrendeld is"
+
 msgid "Screen lock pause:"
 msgstr "Screen lock pause:"
 
@@ -1771,9 +1825,6 @@ msgstr "Search:"
 
 msgid "Search: %1"
 msgstr "Zoeken: %1"
-
-msgid "Search Presets"
-msgstr "Search Presets"
 
 msgid "Search string:"
 msgstr "Search string:"
@@ -1796,14 +1847,14 @@ msgstr "Seen history:"
 msgid "Sent preset import request."
 msgstr "Sent preset import request."
 
+msgid "Session is idle"
+msgstr "De sessie inactief is"
+
 msgid "Set a local folder path in Source settings."
 msgstr "Set a local folder path in Source settings."
 
 msgid "Set color filter from current wallpaper palette"
 msgstr "Set color filter from current wallpaper palette"
-
-msgid "Settings Backup"
-msgstr "Settings Backup"
 
 msgid "Settings copied to clipboard as JSON."
 msgstr "Settings copied to clipboard as JSON."
@@ -1817,11 +1868,11 @@ msgstr "Settings exported to file."
 msgid "Settings imported."
 msgstr "Settings imported."
 
-msgid "Settings mode:"
-msgstr "Settings mode:"
-
 msgid "Setup status:"
 msgstr "Setup status:"
+
+msgid "Set up this source under All settings → Wallpapers."
+msgstr "Stel deze bron in onder Alle instellingen → Achtergronden."
 
 msgid "Setup wizard:"
 msgstr "Setup wizard:"
@@ -1835,8 +1886,17 @@ msgstr "SFW:"
 msgid "Share preset:"
 msgstr "Share preset:"
 
+msgid "Sharpness:"
+msgstr "Scherpte:"
+
 msgid "Shortcuts: ./dev-helper.sh install-shortcuts (Meta+Ctrl+Alt+arrows)"
 msgstr "Shortcuts: ./dev-helper.sh install-shortcuts (Meta+Ctrl+Alt+arrows)"
+
+msgid "Show:"
+msgstr "Tonen:"
+
+msgid "Show all settings…"
+msgstr "Alle instellingen tonen…"
 
 msgid "Show cached wallpapers when the network fails"
 msgstr "Show cached wallpapers when the network fails"
@@ -1871,12 +1931,6 @@ msgstr "Similar wallpapers"
 msgid "Similar Wallpapers"
 msgstr "Similar Wallpapers"
 
-msgid "Simple"
-msgstr "Simple"
-
-msgid "Simple mode: Source + Playback. Tip: Offline playlist, local playlists, and smart offline are on Source. Switch to Advanced for filters, cache, and sync."
-msgstr "Simple mode: Source + Playback. Tip: Offline playlist, local playlists, and smart offline are on Source. Switch to Advanced for filters, cache, and sync."
-
 msgid "Sketchy"
 msgstr "Sketchy"
 
@@ -1894,6 +1948,9 @@ msgstr "Slide"
 
 msgid "Slideshow"
 msgstr "Slideshow"
+
+msgid "Slideshow:"
+msgstr "Diavoorstelling:"
 
 msgid "Slideshow interval (min):"
 msgstr "Slideshow interval (min):"
@@ -1913,9 +1970,6 @@ msgstr "Slideshow resumed."
 msgid "Slideshow resumed (power/activity rules cleared)."
 msgstr "Slideshow resumed (power/activity rules cleared)."
 
-msgid "Slideshow rules"
-msgstr "Slideshow rules"
-
 msgid "Slowly pan across the wallpaper"
 msgstr "Slowly pan across the wallpaper"
 
@@ -1931,6 +1985,9 @@ msgstr "Smart color search:"
 msgid "Smart offline:"
 msgstr "Smart offline:"
 
+msgid "Sorting"
+msgstr "Sortering"
+
 msgid "Source"
 msgstr "Source"
 
@@ -1939,6 +1996,9 @@ msgstr "Speed up Ken Burns panning while music is playing (via MPRIS)"
 
 msgid "Start D-Bus service"
 msgstr "Start D-Bus service"
+
+msgid "Storage"
+msgstr "Opslag"
 
 msgid "Stores the key in KWallet folder org.robertsm.wallhaven (entry apikey). Prefer this over leaving the key only in wallpaper settings."
 msgstr "Stores the key in KWallet folder org.robertsm.wallhaven (entry apikey). Prefer this over leaving the key only in wallpaper settings."
@@ -1982,6 +2042,9 @@ msgstr "Tag blocklist:"
 msgid "tags"
 msgstr "tags"
 
+msgid "Tags & blocking"
+msgstr "Tags & blokkeren"
+
 msgid "Tags, keywords, e.g. nature anime"
 msgstr "Tags, keywords, e.g. nature anime"
 
@@ -2012,9 +2075,6 @@ msgstr "Zoekopdracht van dit scherm:"
 msgid "thumbnails, .git, Screenshots"
 msgstr "thumbnails, .git, Screenshots"
 
-msgid "Time Capsule"
-msgstr "Time Capsule"
-
 msgid "Time capsules:"
 msgstr "Time capsules:"
 
@@ -2027,14 +2087,14 @@ msgstr "Timed out while loading collections."
 msgid "Time of day:"
 msgstr "Time of day:"
 
-msgid "Time of Day"
-msgstr "Time of Day"
-
 msgid "Time-of-day searches apply in Search mode only (6am–8pm day, otherwise night)."
 msgstr "Time-of-day searches apply in Search mode only (6am–8pm day, otherwise night)."
 
 msgid "Timeout is per request. Retries use the delay with exponential backoff, up to the max attempts."
 msgstr "Timeout is per request. Retries use the delay with exponential backoff, up to the max attempts."
+
+msgid "Timing"
+msgstr "Timing"
 
 msgid "Top left"
 msgstr "Top left"
@@ -2050,6 +2110,9 @@ msgstr "Top right"
 
 msgid "Transition:"
 msgstr "Transition:"
+
+msgid "Transitions & motion"
+msgstr "Overgangen & beweging"
 
 msgid "Trip 24h"
 msgstr "Trip 24h"
@@ -2120,6 +2183,9 @@ msgstr "Upscaler: realesrgan-ncnn-vulkan found"
 msgid "Upscaler status:"
 msgstr "Upscaler status:"
 
+msgid "Upscaling"
+msgstr "Opschalen"
+
 msgid "Use an external AI upscaler for wallpapers smaller than your screen, if installed"
 msgstr "Use an external AI upscaler for wallpapers smaller than your screen, if installed"
 
@@ -2150,6 +2216,9 @@ msgstr "Use separate weekday/weekend searches"
 msgid "Uses the free Open-Meteo API (no key required); location is geocoded once and cached."
 msgstr "Uses the free Open-Meteo API (no key required); location is geocoded once and cached."
 
+msgid "Use the current wallpaper"
+msgstr "Huidige achtergrond gebruiken"
+
 msgid "Use this screen’s name as sync group"
 msgstr "Use this screen’s name as sync group"
 
@@ -2160,13 +2229,16 @@ msgid "Use tools/wallhaven-ctl.sh, D-Bus (tools/wallhaven-dbus.py), or the Wallh
 msgstr "Use tools/wallhaven-ctl.sh, D-Bus (tools/wallhaven-dbus.py), or the Wallhaven Control plasmoid."
 
 msgid "Using cached wallpaper while API key is fixed."
-msgstr "Using cached wallpaper while API key is fixed."
+msgstr "Gecachete achtergrond wordt gebruikt tot de API-sleutel is hersteld."
 
 msgid "Using cache until Wallhaven recovers."
 msgstr "Using cache until Wallhaven recovers."
 
 msgid "Validate key:"
 msgstr "Validate key:"
+
+msgid "Variety"
+msgstr "Variety"
 
 msgid "Variety bridge:"
 msgstr "Variety bridge:"
@@ -2192,11 +2264,14 @@ msgstr "Views"
 msgid "Wallhaven"
 msgstr "Wallhaven"
 
+msgid "Wallhaven account"
+msgstr "Wallhaven-account"
+
 msgid "Wallhaven D-Bus service is not running. Run: systemctl --user enable --now wallhaven-dbus.service"
 msgstr "Wallhaven D-Bus service is not running. Run: systemctl --user enable --now wallhaven-dbus.service"
 
 msgid "Wallhaven is back — resuming on the next change."
-msgstr "Wallhaven is back — resuming on the next change."
+msgstr "Wallhaven is terug — hervat bij de volgende wissel."
 
 msgid "Wallhaven milestone"
 msgstr "Wallhaven milestone"
@@ -2234,9 +2309,6 @@ msgstr "Wallpaper details"
 msgid "Wallpaper engine idle?"
 msgstr "Wallpaper engine idle?"
 
-msgid "Wallpaper History"
-msgstr "Wallpaper History"
-
 msgid "Wallpaper history cleared."
 msgstr "Wallpaper history cleared."
 
@@ -2249,11 +2321,17 @@ msgstr "Wallpaper Info"
 msgid "Wallpaper of the day:"
 msgstr "Wallpaper of the day:"
 
+msgid "Wallpapers"
+msgstr "Achtergronden"
+
 msgid "Wallpaper saved."
 msgstr "Wallpaper saved."
 
 msgid "Wallpaper settings…"
 msgstr "Wallpaper settings…"
+
+msgid "Wallpapers from:"
+msgstr "Achtergronden uit:"
 
 msgid "Warm cache"
 msgstr "Warm cache"
@@ -2287,9 +2365,6 @@ msgstr "Weather location:"
 
 msgid "Weather-reactive search:"
 msgstr "Weather-reactive search:"
-
-msgid "Weekday Schedule"
-msgstr "Weekday Schedule"
 
 msgid "Weekday search:"
 msgstr "Weekday search:"

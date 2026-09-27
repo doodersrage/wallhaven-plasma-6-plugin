@@ -42,6 +42,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="3.6.0" date="2026-09-27">
+      <description>
+        <p>Reorganize wallpaper settings into a short Essentials page and six task-based tabs (Wallpapers, Filters, Slideshow, Desktop, Storage, Maintenance), and complete all translations.</p>
+      </description>
+    </release>
     <release version="3.5.6" date="2026-09-27">
       <description>
         <p>Fix the Control plasmoid, global shortcuts (now Meta+Ctrl+Alt), KRunner, KWallet API key storage, clipboard copy, and multi-monitor CLI/KRunner command routing.</p>

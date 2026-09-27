@@ -192,6 +192,8 @@ ColumnLayout {
     property alias cfg_AchievementsEnabled: achievementsCheck.checked
     property alias cfg_SystemThemeSyncEnabled: systemThemeSyncCheck.checked
     property string settingsFilter: ""
+    // Categories/purity/resolution filters only apply to Search browse mode.
+    readonly property bool searchFilters: !root.uiSimple && browseModeCombo.currentValue === "search"
     readonly property var settingsFilterKeywords: [
         "search", "filter", "settings", "source", "tags", "query", "cache", "variety",
         "dbus", "slideshow", "blocklist", "preset", "history", "sync", "shortcut",
@@ -215,15 +217,7 @@ ColumnLayout {
         return !root.uiSimple && rowVisible(keywords);
     }
 
-    function ensureSimpleTabSafe() {
-        if (!root.uiSimple)
-            return;
-        // Filters=1, Advanced=3 — keep Source or Playback
-        if (tabBar.currentIndex === 1 || tabBar.currentIndex === 3)
-            tabBar.currentIndex = 0;
-    }
 
-    onUiSimpleChanged: ensureSimpleTabSafe()
     property bool showSetupWizard: wallpaperConfiguration && !wallpaperConfiguration.SetupWizardCompleted
     property bool dbusPollCompleted: false
     property bool dbusPolledOnline: false
@@ -622,7 +616,7 @@ ColumnLayout {
     }
 
     Layout.fillWidth: true
-    implicitHeight: Math.max(previewColumn.implicitHeight + tabBar.implicitHeight + (settingsSearchField.visible ? settingsSearchField.implicitHeight : 0) + tabs.implicitHeight + (setupWizardPanel.visible ? setupWizardPanel.implicitHeight : 0) + Kirigami.Units.gridUnit * 2, 420)
+    implicitHeight: Math.max(previewColumn.implicitHeight + settingsModeRow.implicitHeight + (root.uiSimple ? essentialsForm.implicitHeight : tabBar.implicitHeight + tabs.implicitHeight) + (setupWizardPanel.visible ? setupWizardPanel.implicitHeight : 0) + Kirigami.Units.gridUnit * 2, 420)
     spacing: Kirigami.Units.smallSpacing
     Component.onCompleted: {
         refreshHistoryModel();
@@ -736,7 +730,7 @@ ColumnLayout {
                     visible: rowVisible(["getting", "started"])
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                text: i18n("Optional API key for NSFW/favorites. Later: try Offline playlist, local folder playlists, or smart offline on the Source tab.")
+                text: i18n("Optional API key for NSFW/favorites. Later: try Offline playlist or local folder playlists (All settings → Wallpapers) and smart offline (All settings → Storage).")
             }
 
             QtControls2.TextField {
@@ -1140,16 +1134,43 @@ ColumnLayout {
 
     }
 
-    Item {
+    // Essentials ↔ All settings, plus the settings filter (All settings only).
+    RowLayout {
+        id: settingsModeRow
+
         Layout.fillWidth: true
-        Layout.preferredHeight: settingsSearchField.implicitHeight
+        spacing: Kirigami.Units.smallSpacing
+
+        QtControls2.Label {
+            text: i18n("Show:")
+        }
+
+        QtControls2.ComboBox {
+            id: settingsUiModeCombo
+
+            textRole: "label"
+            valueRole: "value"
+            model: [{
+                "label": i18n("Essentials"),
+                "value": "simple"
+            }, {
+                "label": i18n("All settings"),
+                "value": "advanced"
+            }]
+        }
 
         QtControls2.TextField {
             id: settingsSearchField
 
-            anchors.fill: parent
+            Layout.fillWidth: true
+            visible: !root.uiSimple
             placeholderText: i18n("Filter settings…")
             onTextChanged: root.settingsFilter = text.trim()
+        }
+
+        Item {
+            Layout.fillWidth: true
+            visible: root.uiSimple
         }
 
     }
@@ -1158,38 +1179,219 @@ ColumnLayout {
         Layout.fillWidth: true
         wrapMode: Text.WordWrap
         opacity: 0.65
-        visible: root.settingsFilter !== "" && !root.settingsFilterMatchesAny()
+        visible: !root.uiSimple && root.settingsFilter !== "" && !root.settingsFilterMatchesAny()
         text: i18n("No settings match %1. Try another tab or clear the filter.", root.settingsFilter)
+    }
+
+    // Essentials: the handful of options most people change. Every control mirrors
+    // the real one in All settings (which owns the cfg_ alias) and writes back only
+    // on user edits, so switching views never changes a setting by itself.
+    Kirigami.FormLayout {
+        id: essentialsForm
+
+        Layout.fillWidth: true
+        visible: root.uiSimple
+        twinFormLayouts: typeof appearanceRoot !== "undefined" ? [appearanceRoot.parentLayout] : []
+
+        QtControls2.ComboBox {
+            Kirigami.FormData.label: i18n("Wallpapers from:")
+            textRole: "label"
+            valueRole: "value"
+            model: browseModeCombo.model
+            currentIndex: browseModeCombo.currentIndex
+            onActivated: function(index) {
+                browseModeCombo.currentIndex = index;
+            }
+        }
+
+        QtControls2.TextField {
+            Kirigami.FormData.label: i18n("Search:")
+            Layout.fillWidth: true
+            visible: browseModeCombo.currentValue === "search"
+            placeholderText: i18n("Search tags, e.g. nature landscape")
+            text: searchTextField.text
+            onTextEdited: searchTextField.text = text
+        }
+
+        QtControls2.Label {
+            Kirigami.FormData.label: " "
+            Layout.fillWidth: true
+            visible: browseModeCombo.currentValue !== "search"
+            wrapMode: Text.WordWrap
+            opacity: 0.7
+            text: i18n("Set up this source under All settings → Wallpapers.")
+        }
+
+        RowLayout {
+            Kirigami.FormData.label: i18n("Categories:")
+            visible: browseModeCombo.currentValue === "search"
+
+            QtControls2.CheckBox {
+                text: i18n("General")
+                checked: generalCheck.checked
+                onToggled: generalCheck.checked = checked
+            }
+
+            QtControls2.CheckBox {
+                text: i18n("Anime")
+                checked: animeCheck.checked
+                onToggled: animeCheck.checked = checked
+            }
+
+            QtControls2.CheckBox {
+                text: i18n("People")
+                checked: peopleCheck.checked
+                onToggled: peopleCheck.checked = checked
+            }
+
+        }
+
+        RowLayout {
+            Kirigami.FormData.label: i18n("Purity:")
+            visible: browseModeCombo.currentValue === "search"
+
+            QtControls2.CheckBox {
+                text: i18n("SFW")
+                checked: sfwCheck.checked
+                onToggled: sfwCheck.checked = checked
+            }
+
+            QtControls2.CheckBox {
+                text: i18n("Sketchy")
+                checked: sketchyCheck.checked
+                onToggled: sketchyCheck.checked = checked
+            }
+
+            QtControls2.CheckBox {
+                text: i18n("NSFW")
+                checked: nsfwCheck.checked
+                onToggled: nsfwCheck.checked = checked
+            }
+
+        }
+
+        RowLayout {
+            Kirigami.FormData.label: i18n("Change every:")
+
+            QtControls2.SpinBox {
+                from: intervalSpin.from
+                to: intervalSpin.to
+                value: intervalSpin.value
+                onValueModified: intervalSpin.value = value
+            }
+
+            QtControls2.Label {
+                text: i18n("minutes (0 = manual only)")
+            }
+
+        }
+
+        QtControls2.CheckBox {
+            Kirigami.FormData.label: i18n("Slideshow:")
+            text: i18n("Paused")
+            checked: slideshowPausedCheck.checked
+            onToggled: slideshowPausedCheck.checked = checked
+        }
+
+        QtControls2.ComboBox {
+            Kirigami.FormData.label: i18n("Transition:")
+            textRole: "label"
+            model: transitionCombo.model
+            currentIndex: transitionCombo.currentIndex
+            onActivated: function(index) {
+                transitionCombo.currentIndex = index;
+            }
+        }
+
+        ColumnLayout {
+            Kirigami.FormData.label: i18n("Pause when:")
+            spacing: 0
+
+            QtControls2.CheckBox {
+                text: i18n("Screen is locked")
+                checked: pauseInactiveCheck.checked
+                onToggled: pauseInactiveCheck.checked = checked
+            }
+
+            QtControls2.CheckBox {
+                text: i18n("Session is idle")
+                checked: pauseIdleCheck.checked
+                onToggled: pauseIdleCheck.checked = checked
+            }
+
+            QtControls2.CheckBox {
+                text: i18n("Battery is low")
+                checked: pauseBatteryCheck.checked
+                onToggled: pauseBatteryCheck.checked = checked
+            }
+
+        }
+
+        QtControls2.CheckBox {
+            Kirigami.FormData.label: i18n("Lock screen:")
+            text: i18n("Use the current wallpaper")
+            checked: lockScreenCheck.checked
+            onToggled: lockScreenCheck.checked = checked
+        }
+
+        QtControls2.TextField {
+            Kirigami.FormData.label: i18n("API key:")
+            Layout.fillWidth: true
+            echoMode: TextInput.Password
+            placeholderText: i18n("Optional — needed for NSFW and favorites")
+            text: apiKeyField.text
+            onTextEdited: apiKeyField.text = text
+        }
+
+        QtControls2.Button {
+            Kirigami.FormData.label: " "
+            icon.name: "configure"
+            text: i18n("Show all settings…")
+            onClicked: settingsUiModeCombo.currentIndex = 1
+        }
+
     }
 
     Item {
         Layout.fillWidth: true
         Layout.preferredHeight: tabBar.implicitHeight
+        visible: !root.uiSimple
 
         QtControls2.TabBar {
             id: tabBar
 
             anchors.horizontalCenter: parent.horizontalCenter
-            width: implicitWidth
+            width: Math.min(implicitWidth, parent.width)
 
             QtControls2.TabButton {
-                text: i18n("Source")
+                width: implicitWidth
+                text: i18n("Wallpapers")
             }
 
             QtControls2.TabButton {
+                width: implicitWidth
                 text: i18n("Filters")
-                visible: !root.uiSimple
             }
 
             QtControls2.TabButton {
-                text: i18n("Playback")
+                width: implicitWidth
+                text: i18n("Slideshow")
             }
 
             QtControls2.TabButton {
-                text: i18n("Advanced")
-                visible: !root.uiSimple
+                width: implicitWidth
+                text: i18n("Desktop")
             }
 
+            QtControls2.TabButton {
+                width: implicitWidth
+                text: i18n("Storage")
+            }
+
+            QtControls2.TabButton {
+                width: implicitWidth
+                text: i18n("Maintenance")
+            }
         }
 
     }
@@ -1200,9 +1402,10 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.preferredHeight: 420
         Layout.minimumHeight: 320
+        visible: !root.uiSimple
         currentIndex: tabBar.currentIndex
 
-        // Source
+        // Wallpapers
         QtControls2.ScrollView {
             id: sourceScroll
 
@@ -1215,31 +1418,10 @@ ColumnLayout {
                 width: sourceScroll.availableWidth
                 twinFormLayouts: typeof appearanceRoot !== "undefined" ? [appearanceRoot.parentLayout] : []
 
-                QtControls2.ComboBox {
-                    id: settingsUiModeCombo
-
-                    Kirigami.FormData.label: i18n("Settings mode:")
-                    textRole: "label"
-                    valueRole: "value"
-                    visible: rowVisible(["simple", "advanced", "settings", "mode", "ui"])
-                    model: [{
-                        "label": i18n("Simple"),
-                        "value": "simple"
-                    }, {
-                        "label": i18n("Advanced"),
-                        "value": "advanced"
-                    }]
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    visible: rowVisible(["simple", "advanced", "settings"])
-                    text: root.uiSimple
-                        ? i18n("Simple mode: Source + Playback. Tip: Offline playlist, local playlists, and smart offline are on Source. Switch to Advanced for filters, cache, and sync.")
-                        : i18n("Advanced mode shows all tabs and options.")
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Source")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
                 }
 
                 QtControls2.ComboBox {
@@ -1276,7 +1458,7 @@ ColumnLayout {
                     wrapMode: Text.WordWrap
                     opacity: 0.7
                     visible: browseModeCombo.currentValue === "playlist" && rowVisible(["playlist", "offline", "cache", "pinned"])
-                    text: i18n("Cycles the disk cache (and optional pinned-only subset) with no network fetches. Pin wallpapers under Advanced → Cache.")
+                    text: i18n("Cycles the disk cache (and optional pinned-only subset) with no network fetches. Pin wallpapers under Storage → Cache manager.")
                 }
 
                 QtControls2.CheckBox {
@@ -1284,61 +1466,6 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Playlist pins:")
                     text: i18n("Only play pinned cache entries")
                     visible: browseModeCombo.currentValue === "playlist" && rowVisible(["playlist", "pinned", "cache", "offline"])
-                }
-
-                QtControls2.TextField {
-                    id: localFolderField
-                    Kirigami.FormData.label: i18n("Local folder:")
-                    placeholderText: i18n("/home/you/Pictures/Wallpapers")
-                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "folder", "path"])
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: " "
-                    text: i18n("Browse…")
-                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "folder", "path", "browse"])
-                    onClicked: localFolderDialog.open()
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "folder"])
-                    text: i18n("Cycles JPG/PNG/WebP files under this folder (home directory only). No Wallhaven network requests.")
-                }
-
-                QtControls2.SpinBox {
-                    id: localFolderDepthSpin
-                    Kirigami.FormData.label: i18n("Folder depth:")
-                    from: 0
-                    to: 8
-                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "folder", "depth"])
-                }
-
-                QtControls2.TextField {
-                    id: localFolderExcludeField
-                    Kirigami.FormData.label: i18n("Exclude paths:")
-                    placeholderText: i18n("thumbnails, .git, Screenshots")
-                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "folder", "exclude"])
-                }
-
-                QtControls2.CheckBox {
-                    id: smartOfflineCheck
-                    Kirigami.FormData.label: i18n("Smart offline:")
-                    text: i18n("Prefer pinned / higher-resolution cache entries when offline or in playlist mode")
-                    visible: (browseModeCombo.currentValue === "playlist" || offlineOnlyCheck.checked || root.uiSimple === false)
-                        && rowVisible(["smart", "offline", "playlist", "cache"])
-                }
-
-                QtControls2.CheckBox {
-                    id: smartOfflineDayCheck
-                    Kirigami.FormData.label: i18n("Day-aware offline:")
-                    text: i18n("Bias cached picks using day/night search words and stored cache tags")
-                    visible: smartOfflineCheck.visible && smartOfflineCheck.checked
-                        && rowVisible(["smart", "offline", "day", "night", "playlist", "cache"])
-                    enabled: smartOfflineCheck.checked
                 }
 
                 QtControls2.TextField {
@@ -1358,68 +1485,6 @@ ColumnLayout {
                     text: i18n("Only cycle cached wallpapers whose stored tags contain all these words.")
                 }
 
-                QtControls2.TextField {
-                    id: localPlaylistNameField
-                    Kirigami.FormData.label: i18n("Save playlist as:")
-                    placeholderText: i18n("Desktop Art")
-                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "playlist", "folder"])
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: " "
-                    text: i18n("Save local playlist")
-                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "playlist", "folder"])
-                    enabled: localPlaylistNameField.text.trim() !== "" && localFolderField.text.trim() !== ""
-                    onClicked: root.saveCurrentLocalPlaylist()
-                }
-
-                QtControls2.ComboBox {
-                    id: localPlaylistCombo
-                    Kirigami.FormData.label: i18n("Local playlists:")
-                    textRole: "name"
-                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "playlist", "folder"])
-                    model: root.currentLocalPlaylists()
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: " "
-                    text: i18n("Apply local playlist")
-                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "playlist", "folder"])
-                    enabled: localPlaylistCombo.currentIndex >= 0
-                    onClicked: {
-                        var entries = root.currentLocalPlaylists();
-                        if (localPlaylistCombo.currentIndex < 0 || localPlaylistCombo.currentIndex >= entries.length)
-                            return;
-                        var pl = entries[localPlaylistCombo.currentIndex];
-                        Wallhaven.applyLocalPlaylist(pl, wallpaperConfiguration);
-                        localFolderField.text = pl.path || "";
-                        localFolderDepthSpin.value = pl.maxDepth || 3;
-                        localFolderExcludeField.text = pl.exclude || "";
-                        root.setComboValue(localSortingsCombo, pl.sortings || "ascending");
-                        root.setComboValue(browseModeCombo, "local");
-                        localPlaylistCombo.model = root.currentLocalPlaylists();
-                        importExportStatus.text = i18n("Applied local playlist \"%1\".", pl.name);
-                    }
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: " "
-                    text: i18n("Delete local playlist")
-                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "playlist", "folder"])
-                    enabled: localPlaylistCombo.currentIndex >= 0
-                    onClicked: {
-                        var entries = root.currentLocalPlaylists().slice();
-                        if (localPlaylistCombo.currentIndex < 0 || localPlaylistCombo.currentIndex >= entries.length)
-                            return;
-                        var name = entries[localPlaylistCombo.currentIndex].name;
-                        entries.splice(localPlaylistCombo.currentIndex, 1);
-                        root.persistLocalPlaylists(entries);
-                        localPlaylistCombo.model = entries;
-                        localPlaylistCombo.currentIndex = -1;
-                        importExportStatus.text = i18n("Deleted local playlist \"%1\".", name);
-                    }
-                }
-
                 QtControls2.Label {
                     Kirigami.FormData.label: " "
                     Layout.fillWidth: true
@@ -1435,23 +1500,6 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Search string:")
                     placeholderText: i18n("Tags, keywords, e.g. nature anime")
                     visible: browseModeCombo.currentValue === "search" && fieldVisible(["search", "tags", "query"])
-                }
-
-                QtControls2.CheckBox {
-                    id: wallpaperOfDayCheck
-
-                    Kirigami.FormData.label: i18n("Wallpaper of the day:")
-                    text: i18n("Use today's Wallhaven toplist (overrides sorting)")
-                    visible: browseModeCombo.currentValue === "search" && fieldVisible(["toplist", "daily", "wotd"])
-                }
-
-                QtControls2.SpinBox {
-                    id: favoritesRefreshSpin
-
-                    Kirigami.FormData.label: i18n("Favorites refresh (min):")
-                    from: 0
-                    to: 1440
-                    visible: browseModeCombo.currentValue === "favorites" && fieldVisible(["favorites", "refresh"])
                 }
 
                 QtControls2.Button {
@@ -1471,151 +1519,21 @@ ColumnLayout {
                     text: searchValidator.statusText
                 }
 
-                QtControls2.TextField {
-                    id: apiKeyField
-
-                    Kirigami.FormData.label: i18n("API key:")
-                    visible: rowVisible(["api", "key"])
-                    placeholderText: i18n("Optional; required for NSFW and favorites")
-                    echoMode: TextInput.Password
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.75
-                    visible: rowVisible(["api", "key"])
-                    text: liveWallpaper && liveWallpaper.apiKeyDisplayHint
-                        ? liveWallpaper.apiKeyDisplayHint
-                        : i18n("No live wallpaper binding for key status.")
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Validate key:")
-                    visible: !root.uiSimple && rowVisible(["validate", "key"])
-                    text: apiKeyValidator.checking ? i18n("Checking…") : i18n("Test API key")
-                    enabled: apiKeyField.text !== "" && !apiKeyValidator.checking
-                    onClicked: apiKeyValidator.validate()
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Clear key:")
-                    visible: rowVisible(["api", "key", "clear"])
-                    text: i18n("Clear API key")
-                    enabled: apiKeyField.text !== "" || (liveWallpaper && liveWallpaper.clearApiKey)
-                    onClicked: {
-                        apiKeyField.text = "";
-                        if (liveWallpaper && liveWallpaper.clearApiKey)
-                            liveWallpaper.clearApiKey(false);
-                    }
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    visible: apiKeyValidator.statusText !== ""
-                    text: apiKeyValidator.statusText
-                }
-
                 QtControls2.CheckBox {
-                    id: kwalletCheck
+                    id: wallpaperOfDayCheck
 
-                    Kirigami.FormData.label: i18n("KWallet:")
-                    text: i18n("Load API key from KWallet on startup (recommended)")
-                    visible: !root.uiSimple && rowVisible(["kwallet", "wallet", "api", "key", "secret", "security"])
+                    Kirigami.FormData.label: i18n("Wallpaper of the day:")
+                    text: i18n("Use today's Wallhaven toplist (overrides sorting)")
+                    visible: browseModeCombo.currentValue === "search" && fieldVisible(["toplist", "daily", "wotd"])
                 }
 
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Save to KWallet:")
-                    text: i18n("Save current API key to KWallet")
-                    visible: !root.uiSimple && rowVisible(["kwallet", "wallet", "api", "key", "secret", "security"])
-                    enabled: liveWallpaper !== null && apiKeyField.text.trim() !== ""
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.saveApiKeyToKWallet)
-                            liveWallpaper.saveApiKeyToKWallet();
-                    }
-                }
+                QtControls2.SpinBox {
+                    id: favoritesRefreshSpin
 
-                QtControls2.Label {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    visible: rowVisible(["kwallet", "wallet", "api", "key", "secret"])
-                    text: i18n("Stores the key in KWallet folder org.robertsm.wallhaven (entry apikey). Prefer this over leaving the key only in wallpaper settings.")
-                }
-
-                QtControls2.TextField {
-                    id: savedSearchNameField
-
-                    Kirigami.FormData.label: i18n("Saved search:")
-                    visible: rowVisible(["saved", "search", "history"])
-                    placeholderText: i18n("Name for current search")
-                    text: root.savedSearchNameFieldText
-                    onTextChanged: root.savedSearchNameFieldText = text
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: " "
-                    visible: rowVisible(["saved", "search"])
-                    text: i18n("Save current search")
-                    enabled: liveWallpaper !== null
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.saveCurrentAsSavedSearch)
-                            liveWallpaper.saveCurrentAsSavedSearch(savedSearchNameField.text);
-                    }
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Undo settings:")
-                    visible: rowVisible(["undo", "settings"])
-                    text: i18n("Undo last settings change")
-                    enabled: liveWallpaper !== null
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.undoLastSettingsChange)
-                            liveWallpaper.undoLastSettingsChange();
-                    }
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Trip mode:")
-                    visible: rowVisible(["trip", "offline", "travel"])
-                    text: i18n("Trip mode 24h (warm + cache only)")
-                    enabled: liveWallpaper !== null
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.enterTripModeWithWarm)
-                            liveWallpaper.enterTripModeWithWarm(24, cacheWarmCountSpin.value);
-                    }
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.75
-                    visible: rowVisible(["trip", "offline", "travel"])
-                    text: {
-                        if (!liveWallpaper)
-                            return "";
-                        var count = liveWallpaper.diskCacheEntryCount || 0;
-                        var target = cacheWarmCountSpin.value || 0;
-                        var pct = target > 0 ? Math.min(100, Math.round((count / target) * 100)) : (count > 0 ? 100 : 0);
-                        return i18n("Current cache fill for trip target: %1%", pct);
-                    }
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: " "
-                    visible: rowVisible(["trip", "offline", "travel"])
-                    text: i18n("End trip mode")
-                    enabled: liveWallpaper !== null
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.clearTripMode)
-                            liveWallpaper.clearTripMode(true);
-                    }
+                    Kirigami.FormData.label: i18n("Favorites refresh (min):")
+                    from: 0
+                    to: 1440
+                    visible: browseModeCombo.currentValue === "favorites" && fieldVisible(["favorites", "refresh"])
                 }
 
                 QtControls2.TextField {
@@ -1729,6 +1647,131 @@ ColumnLayout {
                     onEditingFinished: root.persistCollectionRotation(text)
                 }
 
+                QtControls2.TextField {
+                    id: localFolderField
+                    Kirigami.FormData.label: i18n("Local folder:")
+                    placeholderText: i18n("/home/you/Pictures/Wallpapers")
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "folder", "path"])
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    text: i18n("Browse…")
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "folder", "path", "browse"])
+                    onClicked: localFolderDialog.open()
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "folder"])
+                    text: i18n("Cycles JPG/PNG/WebP files under this folder (home directory only). No Wallhaven network requests.")
+                }
+
+                QtControls2.SpinBox {
+                    id: localFolderDepthSpin
+                    Kirigami.FormData.label: i18n("Folder depth:")
+                    from: 0
+                    to: 8
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "folder", "depth"])
+                }
+
+                QtControls2.TextField {
+                    id: localFolderExcludeField
+                    Kirigami.FormData.label: i18n("Exclude paths:")
+                    placeholderText: i18n("thumbnails, .git, Screenshots")
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "folder", "exclude"])
+                }
+
+                QtControls2.TextField {
+                    id: localPlaylistNameField
+                    Kirigami.FormData.label: i18n("Save playlist as:")
+                    placeholderText: i18n("Desktop Art")
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "playlist", "folder"])
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    text: i18n("Save local playlist")
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "playlist", "folder"])
+                    enabled: localPlaylistNameField.text.trim() !== "" && localFolderField.text.trim() !== ""
+                    onClicked: root.saveCurrentLocalPlaylist()
+                }
+
+                QtControls2.ComboBox {
+                    id: localPlaylistCombo
+                    Kirigami.FormData.label: i18n("Local playlists:")
+                    textRole: "name"
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "playlist", "folder"])
+                    model: root.currentLocalPlaylists()
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    text: i18n("Apply local playlist")
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "playlist", "folder"])
+                    enabled: localPlaylistCombo.currentIndex >= 0
+                    onClicked: {
+                        var entries = root.currentLocalPlaylists();
+                        if (localPlaylistCombo.currentIndex < 0 || localPlaylistCombo.currentIndex >= entries.length)
+                            return;
+                        var pl = entries[localPlaylistCombo.currentIndex];
+                        Wallhaven.applyLocalPlaylist(pl, wallpaperConfiguration);
+                        localFolderField.text = pl.path || "";
+                        localFolderDepthSpin.value = pl.maxDepth || 3;
+                        localFolderExcludeField.text = pl.exclude || "";
+                        root.setComboValue(localSortingsCombo, pl.sortings || "ascending");
+                        root.setComboValue(browseModeCombo, "local");
+                        localPlaylistCombo.model = root.currentLocalPlaylists();
+                        importExportStatus.text = i18n("Applied local playlist \"%1\".", pl.name);
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    text: i18n("Delete local playlist")
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "playlist", "folder"])
+                    enabled: localPlaylistCombo.currentIndex >= 0
+                    onClicked: {
+                        var entries = root.currentLocalPlaylists().slice();
+                        if (localPlaylistCombo.currentIndex < 0 || localPlaylistCombo.currentIndex >= entries.length)
+                            return;
+                        var name = entries[localPlaylistCombo.currentIndex].name;
+                        entries.splice(localPlaylistCombo.currentIndex, 1);
+                        root.persistLocalPlaylists(entries);
+                        localPlaylistCombo.model = entries;
+                        localPlaylistCombo.currentIndex = -1;
+                        importExportStatus.text = i18n("Deleted local playlist \"%1\".", name);
+                    }
+                }
+
+                QtControls2.ComboBox {
+                    id: localSortingsCombo
+
+                    Kirigami.FormData.label: i18n("Local sorting:")
+                    visible: browseModeCombo.currentValue === "local" && rowVisible(["local", "sorting"])
+                    textRole: "label"
+                    valueRole: "value"
+                    model: [{
+                        "label": i18n("Ascending"),
+                        "value": "ascending"
+                    }, {
+                        "label": i18n("Descending"),
+                        "value": "descending"
+                    }, {
+                        "label": i18n("Random"),
+                        "value": "random"
+                    }]
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Sorting")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
+                }
+
                 QtControls2.ComboBox {
                     id: sortingsCombo
 
@@ -1798,25 +1841,366 @@ ColumnLayout {
                     }]
                 }
 
-                QtControls2.ComboBox {
-                    id: localSortingsCombo
-
-                    Kirigami.FormData.label: i18n("Local sorting:")
-                    visible: (browseModeCombo.currentValue === "local" || !root.uiSimple) && rowVisible(["local", "sorting"])
-                    textRole: "label"
-                    valueRole: "value"
-                    model: [{
-                        "label": i18n("Ascending"),
-                        "value": "ascending"
-                    }, {
-                        "label": i18n("Descending"),
-                        "value": "descending"
-                    }, {
-                        "label": i18n("Random"),
-                        "value": "random"
-                    }]
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Saved searches & presets")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
                 }
 
+                QtControls2.TextField {
+                    id: savedSearchNameField
+
+                    Kirigami.FormData.label: i18n("Saved search:")
+                    visible: rowVisible(["saved", "search", "history"])
+                    placeholderText: i18n("Name for current search")
+                    text: root.savedSearchNameFieldText
+                    onTextChanged: root.savedSearchNameFieldText = text
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    visible: rowVisible(["saved", "search"])
+                    text: i18n("Save current search")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.saveCurrentAsSavedSearch)
+                            liveWallpaper.saveCurrentAsSavedSearch(savedSearchNameField.text);
+                    }
+                }
+
+                QtControls2.TextField {
+                    id: presetNameField
+
+                    Kirigami.FormData.label: i18n("Preset name:")
+                    placeholderText: i18n("e.g. Anime night")
+                    visible: root.searchFilters
+                }
+
+                QtControls2.ComboBox {
+                    id: presetCombo
+
+                    Kirigami.FormData.label: i18n("Saved presets:")
+                    textRole: "name"
+                    visible: root.searchFilters
+                    model: root.currentPresets()
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Save preset:")
+                    text: i18n("Save current search")
+                    visible: root.searchFilters
+                    onClicked: {
+                        var name = presetNameField.text.trim();
+                        if (!name)
+                            return ;
+
+                        var presets = root.currentPresets().slice();
+                        var preset = Wallhaven.buildPresetFromConfig(name, root.buildCurrentConfigObject());
+                        if (liveWallpaper && liveWallpaper.currentWallpaperId
+                                && liveWallpaper.currentWallpaperId !== "wallpaper")
+                            preset.SampleWallpaperId = liveWallpaper.currentWallpaperId;
+                        var replaced = false;
+                        for (var i = 0; i < presets.length; i++) {
+                            if (presets[i].name === name) {
+                                presets[i] = preset;
+                                replaced = true;
+                                break;
+                            }
+                        }
+                        if (!replaced)
+                            presets.push(preset);
+
+                        root.persistPresets(presets);
+                        var idx = -1;
+                        for (var j = 0; j < presets.length; j++) {
+                            if (presets[j].name === name) {
+                                idx = j;
+                                break;
+                            }
+                        }
+                        presetCombo.currentIndex = idx;
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Apply preset:")
+                    text: i18n("Apply selected preset")
+                    visible: root.searchFilters
+                    enabled: presetCombo.currentIndex >= 0
+                    onClicked: root.applySearchPreset(root.currentPresets()[presetCombo.currentIndex])
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Delete preset:")
+                    text: i18n("Delete selected preset")
+                    visible: root.searchFilters
+                    enabled: presetCombo.currentIndex >= 0
+                    onClicked: {
+                        var presets = root.currentPresets().slice();
+                        presets.splice(presetCombo.currentIndex, 1);
+                        root.persistPresets(presets);
+                        presetCombo.currentIndex = -1;
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Share preset:")
+                    text: i18n("Copy preset share URL")
+                    visible: root.searchFilters
+                    enabled: presetCombo.currentIndex >= 0
+                    onClicked: root.shareSelectedPresetUrl()
+                }
+
+                QtControls2.TextField {
+                    id: presetUrlField
+
+                    Kirigami.FormData.label: i18n("Preset URL:")
+                    placeholderText: i18n("wallhaven://preset/… or https://…/preset.json")
+                    visible: root.searchFilters
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Import URL:")
+                    text: i18n("Import preset from URL")
+                    visible: root.searchFilters
+                    enabled: presetUrlField.text.trim() !== "" && liveWallpaper !== null
+                    onClicked: root.importPresetFromUrlField()
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: root.searchFilters
+                    text: i18n("Accepts wallhaven:// share links or raw JSON from https (GitHub raw, gist, pastebin, etc.).")
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Import curated:")
+                    text: i18n("Import curated presets")
+                    visible: root.searchFilters
+                    onClicked: root.importCuratedPresets()
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Import community:")
+                    text: i18n("Import community presets")
+                    visible: root.searchFilters
+                    onClicked: root.importCommunityPresets()
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Preset browser:")
+                    visible: root.searchFilters
+                    text: i18n("Bundled packs (one-click import):")
+                }
+
+                QtControls2.TextField {
+                    id: presetBrowserFilterField
+                    Kirigami.FormData.label: i18n("Find preset:")
+                    placeholderText: i18n("name or search words")
+                    visible: root.searchFilters
+                    text: root.presetBrowserFilter
+                    onTextChanged: root.presetBrowserFilter = text
+                }
+
+                Flow {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    visible: root.searchFilters
+                    spacing: Kirigami.Units.smallSpacing
+
+                    Repeater {
+                        model: {
+                            var all = Wallhaven.bundledCuratedPresets().concat(Wallhaven.bundledCommunityPresets());
+                            var q = String(root.presetBrowserFilter || "").trim().toLowerCase();
+                            if (!q)
+                                return all;
+                            return all.filter(function(p) {
+                                if (!p) return false;
+                                var hay = [p.name || "", p.SearchText || ""].join(" ").toLowerCase();
+                                return hay.indexOf(q) !== -1;
+                            });
+                        }
+
+                        delegate: QtControls2.ItemDelegate {
+                            width: 104
+                            height: 88
+                            padding: 4
+                            onClicked: {
+                                var merged = Wallhaven.mergePresetLists(root.currentPresets(), [modelData]);
+                                root.persistPresets(merged);
+                                importExportStatus.text = i18n("Imported preset \"%1\".", modelData.name);
+                            }
+
+                            contentItem: Column {
+                                spacing: 2
+                                Item {
+                                    width: 96
+                                    height: 54
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: 4
+                                        color: Wallhaven.presetAccentColor(modelData)
+                                    }
+                                    Image {
+                                        id: presetThumb
+                                        anchors.fill: parent
+                                        fillMode: Image.PreserveAspectCrop
+                                        asynchronous: true
+                                        source: Wallhaven.presetPreviewThumbUrl(modelData)
+                                        visible: status === Image.Ready
+                                    }
+                                    QtControls2.Label {
+                                        anchors.centerIn: parent
+                                        visible: presetThumb.status !== Image.Ready
+                                        color: "#ffffff"
+                                        font.pointSize: 8
+                                        text: (modelData.CategoryAnime ? "A" : "")
+                                            + (modelData.CategoryPeople ? "P" : "")
+                                            + (modelData.CategoryGeneral !== false ? "G" : "")
+                                    }
+                                }
+                                QtControls2.Label {
+                                    width: 96
+                                    elide: Text.ElideRight
+                                    font.pointSize: 7
+                                    text: modelData.name
+                                }
+                            }
+                        }
+                    }
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: root.searchFilters && importExportStatus.text !== ""
+                    text: importExportStatus.text
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Automatic search changes")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
+                }
+
+                QtControls2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: i18n("Time-of-day searches apply in Search mode only (6am–8pm day, otherwise night).")
+                }
+
+                QtControls2.CheckBox {
+                    id: timeOfDayCheck
+
+                    Kirigami.FormData.label: i18n("Time of day:")
+                    visible: advancedVisible(["time", "day"])
+                    text: i18n("Use separate day/night searches")
+                }
+
+                QtControls2.TextField {
+                    id: daySearchField
+
+                    Kirigami.FormData.label: i18n("Day search:")
+                    visible: advancedVisible(["day", "search"])
+                    placeholderText: i18n("6am–8pm")
+                    enabled: timeOfDayCheck.checked
+                }
+
+                QtControls2.TextField {
+                    id: nightSearchField
+
+                    Kirigami.FormData.label: i18n("Night search:")
+                    visible: advancedVisible(["night", "search"])
+                    placeholderText: i18n("8pm–6am")
+                    enabled: timeOfDayCheck.checked
+                }
+
+                QtControls2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: i18n("Weekday/weekend searches apply in Search mode when time-of-day is disabled.")
+                }
+
+                QtControls2.CheckBox {
+                    id: scheduleCheck
+
+                    Kirigami.FormData.label: i18n("Week schedule:")
+                    visible: advancedVisible(["week", "schedule"])
+                    text: i18n("Use separate weekday/weekend searches")
+                    enabled: !timeOfDayCheck.checked
+                }
+
+                QtControls2.TextField {
+                    id: weekdaySearchField
+
+                    Kirigami.FormData.label: i18n("Weekday search:")
+                    visible: advancedVisible(["weekday", "search"])
+                    placeholderText: i18n("Mon–Fri")
+                    enabled: scheduleCheck.checked && !timeOfDayCheck.checked
+                }
+
+                QtControls2.TextField {
+                    id: weekendSearchField
+
+                    Kirigami.FormData.label: i18n("Weekend search:")
+                    visible: advancedVisible(["weekend", "search"])
+                    placeholderText: i18n("Sat–Sun")
+                    enabled: scheduleCheck.checked && !timeOfDayCheck.checked
+                }
+
+                QtControls2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: i18n("Auto-switch the search on a specific date. One per line: date|search query|optional label. MM-DD repeats every year (birthdays, holidays); YYYY-MM-DD fires once.")
+                }
+
+                QtControls2.TextArea {
+                    id: timeCapsuleField
+
+                    Kirigami.FormData.label: i18n("Time capsules:")
+                    visible: advancedVisible(["time", "capsules"])
+                    placeholderText: i18n("12-25|christmas snow|Holiday surprise — 2026-09-01|back to school city")
+                    text: root.timeCapsuleText()
+                    Binding on text {
+                        when: !timeCapsuleField.activeFocus
+                        value: root.timeCapsuleText()
+                    }
+                    onEditingFinished: root.persistTimeCapsules(text)
+                }
+
+                QtControls2.CheckBox {
+                    id: weatherReactiveCheck
+
+                    Kirigami.FormData.label: i18n("Weather-reactive search:")
+                    visible: advancedVisible(["weather", "reactive", "search"])
+                    text: i18n("Bias search toward rain/snow/storm tags matching local weather")
+                }
+
+                QtControls2.TextField {
+                    id: weatherLocationField
+
+                    Kirigami.FormData.label: i18n("Weather location:")
+                    visible: advancedVisible(["weather", "location"])
+                    placeholderText: i18n("City name, or \"lat,lon\"")
+                    enabled: weatherReactiveCheck.checked
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: weatherReactiveCheck.checked
+                    text: i18n("Uses the free Open-Meteo API (no key required); location is geocoded once and cached.")
+                }
             }
 
         }
@@ -1829,20 +2213,14 @@ ColumnLayout {
             clip: true
 
             Kirigami.FormLayout {
-                readonly property bool searchFilters: !root.uiSimple && browseModeCombo.currentValue === "search"
+                id: filtersForm
 
                 width: filtersScroll.availableWidth
+                twinFormLayouts: typeof appearanceRoot !== "undefined" ? [appearanceRoot.parentLayout] : []
 
                 Kirigami.InlineMessage {
                     Layout.fillWidth: true
-                    visible: root.uiSimple
-                    type: Kirigami.MessageType.Information
-                    text: i18n("Filters are in Advanced settings mode. Switch Settings mode to Advanced on the Source tab.")
-                }
-
-                Kirigami.InlineMessage {
-                    Layout.fillWidth: true
-                    visible: !parent.searchFilters && !root.uiSimple
+                    visible: !root.searchFilters && !root.uiSimple
                     type: Kirigami.MessageType.Information
                     text: i18n("Category, purity, ratio, color, blacklist, and time-of-day filters apply to Search mode only. Collection and Favorites use the collection API as-is.")
                 }
@@ -1850,7 +2228,7 @@ ColumnLayout {
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Categories")
                     Kirigami.FormData.isSection: true
-                    visible: parent.searchFilters
+                    visible: root.searchFilters && root.settingsFilter === ""
                 }
 
                 QtControls2.CheckBox {
@@ -1858,7 +2236,7 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("General:")
                     text: i18n("Enabled")
-                    visible: parent.searchFilters
+                    visible: root.searchFilters
                 }
 
                 QtControls2.CheckBox {
@@ -1866,7 +2244,7 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("Anime:")
                     text: i18n("Enabled")
-                    visible: parent.searchFilters
+                    visible: root.searchFilters
                 }
 
                 QtControls2.CheckBox {
@@ -1874,13 +2252,13 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("People:")
                     text: i18n("Enabled")
-                    visible: parent.searchFilters
+                    visible: root.searchFilters
                 }
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Purity")
                     Kirigami.FormData.isSection: true
-                    visible: parent.searchFilters
+                    visible: root.searchFilters && root.settingsFilter === ""
                 }
 
                 QtControls2.CheckBox {
@@ -1888,7 +2266,7 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("SFW:")
                     text: i18n("Enabled")
-                    visible: parent.searchFilters
+                    visible: root.searchFilters
                 }
 
                 QtControls2.CheckBox {
@@ -1896,7 +2274,7 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("Sketchy:")
                     text: i18n("Enabled")
-                    visible: parent.searchFilters
+                    visible: root.searchFilters
                 }
 
                 QtControls2.CheckBox {
@@ -1904,13 +2282,13 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("NSFW:")
                     text: i18n("Enabled")
-                    visible: parent.searchFilters
+                    visible: root.searchFilters
                 }
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Resolution & Ratio")
                     Kirigami.FormData.isSection: true
-                    visible: parent.searchFilters
+                    visible: root.searchFilters && root.settingsFilter === ""
                 }
 
                 QtControls2.TextField {
@@ -1918,7 +2296,7 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("Min width:")
                     placeholderText: i18n("Empty = screen width")
-                    visible: parent.searchFilters
+                    visible: root.searchFilters
                 }
 
                 QtControls2.TextField {
@@ -1926,7 +2304,7 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("Min height:")
                     placeholderText: i18n("Empty = screen height")
-                    visible: parent.searchFilters
+                    visible: root.searchFilters
                 }
 
                 QtControls2.TextField {
@@ -1934,7 +2312,7 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("Exact resolutions:")
                     placeholderText: i18n("e.g. 1920x1080,2560x1440")
-                    visible: parent.searchFilters
+                    visible: root.searchFilters
                 }
 
                 QtControls2.ComboBox {
@@ -1943,7 +2321,7 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Ratio:")
                     textRole: "label"
                     valueRole: "value"
-                    visible: parent.searchFilters
+                    visible: root.searchFilters
                     model: [{
                         "label": i18n("All wide"),
                         "value": "landscape"
@@ -1971,7 +2349,7 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("File type:")
                     textRole: "label"
                     valueRole: "value"
-                    visible: parent.searchFilters
+                    visible: root.searchFilters
                     model: [{
                         "label": i18n("Any"),
                         "value": ""
@@ -1993,7 +2371,7 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Color:")
                     textRole: "label"
                     valueRole: "value"
-                    visible: parent.searchFilters
+                    visible: root.searchFilters
                     model: [{
                         "label": i18n("Any"),
                         "value": ""
@@ -2090,10 +2468,54 @@ ColumnLayout {
                     }]
                 }
 
+                QtControls2.CheckBox {
+                    id: smartColorCheck
+
+                    Kirigami.FormData.label: i18n("Smart color search:")
+                    visible: advancedVisible(["smart", "color", "search"])
+                    text: i18n("Set color filter from current wallpaper palette")
+                }
+
+                QtControls2.CheckBox {
+                    id: preferSharpMatchesCheck
+
+                    Kirigami.FormData.label: i18n("Sharpness:")
+                    visible: rowVisible(["image", "quality"])
+                    text: i18n("Prefer sharper matches (bias random picks toward images that fit your screen size and aspect ratio without heavy upscaling or cropping)")
+                }
+
                 Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Other")
-                    visible: rowVisible(["other"])
+                    Kirigami.FormData.label: i18n("Tags & blocking")
                     Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
+                }
+
+                QtControls2.TextField {
+                    id: tagFavoritesField
+
+                    Kirigami.FormData.label: i18n("Favorite tags:")
+                    placeholderText: i18n("Comma-separated tags boosted in search")
+                    visible: root.searchFilters
+                    text: root.favoriteTagsText()
+                    Binding on text {
+                        when: !tagFavoritesField.activeFocus
+                        value: root.favoriteTagsText()
+                    }
+                    onEditingFinished: root.persistFavoriteTags(text)
+                }
+
+                QtControls2.TextField {
+                    id: tagBlocklistField
+
+                    Kirigami.FormData.label: i18n("Tag blocklist:")
+                    placeholderText: i18n("Comma-separated tags to exclude, e.g. nsfw, text")
+                    visible: root.searchFilters
+                    text: root.tagBlocklistText()
+                    Binding on text {
+                        when: !tagBlocklistField.activeFocus
+                        value: root.tagBlocklistText()
+                    }
+                    onEditingFinished: root.persistTagBlocklist(text)
                 }
 
                 QtControls2.CheckBox {
@@ -2101,7 +2523,40 @@ ColumnLayout {
 
                     Kirigami.FormData.label: i18n("Account blacklist:")
                     text: i18n("Apply Wallhaven tag blacklist (Search + API key)")
-                    visible: parent.searchFilters
+                    visible: root.searchFilters
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Blocked IDs:")
+                    visible: advancedVisible(["blocked", "ids"])
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: wallpaperConfiguration ? i18n("%1 blocked wallpaper(s)", Wallhaven.parseBlockedIds(wallpaperConfiguration.BlockedIdsJson || "[]").length) : i18n("Apply Wallhaven as the wallpaper type to manage the blocklist.")
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Clear blocklist:")
+                    visible: advancedVisible(["clear", "blocklist"])
+                    text: i18n("Clear blocklist")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.clearBlockedIds)
+                            liveWallpaper.clearBlockedIds();
+
+                    }
+                }
+
+                QtControls2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: i18n("Block the current wallpaper from desktop Wallpaper Actions. Blocked IDs are skipped during search.")
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Repeats")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
                 }
 
                 QtControls2.CheckBox {
@@ -2131,281 +2586,27 @@ ColumnLayout {
                             liveWallpaper.clearSeenHistory();
                     }
                 }
-
-                QtControls2.CheckBox {
-                    id: preferSharpMatchesCheck
-
-                    Kirigami.FormData.label: i18n("Image quality:")
-                    visible: rowVisible(["image", "quality"])
-                    text: i18n("Prefer sharper matches (bias random picks toward images that fit your screen size and aspect ratio without heavy upscaling or cropping)")
-                }
-
-                QtControls2.TextField {
-                    id: tagBlocklistField
-
-                    Kirigami.FormData.label: i18n("Tag blocklist:")
-                    placeholderText: i18n("Comma-separated tags to exclude, e.g. nsfw, text")
-                    visible: parent.searchFilters
-                    text: root.tagBlocklistText()
-                    Binding on text {
-                        when: !tagBlocklistField.activeFocus
-                        value: root.tagBlocklistText()
-                    }
-                    onEditingFinished: root.persistTagBlocklist(text)
-                }
-
-                Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Search Presets")
-                    Kirigami.FormData.isSection: true
-                    visible: parent.searchFilters
-                }
-
-                QtControls2.TextField {
-                    id: presetNameField
-
-                    Kirigami.FormData.label: i18n("Preset name:")
-                    placeholderText: i18n("e.g. Anime night")
-                    visible: parent.searchFilters
-                }
-
-                QtControls2.ComboBox {
-                    id: presetCombo
-
-                    Kirigami.FormData.label: i18n("Saved presets:")
-                    textRole: "name"
-                    visible: parent.searchFilters
-                    model: root.currentPresets()
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Save preset:")
-                    text: i18n("Save current search")
-                    visible: parent.searchFilters
-                    onClicked: {
-                        var name = presetNameField.text.trim();
-                        if (!name)
-                            return ;
-
-                        var presets = root.currentPresets().slice();
-                        var preset = Wallhaven.buildPresetFromConfig(name, root.buildCurrentConfigObject());
-                        if (liveWallpaper && liveWallpaper.currentWallpaperId
-                                && liveWallpaper.currentWallpaperId !== "wallpaper")
-                            preset.SampleWallpaperId = liveWallpaper.currentWallpaperId;
-                        var replaced = false;
-                        for (var i = 0; i < presets.length; i++) {
-                            if (presets[i].name === name) {
-                                presets[i] = preset;
-                                replaced = true;
-                                break;
-                            }
-                        }
-                        if (!replaced)
-                            presets.push(preset);
-
-                        root.persistPresets(presets);
-                        var idx = -1;
-                        for (var j = 0; j < presets.length; j++) {
-                            if (presets[j].name === name) {
-                                idx = j;
-                                break;
-                            }
-                        }
-                        presetCombo.currentIndex = idx;
-                    }
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Apply preset:")
-                    text: i18n("Apply selected preset")
-                    visible: parent.searchFilters
-                    enabled: presetCombo.currentIndex >= 0
-                    onClicked: root.applySearchPreset(root.currentPresets()[presetCombo.currentIndex])
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Import curated:")
-                    text: i18n("Import curated presets")
-                    visible: parent.searchFilters
-                    onClicked: root.importCuratedPresets()
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Import community:")
-                    text: i18n("Import community presets")
-                    visible: parent.searchFilters
-                    onClicked: root.importCommunityPresets()
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: i18n("Preset browser:")
-                    visible: parent.searchFilters
-                    text: i18n("Bundled packs (one-click import):")
-                }
-
-                QtControls2.TextField {
-                    id: presetBrowserFilterField
-                    Kirigami.FormData.label: i18n("Find preset:")
-                    placeholderText: i18n("name or search words")
-                    visible: parent.searchFilters
-                    text: root.presetBrowserFilter
-                    onTextChanged: root.presetBrowserFilter = text
-                }
-
-                Flow {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    visible: parent.searchFilters
-                    spacing: Kirigami.Units.smallSpacing
-
-                    Repeater {
-                        model: {
-                            var all = Wallhaven.bundledCuratedPresets().concat(Wallhaven.bundledCommunityPresets());
-                            var q = String(root.presetBrowserFilter || "").trim().toLowerCase();
-                            if (!q)
-                                return all;
-                            return all.filter(function(p) {
-                                if (!p) return false;
-                                var hay = [p.name || "", p.SearchText || ""].join(" ").toLowerCase();
-                                return hay.indexOf(q) !== -1;
-                            });
-                        }
-
-                        delegate: QtControls2.ItemDelegate {
-                            width: 104
-                            height: 88
-                            padding: 4
-                            onClicked: {
-                                var merged = Wallhaven.mergePresetLists(root.currentPresets(), [modelData]);
-                                root.persistPresets(merged);
-                                importExportStatus.text = i18n("Imported preset \"%1\".", modelData.name);
-                            }
-
-                            contentItem: Column {
-                                spacing: 2
-                                Item {
-                                    width: 96
-                                    height: 54
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        radius: 4
-                                        color: Wallhaven.presetAccentColor(modelData)
-                                    }
-                                    Image {
-                                        id: presetThumb
-                                        anchors.fill: parent
-                                        fillMode: Image.PreserveAspectCrop
-                                        asynchronous: true
-                                        source: Wallhaven.presetPreviewThumbUrl(modelData)
-                                        visible: status === Image.Ready
-                                    }
-                                    QtControls2.Label {
-                                        anchors.centerIn: parent
-                                        visible: presetThumb.status !== Image.Ready
-                                        color: "#ffffff"
-                                        font.pointSize: 8
-                                        text: (modelData.CategoryAnime ? "A" : "")
-                                            + (modelData.CategoryPeople ? "P" : "")
-                                            + (modelData.CategoryGeneral !== false ? "G" : "")
-                                    }
-                                }
-                                QtControls2.Label {
-                                    width: 96
-                                    elide: Text.ElideRight
-                                    font.pointSize: 7
-                                    text: modelData.name
-                                }
-                            }
-                        }
-                    }
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    visible: parent.searchFilters && importExportStatus.text !== ""
-                    text: importExportStatus.text
-                }
-
-                QtControls2.TextField {
-                    id: presetUrlField
-
-                    Kirigami.FormData.label: i18n("Preset URL:")
-                    placeholderText: i18n("wallhaven://preset/… or https://…/preset.json")
-                    visible: parent.searchFilters
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Import URL:")
-                    text: i18n("Import preset from URL")
-                    visible: parent.searchFilters
-                    enabled: presetUrlField.text.trim() !== "" && liveWallpaper !== null
-                    onClicked: root.importPresetFromUrlField()
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    visible: parent.searchFilters
-                    text: i18n("Accepts wallhaven:// share links or raw JSON from https (GitHub raw, gist, pastebin, etc.).")
-                }
-
-                QtControls2.TextField {
-                    id: tagFavoritesField
-
-                    Kirigami.FormData.label: i18n("Favorite tags:")
-                    placeholderText: i18n("Comma-separated tags boosted in search")
-                    visible: parent.searchFilters
-                    text: root.favoriteTagsText()
-                    Binding on text {
-                        when: !tagFavoritesField.activeFocus
-                        value: root.favoriteTagsText()
-                    }
-                    onEditingFinished: root.persistFavoriteTags(text)
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Share preset:")
-                    text: i18n("Copy preset share URL")
-                    visible: parent.searchFilters
-                    enabled: presetCombo.currentIndex >= 0
-                    onClicked: root.shareSelectedPresetUrl()
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Delete preset:")
-                    text: i18n("Delete selected preset")
-                    visible: parent.searchFilters
-                    enabled: presetCombo.currentIndex >= 0
-                    onClicked: {
-                        var presets = root.currentPresets().slice();
-                        presets.splice(presetCombo.currentIndex, 1);
-                        root.persistPresets(presets);
-                        presetCombo.currentIndex = -1;
-                    }
-                }
-
             }
 
         }
 
-        // Playback & effects
+        // Slideshow
         QtControls2.ScrollView {
-            id: playbackScroll
+            id: slideshowScroll
 
             contentWidth: availableWidth
             clip: true
 
             Kirigami.FormLayout {
-                width: playbackScroll.availableWidth
+                id: slideshowForm
+
+                width: slideshowScroll.availableWidth
+                twinFormLayouts: typeof appearanceRoot !== "undefined" ? [appearanceRoot.parentLayout] : []
 
                 Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Slideshow")
-                    visible: rowVisible(["slideshow"])
+                    Kirigami.FormData.label: i18n("Timing")
                     Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
                 }
 
                 QtControls2.SpinBox {
@@ -2469,38 +2670,59 @@ ColumnLayout {
                 }
 
                 Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Effects")
-                    visible: advancedVisible(["effects"])
+                    Kirigami.FormData.label: i18n("Pause automatically")
                     Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
                 }
 
-                QtControls2.ComboBox {
-                    id: qualityCombo
+                QtControls2.CheckBox {
+                    id: pauseInactiveCheck
 
-                    Kirigami.FormData.label: i18n("Image quality:")
-                    visible: advancedVisible(["image", "quality"])
-                    textRole: "label"
-                    valueRole: "value"
-                    model: [{
-                        "label": i18n("Small (thumbnail, low bandwidth)"),
-                        "value": "small"
-                    }, {
-                        "label": i18n("Large (full wallpaper)"),
-                        "value": "large"
-                    }, {
-                        "label": i18n("Original (full wallpaper)"),
-                        "value": "original"
-                    }]
+                    Kirigami.FormData.label: i18n("Screen lock pause:")
+                    visible: advancedVisible(["screen", "lock", "pause"])
+                    text: i18n("Pause the slideshow while the screen is locked")
+                }
+
+                QtControls2.CheckBox {
+                    id: pauseIdleCheck
+
+                    Kirigami.FormData.label: i18n("Idle pause:")
+                    visible: advancedVisible(["idle", "pause"])
+                    text: i18n("Pause when the session has been idle for several minutes")
                 }
 
                 QtControls2.SpinBox {
-                    id: crossfadeSpin
+                    id: idlePauseMinutesSpin
 
-                    Kirigami.FormData.label: i18n("Crossfade (ms):")
-                    visible: advancedVisible(["crossfade", "ms"])
-                    from: 0
-                    to: 3000
-                    stepSize: 100
+                    Kirigami.FormData.label: i18n("Idle threshold (min):")
+                    visible: advancedVisible(["idle", "threshold", "min"])
+                    from: 1
+                    to: 120
+                    enabled: pauseIdleCheck.checked
+                }
+
+                QtControls2.CheckBox {
+                    id: pauseBatteryCheck
+
+                    Kirigami.FormData.label: i18n("Battery pause:")
+                    visible: advancedVisible(["battery", "pause"])
+                    text: i18n("Pause slideshow on low battery")
+                }
+
+                QtControls2.SpinBox {
+                    id: batteryThresholdSpin
+
+                    Kirigami.FormData.label: i18n("Battery threshold (%):")
+                    visible: advancedVisible(["battery", "threshold"])
+                    from: 5
+                    to: 80
+                    enabled: pauseBatteryCheck.checked
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Transitions & motion")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
                 }
 
                 QtControls2.ComboBox {
@@ -2531,171 +2753,14 @@ ColumnLayout {
                     }]
                 }
 
-                QtControls2.CheckBox {
-                    id: parallaxCheck
-
-                    Kirigami.FormData.label: i18n("Parallax:")
-                    visible: advancedVisible(["parallax"])
-                    text: i18n("Slowly pan across the wallpaper")
-                }
-
                 QtControls2.SpinBox {
-                    id: parallaxStrengthSpin
+                    id: crossfadeSpin
 
-                    Kirigami.FormData.label: i18n("Parallax strength:")
-                    visible: advancedVisible(["parallax", "strength"])
+                    Kirigami.FormData.label: i18n("Crossfade (ms):")
+                    visible: advancedVisible(["crossfade", "ms"])
                     from: 0
-                    to: 100
-                    enabled: parallaxCheck.checked
-                }
-
-                QtControls2.CheckBox {
-                    id: lockScreenCheck
-
-                    Kirigami.FormData.label: i18n("Lock screen:")
-                    visible: advancedVisible(["lock", "screen"])
-                    text: i18n("Copy the current wallpaper to the lock screen")
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    visible: lockScreenCheck.checked
-                    text: i18n("One screen with this enabled feeds the lock wallpaper for every monitor. Screens without it still repair a blank lock page from the shared copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer disk cache (and optional original download) for a full-resolution lock image.")
-                }
-
-                QtControls2.Label {
-                    id: lockScreenStatusLabel
-                    Kirigami.FormData.label: i18n("Lock sync status:")
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.8
-                    visible: lockScreenCheck.checked && advancedVisible(["lock", "screen", "status"])
-                    text: {
-                        if (!liveWallpaper)
-                            return i18n("Apply Wallhaven as the wallpaper type to see sync status.");
-                        if (!liveWallpaper.lockScreenLastSyncAt)
-                            return i18n("Not synced yet this session.");
-                        var ok = liveWallpaper.lockScreenLastSyncOk;
-                        var when = liveWallpaper.lockScreenLastSyncAt;
-                        var path = liveWallpaper.lockScreenLastSyncPath || "";
-                        return ok
-                            ? i18n("Last sync OK at %1 — %2", when, path)
-                            : i18n("Last sync failed at %1", when);
-                    }
-                }
-
-                QtControls2.CheckBox {
-                    id: panelTintCheck
-
-                    Kirigami.FormData.label: i18n("Panel tint hint:")
-                    visible: advancedVisible(["panel", "tint", "hint"])
-                    text: i18n("Write dominant color JSON for external theming tools")
-                }
-
-                QtControls2.SpinBox {
-                    id: panelBlurStrengthSpin
-
-                    Kirigami.FormData.label: i18n("Panel blur hint (%):")
-                    visible: advancedVisible(["panel", "blur", "hint"])
-                    from: 0
-                    to: 100
-                    enabled: panelTintCheck.checked
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    visible: panelTintCheck.checked
-                    text: i18n("Blur strength is stored in the panel tint JSON for external tools; Plasma panel blur itself is configured in System Settings.")
-                }
-
-                QtControls2.CheckBox {
-                    id: autoPanelAccentCheck
-
-                    Kirigami.FormData.label: i18n("Auto panel accent:")
-                    visible: advancedVisible(["auto", "panel", "accent"])
-                    text: i18n("Apply accent color via plasma-apply-colors when available")
-                }
-
-                QtControls2.CheckBox {
-                    id: smartColorCheck
-
-                    Kirigami.FormData.label: i18n("Smart color search:")
-                    visible: advancedVisible(["smart", "color", "search"])
-                    text: i18n("Set color filter from current wallpaper palette")
-                }
-
-                Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Slideshow rules")
-                    visible: advancedVisible(["slideshow", "rules"])
-                    Kirigami.FormData.isSection: true
-                }
-
-                QtControls2.CheckBox {
-                    id: pauseBatteryCheck
-
-                    Kirigami.FormData.label: i18n("Battery pause:")
-                    visible: advancedVisible(["battery", "pause"])
-                    text: i18n("Pause slideshow on low battery")
-                }
-
-                QtControls2.SpinBox {
-                    id: batteryThresholdSpin
-
-                    Kirigami.FormData.label: i18n("Battery threshold (%):")
-                    visible: advancedVisible(["battery", "threshold"])
-                    from: 5
-                    to: 80
-                    enabled: pauseBatteryCheck.checked
-                }
-
-                QtControls2.CheckBox {
-                    id: pauseInactiveCheck
-
-                    Kirigami.FormData.label: i18n("Screen lock pause:")
-                    visible: advancedVisible(["screen", "lock", "pause"])
-                    text: i18n("Pause the slideshow while the screen is locked")
-                }
-
-                QtControls2.CheckBox {
-                    id: pauseIdleCheck
-
-                    Kirigami.FormData.label: i18n("Idle pause:")
-                    visible: advancedVisible(["idle", "pause"])
-                    text: i18n("Pause when the session has been idle for several minutes")
-                }
-
-                QtControls2.SpinBox {
-                    id: idlePauseMinutesSpin
-
-                    Kirigami.FormData.label: i18n("Idle threshold (min):")
-                    visible: advancedVisible(["idle", "threshold", "min"])
-                    from: 1
-                    to: 120
-                    enabled: pauseIdleCheck.checked
-                }
-
-                QtControls2.SpinBox {
-                    id: preloadCountSpin
-
-                    Kirigami.FormData.label: i18n("Preload count:")
-                    visible: advancedVisible(["preload", "count"])
-                    from: 0
-                    to: 4
-                    enabled: adaptivePreloadCheck.checked
-                }
-
-                QtControls2.CheckBox {
-                    id: adaptivePreloadCheck
-
-                    Kirigami.FormData.label: i18n("Adaptive preload:")
-                    visible: advancedVisible(["adaptive", "preload"])
-                    text: i18n("Reduce preloads when offline or metered")
+                    to: 3000
+                    stepSize: 100
                 }
 
                 QtControls2.CheckBox {
@@ -2706,14 +2771,6 @@ ColumnLayout {
                     text: i18n("Slow pan/zoom")
                 }
 
-                QtControls2.CheckBox {
-                    id: reducedMotionCheck
-
-                    Kirigami.FormData.label: i18n("Reduced motion:")
-                    visible: rowVisible(["reduced", "motion", "accessibility", "a11y"])
-                    text: i18n("Disable Ken Burns and parallax motion (accessibility / battery)")
-                }
-
                 QtControls2.SpinBox {
                     id: kenBurnsSpeedSpin
 
@@ -2722,63 +2779,6 @@ ColumnLayout {
                     from: 1
                     to: 100
                     enabled: kenBurnsCheck.checked
-                }
-
-                QtControls2.CheckBox {
-                    id: attributionCheck
-
-                    Kirigami.FormData.label: i18n("Attribution:")
-                    visible: advancedVisible(["attribution"])
-                    text: i18n("Show overlay on desktop")
-                }
-
-                QtControls2.ComboBox {
-                    id: attributionCornerCombo
-
-                    Kirigami.FormData.label: i18n("Attribution corner:")
-                    visible: advancedVisible(["attribution", "corner"])
-                    textRole: "label"
-                    valueRole: "value"
-                    enabled: attributionCheck.checked
-                    model: [{
-                        "label": i18n("Bottom left"),
-                        "value": "bottom-left"
-                    }, {
-                        "label": i18n("Bottom right"),
-                        "value": "bottom-right"
-                    }, {
-                        "label": i18n("Top left"),
-                        "value": "top-left"
-                    }, {
-                        "label": i18n("Top right"),
-                        "value": "top-right"
-                    }]
-                }
-
-                QtControls2.SpinBox {
-                    id: attributionHideSpin
-
-                    Kirigami.FormData.label: i18n("Auto-hide (sec):")
-                    visible: advancedVisible(["auto", "hide", "sec"])
-                    from: 0
-                    to: 120
-                    enabled: attributionCheck.checked
-                }
-
-                QtControls2.SpinBox {
-                    id: attributionScaleSpin
-
-                    Kirigami.FormData.label: i18n("Font scale (%):")
-                    visible: advancedVisible(["font", "scale"])
-                    from: 70
-                    to: 150
-                    enabled: attributionCheck.checked
-                }
-
-                Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Fun & Discovery")
-                    visible: advancedVisible(["fun", "discovery"])
-                    Kirigami.FormData.isSection: true
                 }
 
                 QtControls2.CheckBox {
@@ -2810,45 +2810,54 @@ ColumnLayout {
                 }
 
                 QtControls2.CheckBox {
-                    id: weatherReactiveCheck
+                    id: parallaxCheck
 
-                    Kirigami.FormData.label: i18n("Weather-reactive search:")
-                    visible: advancedVisible(["weather", "reactive", "search"])
-                    text: i18n("Bias search toward rain/snow/storm tags matching local weather")
+                    Kirigami.FormData.label: i18n("Parallax:")
+                    visible: advancedVisible(["parallax"])
+                    text: i18n("Slowly pan across the wallpaper")
                 }
 
-                QtControls2.TextField {
-                    id: weatherLocationField
+                QtControls2.SpinBox {
+                    id: parallaxStrengthSpin
 
-                    Kirigami.FormData.label: i18n("Weather location:")
-                    visible: advancedVisible(["weather", "location"])
-                    placeholderText: i18n("City name, or \"lat,lon\"")
-                    enabled: weatherReactiveCheck.checked
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    visible: weatherReactiveCheck.checked
-                    text: i18n("Uses the free Open-Meteo API (no key required); location is geocoded once and cached.")
+                    Kirigami.FormData.label: i18n("Parallax strength:")
+                    visible: advancedVisible(["parallax", "strength"])
+                    from: 0
+                    to: 100
+                    enabled: parallaxCheck.checked
                 }
 
                 QtControls2.CheckBox {
-                    id: achievementsCheck
+                    id: reducedMotionCheck
 
-                    Kirigami.FormData.label: i18n("Milestone toasts:")
-                    visible: advancedVisible(["milestone", "toasts"])
-                    text: i18n("Notify on view-count milestones and daily streaks")
+                    Kirigami.FormData.label: i18n("Reduced motion:")
+                    visible: rowVisible(["reduced", "motion", "accessibility", "a11y"])
+                    text: i18n("Disable Ken Burns and parallax motion (accessibility / battery)")
                 }
 
-                QtControls2.CheckBox {
-                    id: systemThemeSyncCheck
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Image")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
+                }
 
-                    Kirigami.FormData.label: i18n("System theme sync:")
-                    visible: advancedVisible(["system", "theme", "sync"])
-                    text: i18n("Also push the wallpaper accent to GTK apps and kdeglobals")
+                QtControls2.ComboBox {
+                    id: qualityCombo
+
+                    Kirigami.FormData.label: i18n("Download size:")
+                    visible: advancedVisible(["image", "quality"])
+                    textRole: "label"
+                    valueRole: "value"
+                    model: [{
+                        "label": i18n("Small (thumbnail, low bandwidth)"),
+                        "value": "small"
+                    }, {
+                        "label": i18n("Large (full wallpaper)"),
+                        "value": "large"
+                    }, {
+                        "label": i18n("Original (full wallpaper)"),
+                        "value": "original"
+                    }]
                 }
 
                 QtControls2.CheckBox {
@@ -2908,87 +2917,190 @@ ColumnLayout {
                 }
 
                 QtControls2.Label {
-                    Kirigami.FormData.label: " "
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     opacity: 0.7
-                    text: i18n("Swipe the panel widget thumbnail left/right (or use its menu) to like/dislike the current wallpaper's tags.")
+                    text: i18n("Images decode to screen size. Inactive crossfade layers are released, and settings preview writes are deferred.")
                 }
 
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("On-screen overlay")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
+                }
+
+                QtControls2.CheckBox {
+                    id: attributionCheck
+
+                    Kirigami.FormData.label: i18n("Attribution:")
+                    visible: advancedVisible(["attribution"])
+                    text: i18n("Show overlay on desktop")
+                }
+
+                QtControls2.ComboBox {
+                    id: attributionCornerCombo
+
+                    Kirigami.FormData.label: i18n("Attribution corner:")
+                    visible: advancedVisible(["attribution", "corner"])
+                    textRole: "label"
+                    valueRole: "value"
+                    enabled: attributionCheck.checked
+                    model: [{
+                        "label": i18n("Bottom left"),
+                        "value": "bottom-left"
+                    }, {
+                        "label": i18n("Bottom right"),
+                        "value": "bottom-right"
+                    }, {
+                        "label": i18n("Top left"),
+                        "value": "top-left"
+                    }, {
+                        "label": i18n("Top right"),
+                        "value": "top-right"
+                    }]
+                }
+
+                QtControls2.SpinBox {
+                    id: attributionHideSpin
+
+                    Kirigami.FormData.label: i18n("Auto-hide (sec):")
+                    visible: advancedVisible(["auto", "hide", "sec"])
+                    from: 0
+                    to: 120
+                    enabled: attributionCheck.checked
+                }
+
+                QtControls2.SpinBox {
+                    id: attributionScaleSpin
+
+                    Kirigami.FormData.label: i18n("Font scale (%):")
+                    visible: advancedVisible(["font", "scale"])
+                    from: 70
+                    to: 150
+                    enabled: attributionCheck.checked
+                }
+
+                QtControls2.CheckBox {
+                    id: statusBannerCheck
+
+                    Kirigami.FormData.label: i18n("Desktop banner:")
+                    visible: advancedVisible(["desktop", "banner"])
+                    text: i18n("Show status messages on the wallpaper")
+                }
             }
 
         }
 
-        // Advanced
+        // Desktop
         QtControls2.ScrollView {
-            id: advancedScroll
+            id: desktopScroll
 
             contentWidth: availableWidth
             clip: true
 
             Kirigami.FormLayout {
-                width: advancedScroll.availableWidth
+                id: desktopForm
 
-                Kirigami.InlineMessage {
-                    Layout.fillWidth: true
-                    visible: root.uiSimple
-                    type: Kirigami.MessageType.Information
-                    text: i18n("Most advanced options are hidden in Simple mode. Switch Settings mode to Advanced on the Source tab.")
+                width: desktopScroll.availableWidth
+                twinFormLayouts: typeof appearanceRoot !== "undefined" ? [appearanceRoot.parentLayout] : []
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Lock screen")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
                 }
 
                 QtControls2.CheckBox {
-                    id: scrubSecretsCheck
+                    id: lockScreenCheck
 
-                    Kirigami.FormData.label: i18n("Export privacy:")
-                    visible: !root.uiSimple && rowVisible(["scrub", "secret", "export", "privacy", "api"])
-                    text: i18n("Omit API key from settings / bug-report exports (recommended)")
-                }
-
-                Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Network & Retries")
-                    visible: !root.uiSimple && rowVisible(["network", "retries"])
-                    Kirigami.FormData.isSection: true
-                }
-
-                QtControls2.SpinBox {
-                    id: requestTimeoutSpin
-
-                    Kirigami.FormData.label: i18n("Request timeout (sec):")
-                    visible: advancedVisible(["request", "timeout", "sec"])
-                    from: 5
-                    to: 120
-                }
-
-                QtControls2.SpinBox {
-                    id: retryDelaySpin
-
-                    Kirigami.FormData.label: i18n("Retry delay (sec):")
-                    visible: advancedVisible(["retry", "delay", "sec"])
-                    from: 1
-                    to: 300
-                }
-
-                QtControls2.SpinBox {
-                    id: retryAttemptsSpin
-
-                    Kirigami.FormData.label: i18n("Max retry attempts:")
-                    visible: advancedVisible(["max", "retry", "attempts"])
-                    from: 1
-                    to: 20
+                    Kirigami.FormData.label: i18n("Lock screen:")
+                    visible: advancedVisible(["lock", "screen"])
+                    text: i18n("Copy the current wallpaper to the lock screen")
                 }
 
                 QtControls2.Label {
+                    Kirigami.FormData.label: " "
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     opacity: 0.7
-                    visible: !root.uiSimple
-                    text: i18n("Timeout is per request. Retries use the delay with exponential backoff, up to the max attempts.")
+                    visible: lockScreenCheck.checked
+                    text: i18n("One screen with this enabled feeds the lock wallpaper for every monitor. Screens without it still repair a blank lock page from the shared copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer disk cache (and optional original download) for a full-resolution lock image.")
+                }
+
+                QtControls2.Label {
+                    id: lockScreenStatusLabel
+                    Kirigami.FormData.label: i18n("Lock sync status:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.8
+                    visible: lockScreenCheck.checked && advancedVisible(["lock", "screen", "status"])
+                    text: {
+                        if (!liveWallpaper)
+                            return i18n("Apply Wallhaven as the wallpaper type to see sync status.");
+                        if (!liveWallpaper.lockScreenLastSyncAt)
+                            return i18n("Not synced yet this session.");
+                        var ok = liveWallpaper.lockScreenLastSyncOk;
+                        var when = liveWallpaper.lockScreenLastSyncAt;
+                        var path = liveWallpaper.lockScreenLastSyncPath || "";
+                        return ok
+                            ? i18n("Last sync OK at %1 — %2", when, path)
+                            : i18n("Last sync failed at %1", when);
+                    }
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Panel & theme colors")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
+                }
+
+                QtControls2.CheckBox {
+                    id: panelTintCheck
+
+                    Kirigami.FormData.label: i18n("Panel tint hint:")
+                    visible: advancedVisible(["panel", "tint", "hint"])
+                    text: i18n("Write dominant color JSON for external theming tools")
+                }
+
+                QtControls2.SpinBox {
+                    id: panelBlurStrengthSpin
+
+                    Kirigami.FormData.label: i18n("Panel blur hint (%):")
+                    visible: advancedVisible(["panel", "blur", "hint"])
+                    from: 0
+                    to: 100
+                    enabled: panelTintCheck.checked
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: panelTintCheck.checked
+                    text: i18n("Blur strength is stored in the panel tint JSON for external tools; Plasma panel blur itself is configured in System Settings.")
+                }
+
+                QtControls2.CheckBox {
+                    id: autoPanelAccentCheck
+
+                    Kirigami.FormData.label: i18n("Auto panel accent:")
+                    visible: advancedVisible(["auto", "panel", "accent"])
+                    text: i18n("Apply accent color via plasma-apply-colors when available")
+                }
+
+                QtControls2.CheckBox {
+                    id: systemThemeSyncCheck
+
+                    Kirigami.FormData.label: i18n("System theme sync:")
+                    visible: advancedVisible(["system", "theme", "sync"])
+                    text: i18n("Also push the wallpaper accent to GTK apps and kdeglobals")
                 }
 
                 Kirigami.Separator {
                     Kirigami.FormData.label: i18n("Notifications")
-                    visible: advancedVisible(["notifications"])
                     Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
                 }
 
                 QtControls2.CheckBox {
@@ -3016,634 +3128,17 @@ ColumnLayout {
                 }
 
                 QtControls2.CheckBox {
-                    id: statusBannerCheck
+                    id: achievementsCheck
 
-                    Kirigami.FormData.label: i18n("Desktop banner:")
-                    visible: advancedVisible(["desktop", "banner"])
-                    text: i18n("Show status messages on the wallpaper")
+                    Kirigami.FormData.label: i18n("Milestone toasts:")
+                    visible: advancedVisible(["milestone", "toasts"])
+                    text: i18n("Notify on view-count milestones and daily streaks")
                 }
 
                 Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Performance")
-                    visible: advancedVisible(["performance"])
+                    Kirigami.FormData.label: i18n("Multiple monitors")
                     Kirigami.FormData.isSection: true
-                }
-
-                QtControls2.CheckBox {
-                    id: diskCacheCheck
-
-                    Kirigami.FormData.label: i18n("Disk cache:")
-                    visible: advancedVisible(["disk", "cache"])
-                    text: i18n("Cache recent wallpapers locally; oldest unused are replaced")
-                }
-
-                QtControls2.SpinBox {
-                    id: diskCacheSlotsSpin
-
-                    Kirigami.FormData.label: i18n("Max cache slots:")
-                    visible: advancedVisible(["max", "cache", "slots"])
-                    from: 5
-                    to: 200
-                    enabled: diskCacheCheck.checked
-                }
-
-                QtControls2.SpinBox {
-                    id: diskCacheMaxMbSpin
-
-                    Kirigami.FormData.label: i18n("Max cache size (MB):")
-                    visible: advancedVisible(["max", "cache", "mb", "quota", "size"])
-                    from: 0
-                    to: 10240
-                    enabled: diskCacheCheck.checked
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    visible: diskCacheMaxMbSpin.visible
-                    text: i18n("0 = no size limit (slot limit still applies). Unpinned oldest entries are pruned first.")
-                }
-
-                QtControls2.SpinBox {
-                    id: cacheWarmCountSpin
-
-                    Kirigami.FormData.label: i18n("Warm cache count:")
-                    visible: advancedVisible(["warm", "cache", "prefetch"])
-                    from: 1
-                    to: 48
-                    enabled: diskCacheCheck.checked
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Warm cache:")
-                    visible: advancedVisible(["warm", "cache"])
-                    text: i18n("Download matching wallpapers into cache now")
-                    enabled: liveWallpaper !== null && diskCacheCheck.checked
-                        && !(liveWallpaper && liveWallpaper._warmActive)
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.warmDiskCache)
-                            liveWallpaper.warmDiskCache(cacheWarmCountSpin.value);
-                    }
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: " "
-                    visible: advancedVisible(["warm", "cache", "cancel"])
-                    text: i18n("Cancel cache warm")
-                    enabled: liveWallpaper !== null && !!(liveWallpaper && liveWallpaper._warmActive)
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.cancelWarmCache)
-                            liveWallpaper.cancelWarmCache();
-                    }
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: i18n("Warm progress:")
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    visible: advancedVisible(["warm", "cache", "progress"])
-                        && !!(liveWallpaper && liveWallpaper._warmActive)
-                    text: liveWallpaper
-                        ? i18n("Warming… %1 / %2", liveWallpaper._warmDone || 0, liveWallpaper._warmTarget || 0)
-                        : ""
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: i18n("Trip cache fill:")
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.8
-                    visible: advancedVisible(["trip", "cache", "fill"])
-                    text: {
-                        if (!liveWallpaper)
-                            return i18n("Open wallpaper settings on a desktop to see cache fill.");
-                        var count = liveWallpaper.diskCacheEntryCount || 0;
-                        var target = cacheWarmCountSpin.value || 0;
-                        var pct = target > 0 ? Math.min(100, Math.round((count / target) * 100)) : (count > 0 ? 100 : 0);
-                        return i18n("Cache fill toward trip target: %1% (%2 / %3)", pct, count, target);
-                    }
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Prune cache:")
-                    visible: advancedVisible(["prune", "cache"])
-                    text: i18n("Prune unpinned entries over slot limit")
-                    enabled: liveWallpaper !== null && diskCacheCheck.checked
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.pruneUnpinnedCache)
-                            liveWallpaper.pruneUnpinnedCache(diskCacheSlotsSpin.value);
-                    }
-                }
-
-                QtControls2.CheckBox {
-                    id: cacheDownloadOriginalCheck
-
-                    Kirigami.FormData.label: i18n("Cache original file:")
-                    visible: advancedVisible(["cache", "original", "file"])
-                    text: i18n("Download the full-resolution file from Wallhaven (requires curl)")
-                    enabled: diskCacheCheck.checked
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: i18n("Per-monitor cache:")
-                    visible: advancedVisible(["per", "monitor", "cache"])
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    text: liveWallpaper
-                        ? i18n("Each screen keeps its own cache files (namespace %1). People/NSFW filters apply per monitor.", liveWallpaper.diskCacheNamespace || "default")
-                        : i18n("Each monitor keeps separate cache files so filters on one screen do not leak wallpapers to another.")
-                }
-
-                QtControls2.CheckBox {
-                    id: offlineCacheCheck
-
-                    Kirigami.FormData.label: i18n("Offline fallback:")
-                    visible: advancedVisible(["offline", "fallback"])
-                    text: i18n("Show cached wallpapers when the network fails")
-                    enabled: diskCacheCheck.checked
-                }
-
-                QtControls2.CheckBox {
-                    id: offlineOnlyCheck
-
-                    Kirigami.FormData.label: i18n("Offline only:")
-                    visible: advancedVisible(["offline", "only"])
-                    text: i18n("Never use the network; cycle cached wallpapers only")
-                    enabled: diskCacheCheck.checked
-                }
-
-                QtControls2.CheckBox {
-                    id: meteredCacheCheck
-
-                    Kirigami.FormData.label: i18n("Metered network:")
-                    visible: advancedVisible(["metered", "network"])
-                    text: i18n("Use cache only on cellular connections")
-                    enabled: diskCacheCheck.checked
-                }
-
-                QtControls2.CheckBox {
-                    id: upscaleCheck
-
-                    Kirigami.FormData.label: i18n("Upscale low-res:")
-                    visible: advancedVisible(["upscale", "low", "res"])
-                    text: i18n("Use an external AI upscaler for wallpapers smaller than your screen, if installed")
-                    enabled: diskCacheCheck.checked
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    visible: upscaleCheck.checked
-                    text: i18n("Requires the D-Bus service and realesrgan-ncnn-vulkan on your PATH, and disk cache enabled above. Falls back to plain scaling when either is missing.")
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: i18n("Upscaler status:")
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    visible: upscaleCheck.checked
-                    text: {
-                        if (liveWallpaper === null)
-                            return i18n("Apply Wallhaven as the wallpaper type to check.");
-                        if (!root.dbusServiceOnline)
-                            return i18n("D-Bus service offline; can't check.");
-                        if (!root.upscalerStatusKnown)
-                            return i18n("Checking…");
-                        return root.upscalerAvailable
-                            ? i18n("realesrgan-ncnn-vulkan detected.")
-                            : i18n("Not found on PATH; using plain scaling. Install: github.com/xinntao/Real-ESRGAN/releases");
-                    }
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Re-upscale:")
-                    visible: advancedVisible(["re", "upscale"])
-                    text: i18n("Re-upscale cached wallpapers")
-                    enabled: liveWallpaper !== null && upscaleCheck.checked && diskCacheCheck.checked
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.reupscaleCachedWallpapers)
-                            liveWallpaper.reupscaleCachedWallpapers();
-                    }
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    visible: upscaleCheck.checked
-                    text: i18n("Applies the upscaler to wallpapers already in the disk cache whose native resolution falls short of your screen. Cache entries saved before this setting existed have no recorded resolution and are skipped; they'll be covered next time they're re-cached.")
-                }
-
-                QtControls2.CheckBox {
-                    id: varietyCheck
-
-                    Kirigami.FormData.label: i18n("Variety metadata:")
-                    visible: advancedVisible(["variety", "metadata"])
-                    text: i18n("Write current wallpaper JSON for external tools")
-                }
-
-                QtControls2.TextField {
-                    id: varietyFolderField
-
-                    Kirigami.FormData.label: i18n("Variety folder:")
-                    visible: advancedVisible(["variety", "folder"])
-                    placeholderText: i18n("Optional path for Variety integration")
-                }
-
-                QtControls2.CheckBox {
-                    id: varietySymlinkCheck
-
-                    Kirigami.FormData.label: i18n("Variety symlink:")
-                    visible: advancedVisible(["variety", "symlink"])
-                    text: i18n("Symlink cached wallpaper as wallhaven-current.jpg")
-                    enabled: varietyFolderField.text !== ""
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Variety bridge:")
-                    visible: advancedVisible(["variety", "bridge"])
-                    text: i18n("Preview Variety search")
-                    enabled: liveWallpaper !== null
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.previewVarietySearch) {
-                            liveWallpaper.previewVarietySearch(function(search) {
-                                root.varietyPreviewSearch = search || i18n("(none found)");
-                            });
-                        }
-                    }
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: " "
-                    text: i18n("Apply Variety search to Wallhaven")
-                    enabled: liveWallpaper !== null
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.applyVarietySearch)
-                            liveWallpaper.applyVarietySearch();
-
-                    }
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: i18n("Variety preview:")
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    visible: root.varietyPreviewSearch !== ""
-                    text: root.varietyPreviewSearch.indexOf("(") === 0
-                        ? root.varietyPreviewSearch
-                        : i18n("Would apply search: %1", root.varietyPreviewSearch)
-                }
-
-                QtControls2.CheckBox {
-                    id: varietyWatchCheck
-
-                    Kirigami.FormData.label: i18n("Variety watch:")
-                    visible: advancedVisible(["variety", "watch"])
-                    text: i18n("Watch Variety config for changes")
-                    enabled: liveWallpaper !== null && root.dbusServiceOnline
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: i18n("Cache status:")
-                    visible: advancedVisible(["cache", "status"])
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    text: liveWallpaper ? i18n("%1 cached wallpaper(s)", liveWallpaper.diskCacheEntryCount) : i18n("Apply Wallhaven as the wallpaper type to see cache stats.")
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Clear cache:")
-                    visible: advancedVisible(["clear", "cache"])
-                    text: i18n("Clear disk cache")
-                    enabled: liveWallpaper !== null && diskCacheCheck.checked
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.clearDiskCache) {
-                            liveWallpaper.clearDiskCache();
-                            root.refreshCacheModel();
-                        }
-                    }
-                }
-
-                Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Cache Manager")
-                    visible: advancedVisible(["cache", "manager"])
-                    Kirigami.FormData.isSection: true
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Refresh cache list:")
-                    visible: advancedVisible(["refresh", "cache", "list"])
-                    text: i18n("Refresh cached wallpapers")
-                    onClicked: root.refreshCacheModel()
-                }
-
-                QtControls2.TextField {
-                    id: cacheBrowserFilterField
-                    Kirigami.FormData.label: i18n("Filter cache:")
-                    placeholderText: i18n("id, tag, category…")
-                    visible: advancedVisible(["cache", "filter", "tag"])
-                    text: root.cacheBrowserFilter
-                    onTextChanged: {
-                        root.cacheBrowserFilter = text;
-                        root.refreshCacheModel();
-                    }
-                }
-
-                QtControls2.CheckBox {
-                    id: cacheBrowserPinnedCheck
-                    Kirigami.FormData.label: i18n("Pinned only:")
-                    text: i18n("Show pinned cache entries only")
-                    visible: advancedVisible(["cache", "pinned", "filter"])
-                    checked: root.cacheBrowserPinnedOnly
-                    onCheckedChanged: {
-                        root.cacheBrowserPinnedOnly = checked;
-                        root.refreshCacheModel();
-                    }
-                }
-
-                ListView {
-                    id: cacheList
-
-                    Kirigami.FormData.label: i18n("Cached:")
-                    Layout.preferredWidth: parent.width
-                    Layout.preferredHeight: Math.min(240, cacheModel.count * 52)
-                    clip: true
-                    model: cacheModel
-
-                    delegate: RowLayout {
-                        width: cacheList.width
-                        spacing: Kirigami.Units.smallSpacing
-
-                        Image {
-                            Layout.preferredWidth: 64
-                            Layout.preferredHeight: 40
-                            fillMode: Image.PreserveAspectCrop
-                            source: model.thumbUrl
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 0
-                            QtControls2.Label {
-                                Layout.fillWidth: true
-                                text: "#" + model.id + (model.pinned ? " ★" : "")
-                                    + (model.category ? (" · " + model.category) : "")
-                            }
-                            QtControls2.TextField {
-                                Layout.fillWidth: true
-                                text: model.tags || ""
-                                placeholderText: i18n("tags")
-                                font.pointSize: 8
-                                onEditingFinished: {
-                                    if (liveWallpaper && liveWallpaper.setCacheEntryTags)
-                                        liveWallpaper.setCacheEntryTags(model.id, text);
-                                }
-                            }
-                        }
-
-                        QtControls2.Button {
-                            text: model.pinned ? i18n("Unpin") : i18n("Pin")
-                            onClicked: {
-                                if (!liveWallpaper)
-                                    return ;
-
-                                if (model.pinned)
-                                    liveWallpaper.unpinCacheId(model.id);
-                                else
-                                    liveWallpaper.pinCacheId(model.id);
-                                root.refreshCacheModel();
-                            }
-                        }
-
-                        QtControls2.Button {
-                            text: i18n("Evict")
-                            enabled: !model.pinned && liveWallpaper !== null
-                            onClicked: {
-                                liveWallpaper.evictCacheId(model.id);
-                                root.refreshCacheModel();
-                            }
-                        }
-
-                    }
-
-                }
-
-                Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Diagnostics")
-                    Kirigami.FormData.isSection: true
-                    visible: advancedVisible(["debug", "diagnostics", "health", "api", "rate", "limit", "bug", "laptop"])
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: i18n("API health:")
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    visible: advancedVisible(["api", "health", "rate", "limit", "status"])
-                    text: liveWallpaper && liveWallpaper.apiHealthSummary
-                        ? liveWallpaper.apiHealthSummary
-                        : i18n("Open settings while Wallhaven is the active wallpaper to see live API health.")
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: " "
-                    visible: advancedVisible(["api", "health", "offline", "outage"])
-                        && liveWallpaper
-                        && liveWallpaper._apiOutageOffline
-                    text: i18n("Resume online search")
-                    enabled: liveWallpaper !== null
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.clearApiOutageOffline)
-                            liveWallpaper.clearApiOutageOffline(true);
-                    }
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: " "
-                    visible: advancedVisible(["api", "health", "offline", "outage"])
-                        && liveWallpaper
-                        && !liveWallpaper._apiOutageOffline
-                    text: i18n("Use cache until Wallhaven recovers")
-                    enabled: liveWallpaper !== null
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.enterApiOutageOffline)
-                            liveWallpaper.enterApiOutageOffline(0);
-                    }
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    visible: advancedVisible(["api", "health", "rate", "limit"])
-                        && liveWallpaper && liveWallpaper.apiHealth
-                        && liveWallpaper.apiHealth.rateLimitCount > 0
-                    text: liveWallpaper && liveWallpaper.apiHealth
-                        ? i18n("Rate-limit hits this session: %1. Last at %2.",
-                               liveWallpaper.apiHealth.rateLimitCount,
-                               liveWallpaper.apiHealth.lastRateLimitAt || "—")
-                        : ""
-                }
-
-                QtControls2.CheckBox {
-                    id: debugLogCheck
-
-                    Kirigami.FormData.label: i18n("Debug log:")
-                    text: i18n("Write debug events to cache log file")
-                    visible: advancedVisible(["debug", "log", "diagnostics"])
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Debug log:")
-                    visible: advancedVisible(["debug", "log"])
-                    text: i18n("Show recent log lines")
-                    enabled: liveWallpaper !== null && debugLogCheck.checked
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.showDebugLogTail)
-                            liveWallpaper.showDebugLogTail();
-
-                    }
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Debug info:")
-                    visible: advancedVisible(["debug", "info"])
-                    text: i18n("Copy debug info")
-                    enabled: liveWallpaper !== null
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.copyDebugInfo)
-                            liveWallpaper.copyDebugInfo();
-
-                    }
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("GitHub issue:")
-                    visible: advancedVisible(["github", "issue"])
-                    text: i18n("Copy GitHub issue template")
-                    enabled: liveWallpaper !== null
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.copyGithubIssue)
-                            liveWallpaper.copyGithubIssue();
-
-                    }
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Bug report file:")
-                    visible: advancedVisible(["bug", "report", "file"])
-                    text: i18n("Export bug report JSON…")
-                    enabled: liveWallpaper !== null
-                    onClicked: bugReportExportDialog.open()
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Laptop mode:")
-                    visible: advancedVisible(["laptop", "mode"])
-                    text: i18n("Apply laptop power-saving preset")
-                    enabled: liveWallpaper !== null
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.applyLaptopMode)
-                            liveWallpaper.applyLaptopMode();
-                    }
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Desktop mode:")
-                    visible: advancedVisible(["desktop", "mode", "profile"])
-                    text: i18n("Apply desktop quality preset")
-                    enabled: liveWallpaper !== null
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.applyDesktopMode)
-                            liveWallpaper.applyDesktopMode();
-                    }
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Offline mode:")
-                    visible: advancedVisible(["offline", "mode", "profile"])
-                    text: i18n("Apply offline / cache-only preset")
-                    enabled: liveWallpaper !== null
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.applyOfflineMode)
-                            liveWallpaper.applyOfflineMode();
-                    }
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: " "
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    text: i18n("Laptop mode enables metered-cache-only, battery pause, idle pause, and turns off Ken Burns / parallax / upscale / original downloads.")
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Setup wizard:")
-                    visible: advancedVisible(["setup", "wizard"])
-                    text: i18n("Show setup wizard again")
-                    onClicked: root.resetSetupWizard()
-                }
-
-                QtControls2.Label {
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    text: i18n("Images decode to screen size. Inactive crossfade layers are released, and settings preview writes are deferred.")
-                }
-
-                Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Blocklist")
-                    visible: advancedVisible(["blocklist"])
-                    Kirigami.FormData.isSection: true
-                }
-
-                QtControls2.Label {
-                    Kirigami.FormData.label: i18n("Blocked IDs:")
-                    visible: advancedVisible(["blocked", "ids"])
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    text: wallpaperConfiguration ? i18n("%1 blocked wallpaper(s)", Wallhaven.parseBlockedIds(wallpaperConfiguration.BlockedIdsJson || "[]").length) : i18n("Apply Wallhaven as the wallpaper type to manage the blocklist.")
-                }
-
-                QtControls2.Button {
-                    Kirigami.FormData.label: i18n("Clear blocklist:")
-                    visible: advancedVisible(["clear", "blocklist"])
-                    text: i18n("Clear blocklist")
-                    enabled: liveWallpaper !== null
-                    onClicked: {
-                        if (liveWallpaper && liveWallpaper.clearBlockedIds)
-                            liveWallpaper.clearBlockedIds();
-
-                    }
-                }
-
-                QtControls2.Label {
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    text: i18n("Block the current wallpaper from desktop Wallpaper Actions. Blocked IDs are skipped during search.")
-                }
-
-                Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("External Control")
-                    visible: advancedVisible(["external", "control"])
-                    Kirigami.FormData.isSection: true
-                }
-
-                QtControls2.CheckBox {
-                    id: controlBusCheck
-
-                    Kirigami.FormData.label: i18n("Control bus:")
-                    visible: advancedVisible(["control", "bus"])
-                    text: i18n("Accept commands from plasmoid/CLI")
+                    visible: root.settingsFilter === ""
                 }
 
                 QtControls2.CheckBox {
@@ -3747,17 +3242,25 @@ ColumnLayout {
                     text: i18n("Per-monitor profiles: open wallpaper settings on each screen, set a unique sync group (or use the button above), save a profile, and enable sync profiles. Same group advances together; different groups keep separate searches.")
                 }
 
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Control & shortcuts")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
+                }
+
+                QtControls2.CheckBox {
+                    id: controlBusCheck
+
+                    Kirigami.FormData.label: i18n("Control bus:")
+                    visible: advancedVisible(["control", "bus"])
+                    text: i18n("Accept commands from plasmoid/CLI")
+                }
+
                 QtControls2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     opacity: 0.7
                     text: i18n("Use tools/wallhaven-ctl.sh, D-Bus (tools/wallhaven-dbus.py), or the Wallhaven Control plasmoid.")
-                }
-
-                Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Global shortcuts")
-                    visible: advancedVisible(["global", "shortcuts"])
-                    Kirigami.FormData.isSection: true
                 }
 
                 QtControls2.Label {
@@ -3768,10 +3271,735 @@ ColumnLayout {
                     text: i18n("Install Meta+Ctrl+Alt+arrow global shortcuts with: ./dev-helper.sh install-shortcuts")
                 }
 
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: i18n("Swipe the panel widget thumbnail left/right (or use its menu) to like/dislike the current wallpaper's tags.")
+                }
+
                 Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Wallpaper History")
-                    visible: advancedVisible(["wallpaper", "history"])
+                    Kirigami.FormData.label: i18n("Variety")
                     Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
+                }
+
+                QtControls2.CheckBox {
+                    id: varietyCheck
+
+                    Kirigami.FormData.label: i18n("Variety metadata:")
+                    visible: advancedVisible(["variety", "metadata"])
+                    text: i18n("Write current wallpaper JSON for external tools")
+                }
+
+                QtControls2.TextField {
+                    id: varietyFolderField
+
+                    Kirigami.FormData.label: i18n("Variety folder:")
+                    visible: advancedVisible(["variety", "folder"])
+                    placeholderText: i18n("Optional path for Variety integration")
+                }
+
+                QtControls2.CheckBox {
+                    id: varietySymlinkCheck
+
+                    Kirigami.FormData.label: i18n("Variety symlink:")
+                    visible: advancedVisible(["variety", "symlink"])
+                    text: i18n("Symlink cached wallpaper as wallhaven-current.jpg")
+                    enabled: varietyFolderField.text !== ""
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Variety bridge:")
+                    visible: advancedVisible(["variety", "bridge"])
+                    text: i18n("Preview Variety search")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.previewVarietySearch) {
+                            liveWallpaper.previewVarietySearch(function(search) {
+                                root.varietyPreviewSearch = search || i18n("(none found)");
+                            });
+                        }
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    text: i18n("Apply Variety search to Wallhaven")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.applyVarietySearch)
+                            liveWallpaper.applyVarietySearch();
+
+                    }
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Variety preview:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: root.varietyPreviewSearch !== ""
+                    text: root.varietyPreviewSearch.indexOf("(") === 0
+                        ? root.varietyPreviewSearch
+                        : i18n("Would apply search: %1", root.varietyPreviewSearch)
+                }
+
+                QtControls2.CheckBox {
+                    id: varietyWatchCheck
+
+                    Kirigami.FormData.label: i18n("Variety watch:")
+                    visible: advancedVisible(["variety", "watch"])
+                    text: i18n("Watch Variety config for changes")
+                    enabled: liveWallpaper !== null && root.dbusServiceOnline
+                }
+            }
+
+        }
+
+        // Storage
+        QtControls2.ScrollView {
+            id: storageScroll
+
+            contentWidth: availableWidth
+            clip: true
+
+            Kirigami.FormLayout {
+                id: storageForm
+
+                width: storageScroll.availableWidth
+                twinFormLayouts: typeof appearanceRoot !== "undefined" ? [appearanceRoot.parentLayout] : []
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Wallhaven account")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
+                }
+
+                QtControls2.TextField {
+                    id: apiKeyField
+
+                    Kirigami.FormData.label: i18n("API key:")
+                    visible: rowVisible(["api", "key"])
+                    placeholderText: i18n("Optional; required for NSFW and favorites")
+                    echoMode: TextInput.Password
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.75
+                    visible: rowVisible(["api", "key"])
+                    text: liveWallpaper && liveWallpaper.apiKeyDisplayHint
+                        ? liveWallpaper.apiKeyDisplayHint
+                        : i18n("No live wallpaper binding for key status.")
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Validate key:")
+                    visible: !root.uiSimple && rowVisible(["validate", "key"])
+                    text: apiKeyValidator.checking ? i18n("Checking…") : i18n("Test API key")
+                    enabled: apiKeyField.text !== "" && !apiKeyValidator.checking
+                    onClicked: apiKeyValidator.validate()
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Clear key:")
+                    visible: rowVisible(["api", "key", "clear"])
+                    text: i18n("Clear API key")
+                    enabled: apiKeyField.text !== "" || (liveWallpaper && liveWallpaper.clearApiKey)
+                    onClicked: {
+                        apiKeyField.text = "";
+                        if (liveWallpaper && liveWallpaper.clearApiKey)
+                            liveWallpaper.clearApiKey(false);
+                    }
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: apiKeyValidator.statusText !== ""
+                    text: apiKeyValidator.statusText
+                }
+
+                QtControls2.CheckBox {
+                    id: kwalletCheck
+
+                    Kirigami.FormData.label: i18n("KWallet:")
+                    text: i18n("Load API key from KWallet on startup (recommended)")
+                    visible: !root.uiSimple && rowVisible(["kwallet", "wallet", "api", "key", "secret", "security"])
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Save to KWallet:")
+                    text: i18n("Save current API key to KWallet")
+                    visible: !root.uiSimple && rowVisible(["kwallet", "wallet", "api", "key", "secret", "security"])
+                    enabled: liveWallpaper !== null && apiKeyField.text.trim() !== ""
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.saveApiKeyToKWallet)
+                            liveWallpaper.saveApiKeyToKWallet();
+                    }
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: rowVisible(["kwallet", "wallet", "api", "key", "secret"])
+                    text: i18n("Stores the key in KWallet folder org.robertsm.wallhaven (entry apikey). Prefer this over leaving the key only in wallpaper settings.")
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Disk cache")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
+                }
+
+                QtControls2.CheckBox {
+                    id: diskCacheCheck
+
+                    Kirigami.FormData.label: i18n("Disk cache:")
+                    visible: advancedVisible(["disk", "cache"])
+                    text: i18n("Cache recent wallpapers locally; oldest unused are replaced")
+                }
+
+                QtControls2.SpinBox {
+                    id: diskCacheSlotsSpin
+
+                    Kirigami.FormData.label: i18n("Max cache slots:")
+                    visible: advancedVisible(["max", "cache", "slots"])
+                    from: 5
+                    to: 200
+                    enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.SpinBox {
+                    id: diskCacheMaxMbSpin
+
+                    Kirigami.FormData.label: i18n("Max cache size (MB):")
+                    visible: advancedVisible(["max", "cache", "mb", "quota", "size"])
+                    from: 0
+                    to: 10240
+                    enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: diskCacheMaxMbSpin.visible
+                    text: i18n("0 = no size limit (slot limit still applies). Unpinned oldest entries are pruned first.")
+                }
+
+                QtControls2.CheckBox {
+                    id: cacheDownloadOriginalCheck
+
+                    Kirigami.FormData.label: i18n("Cache original file:")
+                    visible: advancedVisible(["cache", "original", "file"])
+                    text: i18n("Download the full-resolution file from Wallhaven (requires curl)")
+                    enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Per-monitor cache:")
+                    visible: advancedVisible(["per", "monitor", "cache"])
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: liveWallpaper
+                        ? i18n("Each screen keeps its own cache files (namespace %1). People/NSFW filters apply per monitor.", liveWallpaper.diskCacheNamespace || "default")
+                        : i18n("Each monitor keeps separate cache files so filters on one screen do not leak wallpapers to another.")
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Cache status:")
+                    visible: advancedVisible(["cache", "status"])
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: liveWallpaper ? i18n("%1 cached wallpaper(s)", liveWallpaper.diskCacheEntryCount) : i18n("Apply Wallhaven as the wallpaper type to see cache stats.")
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Clear cache:")
+                    visible: advancedVisible(["clear", "cache"])
+                    text: i18n("Clear disk cache")
+                    enabled: liveWallpaper !== null && diskCacheCheck.checked
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.clearDiskCache) {
+                            liveWallpaper.clearDiskCache();
+                            root.refreshCacheModel();
+                        }
+                    }
+                }
+
+                QtControls2.SpinBox {
+                    id: preloadCountSpin
+
+                    Kirigami.FormData.label: i18n("Preload count:")
+                    visible: advancedVisible(["preload", "count"])
+                    from: 0
+                    to: 4
+                    enabled: adaptivePreloadCheck.checked
+                }
+
+                QtControls2.CheckBox {
+                    id: adaptivePreloadCheck
+
+                    Kirigami.FormData.label: i18n("Adaptive preload:")
+                    visible: advancedVisible(["adaptive", "preload"])
+                    text: i18n("Reduce preloads when offline or metered")
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Offline & trips")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
+                }
+
+                QtControls2.CheckBox {
+                    id: offlineCacheCheck
+
+                    Kirigami.FormData.label: i18n("Offline fallback:")
+                    visible: advancedVisible(["offline", "fallback"])
+                    text: i18n("Show cached wallpapers when the network fails")
+                    enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.CheckBox {
+                    id: offlineOnlyCheck
+
+                    Kirigami.FormData.label: i18n("Offline only:")
+                    visible: advancedVisible(["offline", "only"])
+                    text: i18n("Never use the network; cycle cached wallpapers only")
+                    enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.CheckBox {
+                    id: meteredCacheCheck
+
+                    Kirigami.FormData.label: i18n("Metered network:")
+                    visible: advancedVisible(["metered", "network"])
+                    text: i18n("Use cache only on cellular connections")
+                    enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.CheckBox {
+                    id: smartOfflineCheck
+                    Kirigami.FormData.label: i18n("Smart offline:")
+                    text: i18n("Prefer pinned / higher-resolution cache entries when offline or in playlist mode")
+                    visible: (browseModeCombo.currentValue === "playlist" || offlineOnlyCheck.checked || root.uiSimple === false)
+                        && rowVisible(["smart", "offline", "playlist", "cache"])
+                }
+
+                QtControls2.CheckBox {
+                    id: smartOfflineDayCheck
+                    Kirigami.FormData.label: i18n("Day-aware offline:")
+                    text: i18n("Bias cached picks using day/night search words and stored cache tags")
+                    visible: smartOfflineCheck.visible && smartOfflineCheck.checked
+                        && rowVisible(["smart", "offline", "day", "night", "playlist", "cache"])
+                    enabled: smartOfflineCheck.checked
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Trip mode:")
+                    visible: rowVisible(["trip", "offline", "travel"])
+                    text: i18n("Trip mode 24h (warm + cache only)")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.enterTripModeWithWarm)
+                            liveWallpaper.enterTripModeWithWarm(24, cacheWarmCountSpin.value);
+                    }
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.75
+                    visible: rowVisible(["trip", "offline", "travel"])
+                    text: {
+                        if (!liveWallpaper)
+                            return "";
+                        var count = liveWallpaper.diskCacheEntryCount || 0;
+                        var target = cacheWarmCountSpin.value || 0;
+                        var pct = target > 0 ? Math.min(100, Math.round((count / target) * 100)) : (count > 0 ? 100 : 0);
+                        return i18n("Current cache fill for trip target: %1%", pct);
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    visible: rowVisible(["trip", "offline", "travel"])
+                    text: i18n("End trip mode")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.clearTripMode)
+                            liveWallpaper.clearTripMode(true);
+                    }
+                }
+
+                QtControls2.SpinBox {
+                    id: cacheWarmCountSpin
+
+                    Kirigami.FormData.label: i18n("Warm cache count:")
+                    visible: advancedVisible(["warm", "cache", "prefetch"])
+                    from: 1
+                    to: 48
+                    enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Warm cache:")
+                    visible: advancedVisible(["warm", "cache"])
+                    text: i18n("Download matching wallpapers into cache now")
+                    enabled: liveWallpaper !== null && diskCacheCheck.checked
+                        && !(liveWallpaper && liveWallpaper._warmActive)
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.warmDiskCache)
+                            liveWallpaper.warmDiskCache(cacheWarmCountSpin.value);
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    visible: advancedVisible(["warm", "cache", "cancel"])
+                    text: i18n("Cancel cache warm")
+                    enabled: liveWallpaper !== null && !!(liveWallpaper && liveWallpaper._warmActive)
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.cancelWarmCache)
+                            liveWallpaper.cancelWarmCache();
+                    }
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Warm progress:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    visible: advancedVisible(["warm", "cache", "progress"])
+                        && !!(liveWallpaper && liveWallpaper._warmActive)
+                    text: liveWallpaper
+                        ? i18n("Warming… %1 / %2", liveWallpaper._warmDone || 0, liveWallpaper._warmTarget || 0)
+                        : ""
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Trip cache fill:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.8
+                    visible: advancedVisible(["trip", "cache", "fill"])
+                    text: {
+                        if (!liveWallpaper)
+                            return i18n("Open wallpaper settings on a desktop to see cache fill.");
+                        var count = liveWallpaper.diskCacheEntryCount || 0;
+                        var target = cacheWarmCountSpin.value || 0;
+                        var pct = target > 0 ? Math.min(100, Math.round((count / target) * 100)) : (count > 0 ? 100 : 0);
+                        return i18n("Cache fill toward trip target: %1% (%2 / %3)", pct, count, target);
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Prune cache:")
+                    visible: advancedVisible(["prune", "cache"])
+                    text: i18n("Prune unpinned entries over slot limit")
+                    enabled: liveWallpaper !== null && diskCacheCheck.checked
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.pruneUnpinnedCache)
+                            liveWallpaper.pruneUnpinnedCache(diskCacheSlotsSpin.value);
+                    }
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Upscaling")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
+                }
+
+                QtControls2.CheckBox {
+                    id: upscaleCheck
+
+                    Kirigami.FormData.label: i18n("Upscale low-res:")
+                    visible: advancedVisible(["upscale", "low", "res"])
+                    text: i18n("Use an external AI upscaler for wallpapers smaller than your screen, if installed")
+                    enabled: diskCacheCheck.checked
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: upscaleCheck.checked
+                    text: i18n("Requires the D-Bus service and realesrgan-ncnn-vulkan on your PATH, and disk cache enabled above. Falls back to plain scaling when either is missing.")
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: i18n("Upscaler status:")
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: upscaleCheck.checked
+                    text: {
+                        if (liveWallpaper === null)
+                            return i18n("Apply Wallhaven as the wallpaper type to check.");
+                        if (!root.dbusServiceOnline)
+                            return i18n("D-Bus service offline; can't check.");
+                        if (!root.upscalerStatusKnown)
+                            return i18n("Checking…");
+                        return root.upscalerAvailable
+                            ? i18n("realesrgan-ncnn-vulkan detected.")
+                            : i18n("Not found on PATH; using plain scaling. Install: github.com/xinntao/Real-ESRGAN/releases");
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Re-upscale:")
+                    visible: advancedVisible(["re", "upscale"])
+                    text: i18n("Re-upscale cached wallpapers")
+                    enabled: liveWallpaper !== null && upscaleCheck.checked && diskCacheCheck.checked
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.reupscaleCachedWallpapers)
+                            liveWallpaper.reupscaleCachedWallpapers();
+                    }
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: upscaleCheck.checked
+                    text: i18n("Applies the upscaler to wallpapers already in the disk cache whose native resolution falls short of your screen. Cache entries saved before this setting existed have no recorded resolution and are skipped; they'll be covered next time they're re-cached.")
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Cache manager")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Refresh cache list:")
+                    visible: advancedVisible(["refresh", "cache", "list"])
+                    text: i18n("Refresh cached wallpapers")
+                    onClicked: root.refreshCacheModel()
+                }
+
+                QtControls2.TextField {
+                    id: cacheBrowserFilterField
+                    Kirigami.FormData.label: i18n("Filter cache:")
+                    placeholderText: i18n("id, tag, category…")
+                    visible: advancedVisible(["cache", "filter", "tag"])
+                    text: root.cacheBrowserFilter
+                    onTextChanged: {
+                        root.cacheBrowserFilter = text;
+                        root.refreshCacheModel();
+                    }
+                }
+
+                QtControls2.CheckBox {
+                    id: cacheBrowserPinnedCheck
+                    Kirigami.FormData.label: i18n("Pinned only:")
+                    text: i18n("Show pinned cache entries only")
+                    visible: advancedVisible(["cache", "pinned", "filter"])
+                    checked: root.cacheBrowserPinnedOnly
+                    onCheckedChanged: {
+                        root.cacheBrowserPinnedOnly = checked;
+                        root.refreshCacheModel();
+                    }
+                }
+
+                ListView {
+                    id: cacheList
+
+                    Kirigami.FormData.label: i18n("Cached:")
+                    Layout.preferredWidth: parent.width
+                    Layout.preferredHeight: Math.min(240, cacheModel.count * 52)
+                    clip: true
+                    model: cacheModel
+
+                    delegate: RowLayout {
+                        width: cacheList.width
+                        spacing: Kirigami.Units.smallSpacing
+
+                        Image {
+                            Layout.preferredWidth: 64
+                            Layout.preferredHeight: 40
+                            fillMode: Image.PreserveAspectCrop
+                            source: model.thumbUrl
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 0
+                            QtControls2.Label {
+                                Layout.fillWidth: true
+                                text: "#" + model.id + (model.pinned ? " ★" : "")
+                                    + (model.category ? (" · " + model.category) : "")
+                            }
+                            QtControls2.TextField {
+                                Layout.fillWidth: true
+                                text: model.tags || ""
+                                placeholderText: i18n("tags")
+                                font.pointSize: 8
+                                onEditingFinished: {
+                                    if (liveWallpaper && liveWallpaper.setCacheEntryTags)
+                                        liveWallpaper.setCacheEntryTags(model.id, text);
+                                }
+                            }
+                        }
+
+                        QtControls2.Button {
+                            text: model.pinned ? i18n("Unpin") : i18n("Pin")
+                            onClicked: {
+                                if (!liveWallpaper)
+                                    return ;
+
+                                if (model.pinned)
+                                    liveWallpaper.unpinCacheId(model.id);
+                                else
+                                    liveWallpaper.pinCacheId(model.id);
+                                root.refreshCacheModel();
+                            }
+                        }
+
+                        QtControls2.Button {
+                            text: i18n("Evict")
+                            enabled: !model.pinned && liveWallpaper !== null
+                            onClicked: {
+                                liveWallpaper.evictCacheId(model.id);
+                                root.refreshCacheModel();
+                            }
+                        }
+
+                    }
+
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Network")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
+                }
+
+                QtControls2.SpinBox {
+                    id: requestTimeoutSpin
+
+                    Kirigami.FormData.label: i18n("Request timeout (sec):")
+                    visible: advancedVisible(["request", "timeout", "sec"])
+                    from: 5
+                    to: 120
+                }
+
+                QtControls2.SpinBox {
+                    id: retryDelaySpin
+
+                    Kirigami.FormData.label: i18n("Retry delay (sec):")
+                    visible: advancedVisible(["retry", "delay", "sec"])
+                    from: 1
+                    to: 300
+                }
+
+                QtControls2.SpinBox {
+                    id: retryAttemptsSpin
+
+                    Kirigami.FormData.label: i18n("Max retry attempts:")
+                    visible: advancedVisible(["max", "retry", "attempts"])
+                    from: 1
+                    to: 20
+                }
+
+                QtControls2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: !root.uiSimple
+                    text: i18n("Timeout is per request. Retries use the delay with exponential backoff, up to the max attempts.")
+                }
+            }
+
+        }
+
+        // Maintenance
+        QtControls2.ScrollView {
+            id: maintenanceScroll
+
+            contentWidth: availableWidth
+            clip: true
+
+            Kirigami.FormLayout {
+                id: maintenanceForm
+
+                width: maintenanceScroll.availableWidth
+                twinFormLayouts: typeof appearanceRoot !== "undefined" ? [appearanceRoot.parentLayout] : []
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("Quick profiles")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Laptop mode:")
+                    visible: advancedVisible(["laptop", "mode"])
+                    text: i18n("Apply laptop power-saving preset")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.applyLaptopMode)
+                            liveWallpaper.applyLaptopMode();
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Desktop mode:")
+                    visible: advancedVisible(["desktop", "mode", "profile"])
+                    text: i18n("Apply desktop quality preset")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.applyDesktopMode)
+                            liveWallpaper.applyDesktopMode();
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Offline mode:")
+                    visible: advancedVisible(["offline", "mode", "profile"])
+                    text: i18n("Apply offline / cache-only preset")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.applyOfflineMode)
+                            liveWallpaper.applyOfflineMode();
+                    }
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: i18n("Laptop mode enables metered-cache-only, battery pause, idle pause, and turns off Ken Burns / parallax / upscale / original downloads.")
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.label: i18n("History & undo")
+                    Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Undo settings:")
+                    visible: rowVisible(["undo", "settings"])
+                    text: i18n("Undo last settings change")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.undoLastSettingsChange)
+                            liveWallpaper.undoLastSettingsChange();
+                    }
                 }
 
                 QtControls2.Button {
@@ -3846,9 +4074,9 @@ ColumnLayout {
                 }
 
                 Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Settings Backup")
-                    visible: advancedVisible(["settings", "backup"])
+                    Kirigami.FormData.label: i18n("Backup")
                     Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
                 }
 
                 QtControls2.Button {
@@ -3873,112 +4101,129 @@ ColumnLayout {
                     onClicked: importSettingsDialog.open()
                 }
 
-                Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Time of Day")
-                    visible: advancedVisible(["time", "day"])
-                    Kirigami.FormData.isSection: true
-                }
-
-                QtControls2.Label {
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    text: i18n("Time-of-day searches apply in Search mode only (6am–8pm day, otherwise night).")
-                }
-
                 QtControls2.CheckBox {
-                    id: timeOfDayCheck
+                    id: scrubSecretsCheck
 
-                    Kirigami.FormData.label: i18n("Time of day:")
-                    visible: advancedVisible(["time", "day"])
-                    text: i18n("Use separate day/night searches")
-                }
-
-                QtControls2.TextField {
-                    id: daySearchField
-
-                    Kirigami.FormData.label: i18n("Day search:")
-                    visible: advancedVisible(["day", "search"])
-                    placeholderText: i18n("6am–8pm")
-                    enabled: timeOfDayCheck.checked
-                }
-
-                QtControls2.TextField {
-                    id: nightSearchField
-
-                    Kirigami.FormData.label: i18n("Night search:")
-                    visible: advancedVisible(["night", "search"])
-                    placeholderText: i18n("8pm–6am")
-                    enabled: timeOfDayCheck.checked
+                    Kirigami.FormData.label: i18n("Export privacy:")
+                    visible: !root.uiSimple && rowVisible(["scrub", "secret", "export", "privacy", "api"])
+                    text: i18n("Omit API key from settings / bug-report exports (recommended)")
                 }
 
                 Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Weekday Schedule")
-                    visible: advancedVisible(["weekday", "schedule"])
+                    Kirigami.FormData.label: i18n("Diagnostics")
                     Kirigami.FormData.isSection: true
+                    visible: root.settingsFilter === ""
                 }
 
                 QtControls2.Label {
+                    Kirigami.FormData.label: i18n("API health:")
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    text: i18n("Weekday/weekend searches apply in Search mode when time-of-day is disabled.")
+                    visible: advancedVisible(["api", "health", "rate", "limit", "status"])
+                    text: liveWallpaper && liveWallpaper.apiHealthSummary
+                        ? liveWallpaper.apiHealthSummary
+                        : i18n("Open settings while Wallhaven is the active wallpaper to see live API health.")
                 }
 
-                QtControls2.CheckBox {
-                    id: scheduleCheck
-
-                    Kirigami.FormData.label: i18n("Week schedule:")
-                    visible: advancedVisible(["week", "schedule"])
-                    text: i18n("Use separate weekday/weekend searches")
-                    enabled: !timeOfDayCheck.checked
-                }
-
-                QtControls2.TextField {
-                    id: weekdaySearchField
-
-                    Kirigami.FormData.label: i18n("Weekday search:")
-                    visible: advancedVisible(["weekday", "search"])
-                    placeholderText: i18n("Mon–Fri")
-                    enabled: scheduleCheck.checked && !timeOfDayCheck.checked
-                }
-
-                QtControls2.TextField {
-                    id: weekendSearchField
-
-                    Kirigami.FormData.label: i18n("Weekend search:")
-                    visible: advancedVisible(["weekend", "search"])
-                    placeholderText: i18n("Sat–Sun")
-                    enabled: scheduleCheck.checked && !timeOfDayCheck.checked
-                }
-
-                Kirigami.Separator {
-                    Kirigami.FormData.label: i18n("Time Capsule")
-                    visible: advancedVisible(["time", "capsule"])
-                    Kirigami.FormData.isSection: true
-                }
-
-                QtControls2.Label {
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    text: i18n("Auto-switch the search on a specific date. One per line: date|search query|optional label. MM-DD repeats every year (birthdays, holidays); YYYY-MM-DD fires once.")
-                }
-
-                QtControls2.TextArea {
-                    id: timeCapsuleField
-
-                    Kirigami.FormData.label: i18n("Time capsules:")
-                    visible: advancedVisible(["time", "capsules"])
-                    placeholderText: i18n("12-25|christmas snow|Holiday surprise — 2026-09-01|back to school city")
-                    text: root.timeCapsuleText()
-                    Binding on text {
-                        when: !timeCapsuleField.activeFocus
-                        value: root.timeCapsuleText()
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    visible: advancedVisible(["api", "health", "offline", "outage"])
+                        && liveWallpaper
+                        && liveWallpaper._apiOutageOffline
+                    text: i18n("Resume online search")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.clearApiOutageOffline)
+                            liveWallpaper.clearApiOutageOffline(true);
                     }
-                    onEditingFinished: root.persistTimeCapsules(text)
                 }
 
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    visible: advancedVisible(["api", "health", "offline", "outage"])
+                        && liveWallpaper
+                        && !liveWallpaper._apiOutageOffline
+                    text: i18n("Use cache until Wallhaven recovers")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.enterApiOutageOffline)
+                            liveWallpaper.enterApiOutageOffline(0);
+                    }
+                }
+
+                QtControls2.Label {
+                    Kirigami.FormData.label: " "
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    visible: advancedVisible(["api", "health", "rate", "limit"])
+                        && liveWallpaper && liveWallpaper.apiHealth
+                        && liveWallpaper.apiHealth.rateLimitCount > 0
+                    text: liveWallpaper && liveWallpaper.apiHealth
+                        ? i18n("Rate-limit hits this session: %1. Last at %2.",
+                               liveWallpaper.apiHealth.rateLimitCount,
+                               liveWallpaper.apiHealth.lastRateLimitAt || "—")
+                        : ""
+                }
+
+                QtControls2.CheckBox {
+                    id: debugLogCheck
+
+                    Kirigami.FormData.label: i18n("Debug log:")
+                    text: i18n("Write debug events to cache log file")
+                    visible: advancedVisible(["debug", "log", "diagnostics"])
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: " "
+                    visible: advancedVisible(["debug", "log"])
+                    text: i18n("Show recent log lines")
+                    enabled: liveWallpaper !== null && debugLogCheck.checked
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.showDebugLogTail)
+                            liveWallpaper.showDebugLogTail();
+
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Debug info:")
+                    visible: advancedVisible(["debug", "info"])
+                    text: i18n("Copy debug info")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.copyDebugInfo)
+                            liveWallpaper.copyDebugInfo();
+
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("GitHub issue:")
+                    visible: advancedVisible(["github", "issue"])
+                    text: i18n("Copy GitHub issue template")
+                    enabled: liveWallpaper !== null
+                    onClicked: {
+                        if (liveWallpaper && liveWallpaper.copyGithubIssue)
+                            liveWallpaper.copyGithubIssue();
+
+                    }
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Bug report file:")
+                    visible: advancedVisible(["bug", "report", "file"])
+                    text: i18n("Export bug report JSON…")
+                    enabled: liveWallpaper !== null
+                    onClicked: bugReportExportDialog.open()
+                }
+
+                QtControls2.Button {
+                    Kirigami.FormData.label: i18n("Setup wizard:")
+                    visible: advancedVisible(["setup", "wizard"])
+                    text: i18n("Show setup wizard again")
+                    onClicked: root.resetSetupWizard()
+                }
             }
 
         }

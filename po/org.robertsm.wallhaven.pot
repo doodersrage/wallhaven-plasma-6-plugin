@@ -60,22 +60,22 @@ msgstr ""
 msgid "Advance all monitors in the same group together"
 msgstr ""
 
-msgid "Advanced"
-msgstr ""
-
-msgid "Advanced mode shows all tabs and options."
-msgstr ""
-
 msgid "All portrait"
 msgstr ""
 
 msgid "All results are blocked. Clear the blocklist or try another search."
 msgstr ""
 
+msgid "All settings"
+msgstr ""
+
 msgid "All wide"
 msgstr ""
 
 msgid "Also push the wallpaper accent to GTK apps and kdeglobals"
+msgstr ""
+
+msgid "Anime"
 msgstr ""
 
 msgid "Anime:"
@@ -219,6 +219,9 @@ msgstr ""
 msgid "Auto-hide (sec):"
 msgstr ""
 
+msgid "Automatic search changes"
+msgstr ""
+
 msgid "Auto panel accent:"
 msgstr ""
 
@@ -226,6 +229,12 @@ msgid "Auto-switch the search on a specific date. One per line: date|search quer
 msgstr ""
 
 msgid "Avoid recent duplicates (saved across restarts, up to 2000 IDs)"
+msgstr ""
+
+msgid "Backup"
+msgstr ""
+
+msgid "Battery is low"
 msgstr ""
 
 msgid "Battery pause:"
@@ -247,9 +256,6 @@ msgid "Blocked IDs:"
 msgstr ""
 
 msgid "Blocked wallpaper %1."
-msgstr ""
-
-msgid "Blocklist"
 msgstr ""
 
 msgid "Blocklist cleared."
@@ -321,7 +327,7 @@ msgstr ""
 msgid "Cache fill toward trip target: %1% (%2 cached)"
 msgstr ""
 
-msgid "Cache Manager"
+msgid "Cache manager"
 msgstr ""
 
 msgid "Cache original file:"
@@ -357,7 +363,13 @@ msgstr ""
 msgid "Categories"
 msgstr ""
 
+msgid "Categories:"
+msgstr ""
+
 msgid "Category, purity, ratio, color, blacklist, and time-of-day filters apply to Search mode only. Collection and Favorites use the collection API as-is."
+msgstr ""
+
+msgid "Change every:"
 msgstr ""
 
 msgid "Checking…"
@@ -445,6 +457,9 @@ msgid "Contrast:"
 msgstr ""
 
 msgid "Control bus:"
+msgstr ""
+
+msgid "Control & shortcuts"
 msgstr ""
 
 msgid "Copied debug info."
@@ -582,7 +597,7 @@ msgstr ""
 msgid "Cycles JPG/PNG/WebP files under this folder (home directory only). No Wallhaven network requests."
 msgstr ""
 
-msgid "Cycles the disk cache (and optional pinned-only subset) with no network fetches. Pin wallpapers under Advanced → Cache."
+msgid "Cycles the disk cache (and optional pinned-only subset) with no network fetches. Pin wallpapers under Storage → Cache manager."
 msgstr ""
 
 msgid "Cycle through multiple collections on each advance"
@@ -660,6 +675,9 @@ msgstr ""
 msgid "Descending"
 msgstr ""
 
+msgid "Desktop"
+msgstr ""
+
 msgid "Desktop Art"
 msgstr ""
 
@@ -678,6 +696,9 @@ msgstr ""
 msgid "Disable Ken Burns and parallax motion (accessibility / battery)"
 msgstr ""
 
+msgid "Disk cache"
+msgstr ""
+
 msgid "Disk cache:"
 msgstr ""
 
@@ -690,6 +711,9 @@ msgstr ""
 msgid "Download matching wallpapers into cache now"
 msgstr ""
 
+msgid "Download size:"
+msgstr ""
+
 msgid "Download the full-resolution file from Wallhaven (requires curl)"
 msgstr ""
 
@@ -700,9 +724,6 @@ msgid "Each monitor keeps separate cache files so filters on one screen do not l
 msgstr ""
 
 msgid "Each screen keeps its own cache files (namespace %1). People/NSFW filters apply per monitor."
-msgstr ""
-
-msgid "Effects"
 msgstr ""
 
 msgid "e.g. 1920x1080,2560x1440"
@@ -744,6 +765,9 @@ msgstr ""
 msgid "Enter an API key or a collection username first."
 msgstr ""
 
+msgid "Essentials"
+msgstr ""
+
 msgid "Evict"
 msgstr ""
 
@@ -772,9 +796,6 @@ msgid "Export Wallhaven Bug Report"
 msgstr ""
 
 msgid "Export Wallhaven Settings"
-msgstr ""
-
-msgid "External Control"
 msgstr ""
 
 msgid "Fade through black"
@@ -816,9 +837,6 @@ msgstr ""
 msgid "Filters"
 msgstr ""
 
-msgid "Filters are in Advanced settings mode. Switch Settings mode to Advanced on the Source tab."
-msgstr ""
-
 msgid "Filter settings…"
 msgstr ""
 
@@ -840,7 +858,7 @@ msgstr ""
 msgid "Forest"
 msgstr ""
 
-msgid "Fun & Discovery"
+msgid "General"
 msgstr ""
 
 msgid "General:"
@@ -850,9 +868,6 @@ msgid "Getting started:"
 msgstr ""
 
 msgid "GitHub issue:"
-msgstr ""
-
-msgid "Global shortcuts"
 msgstr ""
 
 msgid "Gold"
@@ -871,6 +886,9 @@ msgid "Group %1 · “%2”"
 msgstr ""
 
 msgid "grp %1"
+msgstr ""
+
+msgid "History & undo"
 msgstr ""
 
 msgid "/home/you/Pictures/Wallpapers"
@@ -894,6 +912,9 @@ msgstr ""
 msgid "id, tag, category…"
 msgstr ""
 
+msgid "Image"
+msgstr ""
+
 msgid "Image enhance:"
 msgstr ""
 
@@ -901,9 +922,6 @@ msgid "Image failed to load. Showing cached wallpaper."
 msgstr ""
 
 msgid "Image failed to load. Trying another…"
-msgstr ""
-
-msgid "Image quality:"
 msgstr ""
 
 msgid "Images decode to screen size. Inactive crossfade layers are released, and settings preview writes are deferred."
@@ -1077,6 +1095,9 @@ msgstr ""
 msgid "Local sorting:"
 msgstr ""
 
+msgid "Lock screen"
+msgstr ""
+
 msgid "Lock screen:"
 msgstr ""
 
@@ -1098,10 +1119,13 @@ msgstr ""
 msgid "Lock sync status:"
 msgstr ""
 
+msgid "Maintenance"
+msgstr ""
+
 msgid "Manual"
 msgstr ""
 
-msgid "Match wallpaper Advanced → Sync group. With multiple monitors, the plasmoid lists each screen and routes next/prev to that group."
+msgid "Match the wallpaper's Desktop → Multiple monitors → Sync group. With multiple monitors, the plasmoid lists each screen and routes next/prev to that group."
 msgstr ""
 
 msgid "Max cache size (MB):"
@@ -1120,6 +1144,9 @@ msgid "Milestone toasts:"
 msgstr ""
 
 msgid "Min height:"
+msgstr ""
+
+msgid "minutes (0 = manual only)"
 msgstr ""
 
 msgid "Min width:"
@@ -1164,10 +1191,10 @@ msgstr ""
 msgid "More-like-current mode needs a wallpaper on screen first."
 msgstr ""
 
-msgid "Most advanced options are hidden in Simple mode. Switch Settings mode to Advanced on the Source tab."
+msgid "mountains nature"
 msgstr ""
 
-msgid "mountains nature"
+msgid "Multiple monitors"
 msgstr ""
 
 msgid "Music-reactive pacing:"
@@ -1188,6 +1215,9 @@ msgstr ""
 msgid "name or search words"
 msgstr ""
 
+msgid "Network"
+msgstr ""
+
 msgid "Network error during search test."
 msgstr ""
 
@@ -1201,9 +1231,6 @@ msgid "Network error while validating API key."
 msgstr ""
 
 msgid "Network restored. Resuming…"
-msgstr ""
-
-msgid "Network & Retries"
 msgstr ""
 
 msgid "Never use the network; cycle cached wallpapers only"
@@ -1356,6 +1383,9 @@ msgstr ""
 msgid "Offline tag filter:"
 msgstr ""
 
+msgid "Offline & trips"
+msgstr ""
+
 msgid "Olive"
 msgstr ""
 
@@ -1375,6 +1405,9 @@ msgid "Only play pinned cache entries"
 msgstr ""
 
 msgid "On refresh:"
+msgstr ""
+
+msgid "On-screen overlay"
 msgstr ""
 
 msgid "Open"
@@ -1398,7 +1431,10 @@ msgstr ""
 msgid "Open wallpaper settings while Wallhaven is active to see the count"
 msgstr ""
 
-msgid "Optional API key for NSFW/favorites. Later: try Offline playlist, local folder playlists, or smart offline on the Source tab."
+msgid "Optional API key for NSFW/favorites. Later: try Offline playlist or local folder playlists (All settings → Wallpapers) and smart offline (All settings → Storage)."
+msgstr ""
+
+msgid "Optional — needed for NSFW and favorites"
 msgstr ""
 
 msgid "Optional path for Variety integration"
@@ -1413,10 +1449,10 @@ msgstr ""
 msgid "Original (full wallpaper)"
 msgstr ""
 
-msgid "Other"
+msgid "Panel blur hint (%):"
 msgstr ""
 
-msgid "Panel blur hint (%):"
+msgid "Panel & theme colors"
 msgstr ""
 
 msgid "Panel tint hint:"
@@ -1435,6 +1471,9 @@ msgid "Pause"
 msgstr ""
 
 msgid "Pause:"
+msgstr ""
+
+msgid "Pause automatically"
 msgstr ""
 
 msgid "Pause automatic slideshow"
@@ -1458,13 +1497,16 @@ msgstr ""
 msgid "Pause this monitor"
 msgstr ""
 
+msgid "Pause when:"
+msgstr ""
+
 msgid "Pause when the session has been idle for several minutes"
 msgstr ""
 
-msgid "People:"
+msgid "People"
 msgstr ""
 
-msgid "Performance"
+msgid "People:"
 msgstr ""
 
 msgid "Per-monitor cache:"
@@ -1492,9 +1534,6 @@ msgid "Pink Red"
 msgstr ""
 
 msgid "Pinned only:"
-msgstr ""
-
-msgid "Playback"
 msgstr ""
 
 msgid "Playlist — cached wallpaper."
@@ -1560,7 +1599,13 @@ msgstr ""
 msgid "Purity"
 msgstr ""
 
+msgid "Purity:"
+msgstr ""
+
 msgid "Purple"
+msgstr ""
+
+msgid "Quick profiles"
 msgstr ""
 
 msgid "Random"
@@ -1633,6 +1678,9 @@ msgid "Reload Wallpaper"
 msgstr ""
 
 msgid "Remember search settings per sync group"
+msgstr ""
+
+msgid "Repeats"
 msgstr ""
 
 msgid "Request failed (%1). Retry %2/%3 in %4s…"
@@ -1719,6 +1767,9 @@ msgstr ""
 msgid "Saved search “%1”."
 msgstr ""
 
+msgid "Saved searches & presets"
+msgstr ""
+
 msgid "Saved search not found."
 msgstr ""
 
@@ -1761,6 +1812,9 @@ msgstr ""
 msgid "Screen %1 · group %2 · “%3”"
 msgstr ""
 
+msgid "Screen is locked"
+msgstr ""
+
 msgid "Screen lock pause:"
 msgstr ""
 
@@ -1771,9 +1825,6 @@ msgid "Search:"
 msgstr ""
 
 msgid "Search: %1"
-msgstr ""
-
-msgid "Search Presets"
 msgstr ""
 
 msgid "Search string:"
@@ -1797,13 +1848,13 @@ msgstr ""
 msgid "Sent preset import request."
 msgstr ""
 
+msgid "Session is idle"
+msgstr ""
+
 msgid "Set a local folder path in Source settings."
 msgstr ""
 
 msgid "Set color filter from current wallpaper palette"
-msgstr ""
-
-msgid "Settings Backup"
 msgstr ""
 
 msgid "Settings copied to clipboard as JSON."
@@ -1818,10 +1869,10 @@ msgstr ""
 msgid "Settings imported."
 msgstr ""
 
-msgid "Settings mode:"
+msgid "Setup status:"
 msgstr ""
 
-msgid "Setup status:"
+msgid "Set up this source under All settings → Wallpapers."
 msgstr ""
 
 msgid "Setup wizard:"
@@ -1836,7 +1887,16 @@ msgstr ""
 msgid "Share preset:"
 msgstr ""
 
+msgid "Sharpness:"
+msgstr ""
+
 msgid "Shortcuts: ./dev-helper.sh install-shortcuts (Meta+Ctrl+Alt+arrows)"
+msgstr ""
+
+msgid "Show:"
+msgstr ""
+
+msgid "Show all settings…"
 msgstr ""
 
 msgid "Show cached wallpapers when the network fails"
@@ -1872,12 +1932,6 @@ msgstr ""
 msgid "Similar Wallpapers"
 msgstr ""
 
-msgid "Simple"
-msgstr ""
-
-msgid "Simple mode: Source + Playback. Tip: Offline playlist, local playlists, and smart offline are on Source. Switch to Advanced for filters, cache, and sync."
-msgstr ""
-
 msgid "Sketchy"
 msgstr ""
 
@@ -1894,6 +1948,9 @@ msgid "Slide"
 msgstr ""
 
 msgid "Slideshow"
+msgstr ""
+
+msgid "Slideshow:"
 msgstr ""
 
 msgid "Slideshow interval (min):"
@@ -1914,9 +1971,6 @@ msgstr ""
 msgid "Slideshow resumed (power/activity rules cleared)."
 msgstr ""
 
-msgid "Slideshow rules"
-msgstr ""
-
 msgid "Slowly pan across the wallpaper"
 msgstr ""
 
@@ -1932,6 +1986,9 @@ msgstr ""
 msgid "Smart offline:"
 msgstr ""
 
+msgid "Sorting"
+msgstr ""
+
 msgid "Source"
 msgstr ""
 
@@ -1939,6 +1996,9 @@ msgid "Speed up Ken Burns panning while music is playing (via MPRIS)"
 msgstr ""
 
 msgid "Start D-Bus service"
+msgstr ""
+
+msgid "Storage"
 msgstr ""
 
 msgid "Stores the key in KWallet folder org.robertsm.wallhaven (entry apikey). Prefer this over leaving the key only in wallpaper settings."
@@ -1983,6 +2043,9 @@ msgstr ""
 msgid "tags"
 msgstr ""
 
+msgid "Tags & blocking"
+msgstr ""
+
 msgid "Tags, keywords, e.g. nature anime"
 msgstr ""
 
@@ -2013,9 +2076,6 @@ msgstr ""
 msgid "thumbnails, .git, Screenshots"
 msgstr ""
 
-msgid "Time Capsule"
-msgstr ""
-
 msgid "Time capsules:"
 msgstr ""
 
@@ -2028,13 +2088,13 @@ msgstr ""
 msgid "Time of day:"
 msgstr ""
 
-msgid "Time of Day"
-msgstr ""
-
 msgid "Time-of-day searches apply in Search mode only (6am–8pm day, otherwise night)."
 msgstr ""
 
 msgid "Timeout is per request. Retries use the delay with exponential backoff, up to the max attempts."
+msgstr ""
+
+msgid "Timing"
 msgstr ""
 
 msgid "Top left"
@@ -2050,6 +2110,9 @@ msgid "Top right"
 msgstr ""
 
 msgid "Transition:"
+msgstr ""
+
+msgid "Transitions & motion"
 msgstr ""
 
 msgid "Trip 24h"
@@ -2121,6 +2184,9 @@ msgstr ""
 msgid "Upscaler status:"
 msgstr ""
 
+msgid "Upscaling"
+msgstr ""
+
 msgid "Use an external AI upscaler for wallpapers smaller than your screen, if installed"
 msgstr ""
 
@@ -2151,6 +2217,9 @@ msgstr ""
 msgid "Uses the free Open-Meteo API (no key required); location is geocoded once and cached."
 msgstr ""
 
+msgid "Use the current wallpaper"
+msgstr ""
+
 msgid "Use this screen’s name as sync group"
 msgstr ""
 
@@ -2167,6 +2236,9 @@ msgid "Using cache until Wallhaven recovers."
 msgstr ""
 
 msgid "Validate key:"
+msgstr ""
+
+msgid "Variety"
 msgstr ""
 
 msgid "Variety bridge:"
@@ -2191,6 +2263,9 @@ msgid "Views"
 msgstr ""
 
 msgid "Wallhaven"
+msgstr ""
+
+msgid "Wallhaven account"
 msgstr ""
 
 msgid "Wallhaven D-Bus service is not running. Run: systemctl --user enable --now wallhaven-dbus.service"
@@ -2235,9 +2310,6 @@ msgstr ""
 msgid "Wallpaper engine idle?"
 msgstr ""
 
-msgid "Wallpaper History"
-msgstr ""
-
 msgid "Wallpaper history cleared."
 msgstr ""
 
@@ -2250,10 +2322,16 @@ msgstr ""
 msgid "Wallpaper of the day:"
 msgstr ""
 
+msgid "Wallpapers"
+msgstr ""
+
 msgid "Wallpaper saved."
 msgstr ""
 
 msgid "Wallpaper settings…"
+msgstr ""
+
+msgid "Wallpapers from:"
 msgstr ""
 
 msgid "Warm cache"
@@ -2287,9 +2365,6 @@ msgid "Weather location:"
 msgstr ""
 
 msgid "Weather-reactive search:"
-msgstr ""
-
-msgid "Weekday Schedule"
 msgstr ""
 
 msgid "Weekday search:"

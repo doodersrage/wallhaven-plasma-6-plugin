@@ -4,7 +4,7 @@ Wallhaven NSFW/favorites features need an API key from https://wallhaven.cc/sett
 
 ## Recommended: KWallet
 
-1. Paste the key in **Source → API key**.
+1. Paste the key in **API key** (Essentials page, or All settings → Storage → Wallhaven account).
 2. Click **Save current API key to KWallet**.
 3. Keep **Load API key from KWallet on startup** enabled (default for new installs).
 

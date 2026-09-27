@@ -6,7 +6,7 @@ Run after `./dev-helper.sh deploy` and before tagging a release.
 
 - [ ] `systemctl --user is-active wallhaven-dbus.service` → `active`
 - [ ] `qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.Ping` → `ok`
-- [ ] Settings → Performance: D-Bus banner clears within ~5s
+- [ ] Wallpaper settings: D-Bus warning banner at the top clears within ~5s
 - [ ] `./tools/wallhaven-ctl.sh next` advances wallpaper
 
 ## Search and filters
@@ -31,6 +31,8 @@ Run after `./dev-helper.sh deploy` and before tagging a release.
 
 ## Settings UI
 
+- [ ] Essentials page: changing Search / categories / interval / pause / lock screen there matches All settings after switching
+- [ ] Opening settings and switching Essentials ↔ All settings without edits leaves Apply disabled
 - [ ] Tag blocklist, favorites, rotation list, time capsules, presets survive close/reopen
 - [ ] Settings filter text persists after Apply/reopen
 - [ ] Setup wizard shows D-Bus/upscaler status
