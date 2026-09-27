@@ -42,6 +42,46 @@ class ControlFanoutTests(unittest.TestCase):
             self.assertEqual(data.get("query"), "nebula")
             self.assertNotIn("commands", data)
 
+    def test_default_non_nav_targets_primary_screen(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp)
+            control = cache / "wallhaven-control.json"
+            (cache / "wallhaven-status-DP-3.json").write_text(
+                json.dumps({"syncGroup": "desk", "cacheNamespace": "DP-3"}), encoding="utf-8",
+            )
+            with mock.patch.object(self.mod, "CONTROL_FILE", str(control)), \
+                    mock.patch.object(self.mod, "PLASMA_CACHE", str(cache)), \
+                    mock.patch.object(self.mod, "primary_output_name", return_value="DP-3"):
+                for cmd in ("like", "search"):
+                    self.mod.write_command_fanout(cmd, "default", "q" if cmd == "search" else "")
+                    data = json.loads(control.read_text(encoding="utf-8"))
+                    self.assertEqual(data.get("group"), "desk", cmd)
+                self.mod.write_command("next", "default")
+                self.assertEqual(json.loads(control.read_text(encoding="utf-8")).get("group"), "default")
+
+    def test_runner_matches_marshal_to_krunner_signature(self) -> None:
+        import dbus.lowlevel
+
+        runner = self.mod.WallhavenRunner.__new__(self.mod.WallhavenRunner)
+        matches = self.mod.WallhavenRunner.Match(runner, "wh next")
+        self.assertEqual(matches[0][0], "wh-next")
+        msg = dbus.lowlevel.SignalMessage("/runner", "org.kde.krunner1", "Test")
+        # Raises TypeError if the tuple layout drifts from a(sssida{sv}).
+        msg.append(matches, signature="a(sssida{sv})")
+
+    def test_kwallet_scripts_use_positional_wallet(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(self.mod, "PLASMA_CACHE", tmp):
+                out = os.path.join(tmp, "kwallet-apikey.txt")
+                read = f"kwallet-query -r apikey -f org.robertsm.wallhaven kdewallet > '{out}' 2>/dev/null"
+                self.mod.validate_run_argv(["bash", "-lc", read])
+                write = "printf '%s' 'abc123' | kwallet-query -w apikey -f org.robertsm.wallhaven kdewallet 2>/dev/null"
+                self.mod.validate_run_argv(["bash", "-lc", write])
+                # Old form: "-w wallhaven" wrote an entry, leaving no wallet argument.
+                old = f"kwallet-query -r apikey -f org.robertsm.wallhaven -w wallhaven > '{out}' 2>/dev/null"
+                with self.assertRaises(Exception):
+                    self.mod.validate_run_argv(["bash", "-lc", old])
+
     def test_next_fans_out_on_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             control = Path(tmp) / "wallhaven-control.json"

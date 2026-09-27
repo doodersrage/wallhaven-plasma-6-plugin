@@ -40,7 +40,7 @@ Wallhaven uses JSON translation catalogs under `po/catalog/` and compiles them t
 ```bash
 ./dev-helper.sh check
 ./dev-helper.sh deploy
-./dev-helper.sh install-shortcuts   # optional Meta+Alt+arrows
+./dev-helper.sh install-shortcuts   # optional Meta+Ctrl+Alt+arrows
 ```
 
 ## Screenshots (KDE Store)

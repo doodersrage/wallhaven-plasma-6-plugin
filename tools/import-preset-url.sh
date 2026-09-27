@@ -7,18 +7,7 @@ if [[ -z "${URL}" ]]; then
     exit 1
 fi
 
-CONTROL="${XDG_CACHE_HOME:-$HOME/.cache}/plasmashell/wallhaven-control.json"
-GROUP="${WALLHAVEN_SYNC_GROUP:-default}"
-
-python3 - <<PY
-import json, time, os
-url = ${URL@Q}
-group = ${GROUP@Q}
-control = ${CONTROL@Q}
-payload = {"cmd": "importpreset", "query": url, "ts": int(time.time() * 1000), "group": group}
-os.makedirs(os.path.dirname(control), exist_ok=True)
-with open(control, "w", encoding="utf-8") as fh:
-    json.dump(payload, fh)
-PY
-
-echo "Sent preset import to control bus"
+# URLs arrive from browsers: hand them to wallhaven-ctl.sh as argv (never
+# interpolated into code), which also routes "default" to a real screen.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec bash "${SCRIPT_DIR}/wallhaven-ctl.sh" importpreset "${URL}"

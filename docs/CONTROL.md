@@ -25,12 +25,14 @@ sudo pacman -S extra-cmake-modules   # Arch; see packaging/README.md for other d
 
 | Shortcut | Action |
 |----------|--------|
-| Meta+Alt+Right | Next wallpaper |
-| Meta+Alt+Left | Previous wallpaper |
-| Meta+Alt+P | Pause / resume slideshow |
-| Meta+Alt+R | Reload |
+| Meta+Ctrl+Alt+Right | Next wallpaper |
+| Meta+Ctrl+Alt+Left | Previous wallpaper |
+| Meta+Ctrl+Alt+P | Pause / resume slideshow |
+| Meta+Ctrl+Alt+R | Reload |
 
 Log out and back in if shortcuts do not register immediately.
+
+Before the next release these were Meta+Alt+…, which clashes with KWin's *Switch Window* and Plasma's *cycle panels*. The helper moves those old defaults to Meta+Ctrl+Alt on its next start; bindings you changed yourself are kept. Rebind any of them in **System Settings → Shortcuts → wallhaven-shortcuts**.
 
 Fallback without building: **System Settings → Shortcuts → Custom Shortcuts** using `wallhaven-ctl.sh` (see `examples/plasma-shortcuts.md`).
 
@@ -73,3 +75,14 @@ MPRIS media keys work via `org.mpris.MediaPlayer2.wallhaven`. Wallhaven also *re
 
 - `cancelwarm` — stop an in-progress cache warm
 - `copysearch [query]` — push search to other monitor sync groups
+
+## Which monitor receives a command
+
+Each screen listens on its own sync group (its output name, e.g. `DP-1`).
+Commands sent to the `default` group (the CLI, KRunner, and MPRIS without
+`WALLHAVEN_SYNC_GROUP`) are routed like this:
+
+- `next` / `prev` / `pause` / `resume` / `reload` — every monitor
+- everything else (`search`, `like`, `block`, `info`, `copyid`, `purity`, …) — the **primary** screen
+
+Target a specific monitor with `WALLHAVEN_SYNC_GROUP=DP-2 ./tools/wallhaven-ctl.sh like`.

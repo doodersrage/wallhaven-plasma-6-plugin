@@ -32,6 +32,9 @@ ctl = sys.argv[1]
 def statuses():
     out = {}
     for path in glob.glob(os.path.expanduser("~/.cache/plasmashell/wallhaven-status-*.json")):
+        # Skip status files left behind by disconnected monitors.
+        if time.time() - os.path.getmtime(path) > 300:
+            continue
         data = json.loads(Path(path).read_text())
         ns = data.get("cacheNamespace") or Path(path).name
         out[ns] = data
@@ -96,6 +99,9 @@ ctl = sys.argv[1]
 def statuses():
     out = {}
     for path in glob.glob(os.path.expanduser("~/.cache/plasmashell/wallhaven-status-*.json")):
+        # Skip status files left behind by disconnected monitors.
+        if time.time() - os.path.getmtime(path) > 300:
+            continue
         try:
             data = json.loads(Path(path).read_text())
         except Exception:

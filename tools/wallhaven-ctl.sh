@@ -15,6 +15,7 @@ Usage: $(basename "$0") <command> [args...]
 
 Commands:
   next|prev|reload|pause|resume|like|dislike|pin|unpin|info
+  block|open|copytags|similar
   copyid|copyurl|warm|cancelwarm|prune|endtrip|undo|clearkey|testkey
   copysearch [query]
   outageoffline|resumeonline
@@ -116,8 +117,9 @@ if [[ "${CMD}" == "importpreset" ]]; then
         echo "Usage: $(basename "$0") importpreset <wallhaven://preset/...|https://.../preset.json>" >&2
         exit 1
     fi
-    write_control_file importpreset "${PRESET_URL}"
-    echo "Sent preset import to ${CONTROL_FILE}"
+    # Via D-Bus so a "default" group resolves to a real screen (the primary);
+    # isolated screens ignore settings commands addressed to "default".
+    send_with_query importpreset "${PRESET_URL}"
     exit 0
 fi
 
@@ -143,13 +145,14 @@ if [[ "${CMD}" == "history" || "${CMD}" == "applysearch" || "${CMD}" == "savesea
         QUERY="${1:-}"
     else
         QUERY="$*"
-        if [[ -z "${QUERY}" && "${CMD}" != "warm" ]]; then
+        if [[ -z "${QUERY}" && "${CMD}" != "copysearch" ]]; then
             echo "Usage: $(basename "$0") ${CMD} <arg>" >&2
             exit 1
         fi
     fi
-    if [[ "${CMD}" == "warm" && -z "${QUERY}" ]]; then
-        send_simple warm
+    # warm/copysearch without an argument use the screen's own count/query.
+    if [[ ( "${CMD}" == "warm" || "${CMD}" == "copysearch" ) && -z "${QUERY}" ]]; then
+        send_simple "${CMD}"
         exit 0
     fi
     send_with_query "${CMD}" "${QUERY}"
@@ -157,7 +160,7 @@ if [[ "${CMD}" == "history" || "${CMD}" == "applysearch" || "${CMD}" == "savesea
 fi
 
 case "${CMD}" in
-    next|prev|reload|pause|resume|like|dislike|pin|unpin|copyid|copyurl|prune|endtrip|undo|clearkey|testkey|outageoffline|resumeonline|cancelwarm)
+    next|prev|reload|pause|resume|like|dislike|pin|unpin|copyid|copyurl|prune|endtrip|undo|clearkey|testkey|outageoffline|resumeonline|cancelwarm|block|open|copytags|similar)
         send_simple "${CMD}"
         ;;
     *)

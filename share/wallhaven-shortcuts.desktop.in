@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Wallhaven Global Shortcuts
-Comment=Meta+Alt+arrows for next, previous, pause, and reload
+Comment=Meta+Ctrl+Alt+arrows for next, previous, pause, and reload
 Exec=@INSTALL_DIR@/bin/wallhaven-shortcuts
 Icon=preferences-desktop-wallpaper
 Categories=Utility;

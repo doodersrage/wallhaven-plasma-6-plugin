@@ -139,6 +139,7 @@ WallpaperItem {
     property string attributionText: ""
     property bool activeIsForeground: false
     property var currentWallpaper: null
+    property bool _infoDetailsFetched: false
 
     property bool _configured: false
     property bool _previewCapturePending: false
@@ -295,8 +296,11 @@ WallpaperItem {
     readonly property real parallaxOffsetY: Wallhaven.parallaxOffsetY(
         cfg.ParallaxEnabled && root.effectsMotionAllowed(), cfg.ParallaxStrength, root.height, parallaxPhase, parallaxScreenPhase)
 
+    // TransportMedium is a scoped enum: the unscoped Cellular lookup is
+    // undefined, so this was never true. isMetered also covers tethered Wi-Fi.
     readonly property bool meteredConnection: cfg.MeteredCacheOnly
-        && NetworkInformation.transportMedium === NetworkInformation.Cellular
+        && (NetworkInformation.isMetered
+            || NetworkInformation.transportMedium === NetworkInformation.TransportMedium.Cellular)
 
     function currentTimeOfDayPeriod() {
         var hour = new Date().getHours();
@@ -714,12 +718,10 @@ WallpaperItem {
             break;
         case "purity":
             if (cmd.query) {
-                var bits = String(cmd.query).split(",");
-                root.setPurityFlags(
-                    bits.indexOf("sfw") !== -1 || bits.indexOf("100") !== -1,
-                    bits.indexOf("sketchy") !== -1 || bits.indexOf("010") !== -1 || bits.indexOf("110") !== -1,
-                    bits.indexOf("nsfw") !== -1 || bits.indexOf("001") !== -1 || bits.indexOf("111") !== -1,
-                );
+                var purity = Wallhaven.parsePurityQuery(cmd.query);
+                if (purity.sfw || purity.sketchy || purity.nsfw) {
+                    root.setPurityFlags(purity.sfw, purity.sketchy, purity.nsfw);
+                }
             }
             break;
         default:
@@ -1361,9 +1363,27 @@ WallpaperItem {
         if (!text) {
             return;
         }
-        clipboardHelper.text = text;
-        clipboardHelper.selectAll();
-        clipboardHelper.copy();
+        // On Wayland the unfocused desktop surface cannot set the selection, so
+        // TextEdit.copy() silently does nothing. Klipper can; keep TextEdit as a
+        // fallback for sessions without it.
+        var copyViaTextEdit = function() {
+            clipboardHelper.text = text;
+            clipboardHelper.selectAll();
+            clipboardHelper.copy();
+        };
+        if (typeof PDBus !== "undefined" && PDBus.SessionBus) {
+            var msg = new PDBus.dbusMessage({
+                service: "org.kde.klipper",
+                path: "/klipper",
+                iface: "org.kde.klipper.klipper",
+                member: "setClipboardContents",
+                signature: dbusHelper.wallhavenNormalizeSignature("s"),
+                arguments: dbusHelper.wallhavenTypedArgs("s", [String(text)]),
+            });
+            PDBus.SessionBus.asyncCall(msg, function() {}, copyViaTextEdit);
+        } else {
+            copyViaTextEdit();
+        }
         if (successMessage) {
             engine.showStatus(successMessage, "info");
         }
@@ -1379,6 +1399,13 @@ WallpaperItem {
 
     function copyCurrentTags() {
         if (!_currentTags) {
+            if (root.currentWallpaper) {
+                ensureCurrentDetails(function() {
+                    if (_currentTags) {
+                        copyToClipboard(_currentTags, i18n("Copied tags."));
+                    }
+                });
+            }
             return;
         }
         copyToClipboard(_currentTags, i18n("Copied tags."));
@@ -1424,7 +1451,27 @@ WallpaperItem {
         engine.showStatus(i18n("Blocklist cleared."), "info");
     }
 
+    // Tags are only prefetched with attribution on or an API key; fetch them now
+    // for actions that need them instead of failing with "no tags yet".
+    function ensureCurrentDetails(callback) {
+        if (_currentTags || !root.currentWallpaper || !root.currentWallpaper.id) {
+            callback();
+            return;
+        }
+        engine.fetchWallpaperDetails(root.currentWallpaper, callback);
+    }
+
     function rateCurrentWallpaper(liked) {
+        if (!_currentTags && root.currentWallpaper) {
+            ensureCurrentDetails(function() {
+                if (_currentTags) {
+                    rateCurrentWallpaper(liked);
+                } else {
+                    engine.showStatus(i18n("No tags to rate yet."), "info");
+                }
+            });
+            return;
+        }
         if (!_currentTags || !root.configuration) {
             engine.showStatus(i18n("No tags to rate yet."), "info");
             return;
@@ -2179,6 +2226,14 @@ WallpaperItem {
     }
 
     function showWallpaperInfo() {
+        if (!root.wallpaperDetailsText && !_currentTags && root.currentWallpaper && !_infoDetailsFetched) {
+            _infoDetailsFetched = true;
+            ensureCurrentDetails(function() {
+                showWallpaperInfo();
+                _infoDetailsFetched = false;
+            });
+            return;
+        }
         var details = root.wallpaperDetailsText || "";
         if (!details && root.currentWallpaperId && root.currentWallpaperId !== "wallpaper") {
             details = i18n("ID: %1", root.currentWallpaperId);
@@ -2204,8 +2259,8 @@ WallpaperItem {
         var escaped = key.replace(/'/g, "'\\''");
         dbusHelper.runArgv([
             "bash", "-lc",
-            "printf '%s' '" + escaped + "' | kwallet-query -w wallhaven -f org.robertsm.wallhaven apikey 2>/dev/null"
-                + " || printf '%s' '" + escaped + "' | kwallet-query --write-password apikey -f org.robertsm.wallhaven -w kdewallet 2>/dev/null",
+            // kwallet-query [options] <wallet>: -w names the entry, the wallet is positional.
+            "printf '%s' '" + escaped + "' | kwallet-query -w apikey -f org.robertsm.wallhaven kdewallet 2>/dev/null",
         ], function() {
             if (root.configuration) {
                 root.configuration.UseKWalletForApiKey = true;
@@ -2651,7 +2706,7 @@ WallpaperItem {
         var tmp = urlToLocalPath(diskCacheDir + "/kwallet-apikey.txt");
         dbusHelper.runArgv([
             "bash", "-lc",
-            "kwallet-query -r apikey -f org.robertsm.wallhaven -w wallhaven > '"
+            "kwallet-query -r apikey -f org.robertsm.wallhaven kdewallet > '"
                 + tmp.replace(/'/g, "'\\''") + "' 2>/dev/null",
         ], function() {
             kwalletReadLoader.read(tmp);
@@ -3808,19 +3863,36 @@ WallpaperItem {
                 + resolution + " · " + wallpaper.category + " · " + wallpaper.purity + "\n"
                 + link;
             root._currentTags = "";
+            root.wallpaperDetailsText = "";
             root.syncPreviewMetadata(wallpaper);
 
             if (!cfg.ShowAttribution && !cfg.ApiKey) {
                 return;
             }
+            fetchWallpaperDetails(wallpaper, null);
+        }
+
+        // Also used on demand (like/dislike/copy tags/info) when attribution is off
+        // and there is no API key, so those actions are not dead on that screen.
+        function fetchWallpaperDetails(wallpaper, onDone) {
+            var done = function() {
+                if (onDone) {
+                    onDone();
+                }
+            };
             // Do not probe /w/{id} while rate-limited — those calls were clearing
             // the shared latch on 200 and accelerating the 429 storm.
-            if (root.isRateLimitedNow() || root._apiOutageOffline) {
+            if (!wallpaper || !wallpaper.id || root.isRateLimitedNow() || root._apiOutageOffline) {
+                done();
                 return;
             }
+            var resolution = wallpaper.resolution || (wallpaper.dimension_x + "x" + wallpaper.dimension_y);
+            var link = wallpaper.url || ("https://wallhaven.cc/w/" + wallpaper.id);
 
             requestJson(Wallhaven.buildWallpaperUrl(wallpaper.id, cfg.ApiKey), function(json) {
-                if (!json.data) {
+                // A slow reply must not stamp its tags onto a newer wallpaper.
+                if (!json.data || !root.currentWallpaper || String(root.currentWallpaper.id) !== String(wallpaper.id)) {
+                    done();
                     return;
                 }
                 root._currentTags = Wallhaven.tagsToCopyString(json.data.tags);
@@ -3845,7 +3917,8 @@ WallpaperItem {
                         + tags + "\n" + link;
                     root.syncPreviewMetadata(wallpaper);
                 }
-            }, function() {}, { quiet: true });
+                done();
+            }, done, { quiet: true });
         }
 
         function displayWallpaper(wallpaper, url, immediate) {

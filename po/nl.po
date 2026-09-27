@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 3.5.1\n"
+"Project-Id-Version: org.robertsm.wallhaven 3.5.6\n"
 "Language: nl\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -311,6 +311,9 @@ msgstr "cache %1%"
 msgid "Cached:"
 msgstr "Cached:"
 
+msgid "Cached file missing. Showing another…"
+msgstr "Cached file missing. Showing another…"
+
 msgid "Cache fill toward trip target: %1% (%2 / %3)"
 msgstr "Cachevulling richting reisdoel: %1% (%2 / %3)"
 
@@ -346,6 +349,9 @@ msgstr "Cache-opwarming annuleren…"
 
 msgid "Cancel warm"
 msgstr "Opwarming annuleren"
+
+msgid "Cannot warm cache while Wallhaven is unreachable or rate-limited."
+msgstr "Cannot warm cache while Wallhaven is unreachable or rate-limited."
 
 msgid "Categories"
 msgstr "Categories"
@@ -508,6 +514,9 @@ msgstr "Could not download wallpaper to save."
 
 msgid "Could not import settings file."
 msgstr "Could not import settings file."
+
+msgid "Could not load cached wallpapers. Waiting for Wallhaven…"
+msgstr "Could not load cached wallpapers. Waiting for Wallhaven…"
 
 msgid "Could not load community presets."
 msgstr "Could not load community presets."
@@ -941,8 +950,8 @@ msgstr "Import URL:"
 msgid "Import Wallhaven Settings"
 msgstr "Import Wallhaven Settings"
 
-msgid "Install Meta+Alt+arrow global shortcuts with: ./dev-helper.sh install-shortcuts"
-msgstr "Install Meta+Alt+arrow global shortcuts with: ./dev-helper.sh install-shortcuts"
+msgid "Install Meta+Ctrl+Alt+arrow global shortcuts with: ./dev-helper.sh install-shortcuts"
+msgstr "Install Meta+Ctrl+Alt+arrow global shortcuts with: ./dev-helper.sh install-shortcuts"
 
 msgid "Instant"
 msgstr "Instant"
@@ -1070,8 +1079,8 @@ msgstr "Local sorting:"
 msgid "Lock screen:"
 msgstr "Lock screen:"
 
-msgid "Lock screen uses a static Plasma image copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer enabling disk cache (and optional original download) so the lock screen gets a full-resolution file."
-msgstr "Lock screen uses a static Plasma image copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer enabling disk cache (and optional original download) so the lock screen gets a full-resolution file."
+msgid "Lock screen sync failed."
+msgstr "Lock screen sync failed."
 
 msgid "lock sync failed"
 msgstr "lock sync failed"
@@ -1355,6 +1364,9 @@ msgstr "Omit API key from settings / bug-report exports (recommended)"
 msgid "On errors:"
 msgstr "On errors:"
 
+msgid "One screen with this enabled feeds the lock wallpaper for every monitor. Screens without it still repair a blank lock page from the shared copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer disk cache (and optional original download) for a full-resolution lock image."
+msgstr "One screen with this enabled feeds the lock wallpaper for every monitor. Screens without it still repair a blank lock page from the shared copy. Ken Burns, enhance, and parallax stay on the desktop only. Prefer disk cache (and optional original download) for a full-resolution lock image."
+
 msgid "Only cycle cached wallpapers whose stored tags contain all these words."
 msgstr "Only cycle cached wallpapers whose stored tags contain all these words."
 
@@ -1562,6 +1574,9 @@ msgstr "Rate limited (429) — %1 time(s)"
 msgid "Rate limited by Wallhaven. Retry %1/%2 in %3s…"
 msgstr "Rate limited by Wallhaven. Retry %1/%2 in %3s…"
 
+msgid "Rate limited by Wallhaven. Using cache until it recovers."
+msgstr "Rate limited by Wallhaven. Using cache until it recovers."
+
 msgid "Rate-limit hits this session: %1. Last at %2."
 msgstr "Rate-limit hits this session: %1. Last at %2."
 
@@ -1639,6 +1654,9 @@ msgstr "Resolution & Ratio"
 
 msgid "Restored previous settings."
 msgstr "Restored previous settings."
+
+msgid "Restoring wallpaper after sleep…"
+msgstr "Restoring wallpaper after sleep…"
 
 msgid "Resume"
 msgstr "Resume"
@@ -1817,8 +1835,8 @@ msgstr "SFW:"
 msgid "Share preset:"
 msgstr "Share preset:"
 
-msgid "Shortcuts: ./dev-helper.sh install-shortcuts (Meta+Alt+arrows)"
-msgstr "Shortcuts: ./dev-helper.sh install-shortcuts (Meta+Alt+arrows)"
+msgid "Shortcuts: ./dev-helper.sh install-shortcuts (Meta+Ctrl+Alt+arrows)"
+msgstr "Shortcuts: ./dev-helper.sh install-shortcuts (Meta+Ctrl+Alt+arrows)"
 
 msgid "Show cached wallpapers when the network fails"
 msgstr "Show cached wallpapers when the network fails"
@@ -2141,6 +2159,9 @@ msgstr "Use today's Wallhaven toplist (overrides sorting)"
 msgid "Use tools/wallhaven-ctl.sh, D-Bus (tools/wallhaven-dbus.py), or the Wallhaven Control plasmoid."
 msgstr "Use tools/wallhaven-ctl.sh, D-Bus (tools/wallhaven-dbus.py), or the Wallhaven Control plasmoid."
 
+msgid "Using cached wallpaper while API key is fixed."
+msgstr "Using cached wallpaper while API key is fixed."
+
 msgid "Using cache until Wallhaven recovers."
 msgstr "Using cache until Wallhaven recovers."
 
@@ -2174,8 +2195,8 @@ msgstr "Wallhaven"
 msgid "Wallhaven D-Bus service is not running. Run: systemctl --user enable --now wallhaven-dbus.service"
 msgstr "Wallhaven D-Bus service is not running. Run: systemctl --user enable --now wallhaven-dbus.service"
 
-msgid "Wallhaven is back — resuming online search."
-msgstr "Wallhaven is back — resuming online search."
+msgid "Wallhaven is back — resuming on the next change."
+msgstr "Wallhaven is back — resuming on the next change."
 
 msgid "Wallhaven milestone"
 msgstr "Wallhaven milestone"

@@ -60,7 +60,7 @@ sudo pacman -S extra-cmake-modules
 | `metainfo/` | AppStream metadata |
 | `knotifications6/` | Desktop notifications |
 | `locale/*/LC_MESSAGES/*.mo` | Translations (German, French, Spanish, Italian, English) |
-| `/usr/bin/wallhaven-shortcuts` | Optional global shortcuts (Meta+Alt+arrows, release PKGBUILD) |
+| `/usr/bin/wallhaven-shortcuts` | Optional global shortcuts (Meta+Ctrl+Alt+arrows, release PKGBUILD) |
 | `lib/systemd/user/wallhaven-dbus.service` | D-Bus control + MPRIS service |
 | `wallhaven-plasma/tools/` | CLI, Variety bridge, preset import |
 | `applications/wallhaven-preset.desktop` | `wallhaven://preset/` URL handler |

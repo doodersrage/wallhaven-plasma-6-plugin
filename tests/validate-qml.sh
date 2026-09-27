@@ -39,6 +39,39 @@ if rg -q 'xhr\.open\("GET", fileUrl\)|xhr\.open\("GET", "file://|xhr\.open\("GET
     exit 1
 fi
 
+# Plasma 5 leftovers fail to load on Plasma 6 (the Control plasmoid was dead
+# from 2.7.0 to 3.5.5 behind a syntax error and PlasmaCore.IconItem).
+if rg -n 'PlasmaCore\.IconItem|NetworkInformation\.(Cellular|Ethernet|WiFi|Bluetooth|Unknown)\b' \
+        "${ROOT}/contents/ui" "${ROOT}/plasmoid/contents/ui" 2>/dev/null; then
+    echo "FAIL: use Kirigami.Icon / NetworkInformation.TransportMedium.<X> (scoped enum)" >&2
+    exit 1
+fi
+
+# Real parse when a Qt 6 qmllint is available (catches unbalanced braces).
+QMLLINT=""
+for cand in qmllint6 /usr/lib/qt6/bin/qmllint /usr/lib/x86_64-linux-gnu/qt6/bin/qmllint; do
+    if command -v "${cand}" >/dev/null 2>&1 && "${cand}" --help 2>&1 | grep -q -- '--json'; then
+        QMLLINT="${cand}"
+        break
+    fi
+done
+if [[ -n "${QMLLINT}" ]]; then
+    for f in contents/ui/main.qml contents/ui/config.qml plasmoid/contents/ui/main.qml plasmoid/contents/ui/config.qml; do
+        if "${QMLLINT}" --json - "${ROOT}/${f}" 2>/dev/null | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+bad = [w for f in d.get("files", []) for w in f.get("warnings", []) if w.get("id") == "syntax"]
+for w in bad:
+    print("line %s: %s" % (w.get("line"), w.get("message")))
+sys.exit(1 if bad else 0)'; then
+            :
+        else
+            echo "FAIL: QML syntax error in ${f}" >&2
+            exit 1
+        fi
+    done
+fi
+
 python3 - <<PY
 import re
 from pathlib import Path

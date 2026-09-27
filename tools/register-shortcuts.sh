@@ -7,10 +7,10 @@ Wallhaven global shortcuts
 
 Recommended: bind keys to tools/wallhaven-ctl.sh (uses the control bus file).
 
-  Meta+Alt+Right  →  wallhaven-ctl.sh next
-  Meta+Alt+Left   →  wallhaven-ctl.sh prev
-  Meta+Alt+P      →  wallhaven-ctl.sh pause
-  Meta+Alt+R      →  wallhaven-ctl.sh reload
+  Meta+Ctrl+Alt+Right →  wallhaven-ctl.sh next
+  Meta+Ctrl+Alt+Left  →  wallhaven-ctl.sh prev
+  Meta+Ctrl+Alt+P     →  wallhaven-ctl.sh pause
+  Meta+Ctrl+Alt+R     →  wallhaven-ctl.sh reload
 
 System Settings → Shortcuts → Custom Shortcuts → Edit → New → Command
   Command: /full/path/to/wallhaven-plasma-6-plugin/tools/wallhaven-ctl.sh next

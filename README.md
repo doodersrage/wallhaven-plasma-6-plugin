@@ -2,7 +2,7 @@
 
 Fetch and cycle wallpapers from [wallhaven.cc](https://wallhaven.cc) on KDE Plasma 6: search, collections, favorites, slideshow effects, offline cache, presets, and full control from the panel, keyboard, KRunner, or D-Bus.
 
-**Current version:** 3.5.5  
+**Current version:** 3.5.6  
 **KDE Store / OpenDesktop:** [Wallhaven Extended (p/2368647)](https://www.opendesktop.org/p/2368647/)  
 **Releases:** [GitHub Releases](https://github.com/doodersrage/wallhaven-plasma-6-plugin/releases)
 
@@ -17,7 +17,7 @@ Fetch and cycle wallpapers from [wallhaven.cc](https://wallhaven.cc) on KDE Plas
 | **Slideshow** | Interval + jitter, day/night and weekday/weekend searches, time capsules, pause on lock / idle / low battery |
 | **Effects** | Crossfade and other transitions, Ken Burns (optional music-reactive pacing), parallax, image enhance, panel tint / accent, **reduced motion** |
 | **Cache** | Rolling LRU disk cache, per-monitor namespaces, pin/evict, optional original download, AI upscaler hook, **smart offline** picks |
-| **Control** | Panel plasmoid (per-monitor picker), Meta+Alt shortcuts, KRunner, D-Bus / CLI, multi-monitor sync groups + search profiles |
+| **Control** | Panel plasmoid (per-monitor picker), Meta+Ctrl+Alt shortcuts, KRunner, D-Bus / CLI, multi-monitor sync groups + search profiles |
 | **Extras** | Simple/Advanced settings UI, curated/community presets, HTTPS preset import, Variety bridge, lock-screen image sync, KWallet API key, secret-scrubbing exports, DE/FR/ES/IT UI |
 
 Almost everything beyond basic search is **opt-in** and off by default.
@@ -64,7 +64,7 @@ systemctl --user enable --now wallhaven-dbus.service
 2. **API key (optional)** — Required for NSFW and favorites. Prefer KWallet: paste the key, then **Save current API key to KWallet**. Details: [docs/KWALLET.md](docs/KWALLET.md).
 3. **Panel control** — Add **Wallhaven Control** to a panel for next/prev, pause, history, like/dislike, and wallpaper info.
 4. **KRunner** — System Settings → Search → Plasma Search → enable **Wallhaven**. Try `wh next` or `wallhaven search anime`.
-5. **Shortcuts (optional)** — Arch: `sudo pacman -S extra-cmake-modules` then `./dev-helper.sh install-shortcuts` (Meta+Alt arrows / P / R).
+5. **Shortcuts (optional)** — Arch: `sudo pacman -S extra-cmake-modules` then `./dev-helper.sh install-shortcuts` (Meta+Ctrl+Alt arrows / P / R).
 
 First-run setup wizard in settings checks D-Bus, upscaler, and shortcuts status.
 
@@ -109,6 +109,11 @@ Full guide: [docs/CONTROL.md](docs/CONTROL.md).
 | [packaging/README.md](packaging/README.md) | Downstream packaging |
 
 ---
+
+## What's new in 3.5.6
+- Wallhaven Control panel widget loads again (broken since 2.7.0)
+- Global shortcuts no longer crash and now use Meta+Ctrl+Alt+←/→/P/R (no clash with KWin)
+- KRunner results, KWallet API key, clipboard copy, and CLI/KRunner commands on multi-monitor setups fixed
 
 ## What's new in 3.5.5
 - Lock screen sync: D-Bus allowlist no longer blocks prune/ensure scripts that use shell expansions
@@ -212,7 +217,7 @@ Earlier releases (2.8 → 1.5): see [CHANGELOG.md](CHANGELOG.md).
 ./dev-helper.sh deploy              # install + D-Bus + KRunner + restart plasmashell
 ./dev-helper.sh check               # structure, wiring audit, unit tests, smoke
 ./dev-helper.sh release             # tag + GitHub release from metadata version
-./dev-helper.sh install-shortcuts   # Meta+Alt global shortcuts
+./dev-helper.sh install-shortcuts   # Meta+Ctrl+Alt global shortcuts
 ./dev-helper.sh register-preset     # wallhaven://preset/ URL handler
 
 ./tools/wallhaven-ctl.sh next

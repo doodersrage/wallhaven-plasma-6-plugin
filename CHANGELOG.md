@@ -1,5 +1,26 @@
 # Changelog
 
+## 3.5.6 — 2026-09-27
+
+### Fixes
+- **Wallhaven Control plasmoid never loaded (since 2.7.0)** — stray `}` closed the header row early (syntax error); also replaced removed `PlasmaCore.IconItem` with `Kirigami.Icon`, qualified `ToolTip` attached props, and anchored the details/history popups to real items
+- **Global shortcuts crashed at login** — `wallhaven-shortcuts` built `QAction`s under a `QCoreApplication` (SIGSEGV in Qt 6) and without `objectName`s (KGlobalAccel ignores those); now `QGuiApplication` + named actions
+- **Shortcut conflicts** — defaults move from Meta+Alt+←/→/P/R (taken by KWin *Switch Window* and plasmashell *cycle panels*) to **Meta+Ctrl+Alt+←/→/P/R**; untouched old defaults migrate automatically, custom bindings are kept
+- **KRunner showed no results** — `Match` returned fields in the wrong order for `a(sssida{sv})`, so every query raised `TypeError`
+- **CLI / KRunner / MPRIS non-nav commands did nothing** — with per-screen sync groups, `search`, `like`, `block`, `info`, `copyid`, `pin`, `purity`, `importpreset`… sent to `default` reached no monitor; they now go to the primary screen (`WALLHAVEN_SYNC_GROUP` still overrides)
+- **KWallet API key save/load never worked** — `kwallet-query` was called with `-w` as the wallet name; the wallet is positional (`kdewallet`)
+- **Copy ID / URL / tags did nothing on Wayland** — clipboard now goes through Klipper over D-Bus (TextEdit fallback)
+- **Like / dislike / copy tags / info on screens without an API key or attribution** — tag details are fetched on demand; a slow reply can no longer stamp tags onto a newer wallpaper
+- **Metered "cache only" never triggered** — `NetworkInformation.Cellular` is undefined (scoped enum); also honours `isMetered`
+- **Opening settings could rewrite the slideshow interval** — the setup-wizard mirror forced 0 → 30 and capped at 240 min
+- **`purity 110` / `111` dropped SFW**; bitstrings are parsed per position and junk input is ignored
+- **Empty pinned/blocked lists stored `"[]"` as an id**
+- MPRIS `Play` / `Pause` implemented (advertised via `CanPlay` / `CanPause`)
+- `wallhaven://` preset handler no longer interpolates the URL into Python source; `wallhaven-ctl.sh` gains `block|open|copytags|similar` and optional-arg `copysearch`
+- D-Bus-offline banner used a non-existent Kirigami enum; dead curated preset thumbnails replaced
+- `validate-qml.sh` now parses QML with Qt 6 `qmllint` when available and rejects Plasma 5 types
+- Release tarball no longer ships `tools/__pycache__` bytecode
+
 ## 3.5.5 — 2026-09-11
 
 ### Fixes

@@ -19,7 +19,7 @@ Dry run:
 
 ```bash
 ./dev-helper.sh deploy
-./dev-helper.sh install-shortcuts   # optional Meta+Alt+arrows
+./dev-helper.sh install-shortcuts   # optional Meta+Ctrl+Alt+arrows
 ```
 
 This validates, runs tests, installs the plugin + plasmoid, enables the user D-Bus

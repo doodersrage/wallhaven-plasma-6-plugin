@@ -25,6 +25,26 @@ function testFileTypeFilter() {
     assert(url.indexOf(encodeURIComponent("type:png")) !== -1, "png filter in url");
 }
 
+function testIdListEmptyJson() {
+    assert(Wallhaven.parsePinnedCacheIds("[]").length === 0, "empty json list has no ids");
+    var healed = Wallhaven.parsePinnedCacheIds('["[]","o5m3lp"]');
+    assert(healed.length === 1 && healed[0] === "o5m3lp", "drops legacy [] pseudo-id");
+    assert(Wallhaven.parseBlockedIds("a1,b2").length === 2, "comma list still parses");
+}
+
+function testPurityQuery() {
+    var p = Wallhaven.parsePurityQuery("110");
+    assert(p.sfw && p.sketchy && !p.nsfw, "110 is sfw+sketchy");
+    p = Wallhaven.parsePurityQuery("111");
+    assert(p.sfw && p.sketchy && p.nsfw, "111 is all");
+    p = Wallhaven.parsePurityQuery("101");
+    assert(p.sfw && !p.sketchy && p.nsfw, "101 is sfw+nsfw");
+    p = Wallhaven.parsePurityQuery("sfw, Sketchy");
+    assert(p.sfw && p.sketchy && !p.nsfw, "names with spaces/case");
+    p = Wallhaven.parsePurityQuery("bogus");
+    assert(!p.sfw && !p.sketchy && !p.nsfw, "unknown yields nothing");
+}
+
 function testSimilarSearch() {
     assert(Wallhaven.buildSimilarSearchQuery("abc12") === "like:abc12", "similar query");
 }
@@ -949,6 +969,8 @@ function testV35Helpers() {
     testNeedsUpscale,
     testV34Helpers,
     testV35Helpers,
+    testIdListEmptyJson,
+    testPurityQuery,
 ].forEach(function(run) {
     run();
 });

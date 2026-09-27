@@ -13,6 +13,8 @@ ColumnLayout {
     id: root
 
     property var wallpaperConfiguration
+    // Set by the wallpaper KCM / desktop config dialog; declared so loading does not warn.
+    property var configDialog
     property alias formLayout: sourceForm
     readonly property var liveWallpaper: (typeof Plasmoid !== "undefined" && Plasmoid.wallpaperGraphicsObject) ? Plasmoid.wallpaperGraphicsObject : null
     readonly property string previewAttribution: {
@@ -708,7 +710,7 @@ ColumnLayout {
     Kirigami.InlineMessage {
         Layout.fillWidth: true
         visible: root.dbusPollCompleted && !root.dbusServiceOnline
-        type: Kirigami.InlineMessage.Warning
+        type: Kirigami.MessageType.Warning
         text: i18n("Wallhaven D-Bus service is not running. Run: systemctl --user enable --now wallhaven-dbus.service")
     }
 
@@ -746,7 +748,7 @@ ColumnLayout {
                 placeholderText: i18n("API key (optional)")
                 echoMode: TextInput.Password
                 text: apiKeyField.text
-                onTextChanged: apiKeyField.text = text
+                onTextEdited: apiKeyField.text = text
             }
 
             QtControls2.TextField {
@@ -757,7 +759,7 @@ ColumnLayout {
                 Layout.fillWidth: true
                 placeholderText: i18n("Search tags, e.g. nature landscape")
                 text: searchTextField.text
-                onTextChanged: searchTextField.text = text
+                onTextEdited: searchTextField.text = text
             }
 
             QtControls2.SpinBox {
@@ -766,9 +768,11 @@ ColumnLayout {
                 Kirigami.FormData.label: i18n("Slideshow interval (min):")
                     visible: rowVisible(["slideshow", "interval", "min"])
                 from: 0
-                to: 240
-                value: intervalSpin.value > 0 ? intervalSpin.value : 30
-                onValueChanged: intervalSpin.value = value
+                to: intervalSpin.to
+                // Mirror only; write back on user edits. The old 30-min fallback and
+                // 240 cap rewrote the real interval just by opening settings.
+                value: intervalSpin.value
+                onValueModified: intervalSpin.value = value
             }
 
             QtControls2.Button {
@@ -808,7 +812,7 @@ ColumnLayout {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
                 opacity: 0.7
-                text: i18n("Shortcuts: ./dev-helper.sh install-shortcuts (Meta+Alt+arrows)")
+                text: i18n("Shortcuts: ./dev-helper.sh install-shortcuts (Meta+Ctrl+Alt+arrows)")
             }
 
             RowLayout {
@@ -3761,7 +3765,7 @@ ColumnLayout {
                     visible: advancedVisible(["keyboard", "shortcuts"])
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: i18n("Install Meta+Alt+arrow global shortcuts with: ./dev-helper.sh install-shortcuts")
+                    text: i18n("Install Meta+Ctrl+Alt+arrow global shortcuts with: ./dev-helper.sh install-shortcuts")
                 }
 
                 Kirigami.Separator {

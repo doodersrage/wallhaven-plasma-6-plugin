@@ -10,6 +10,10 @@ import org.kde.plasma.workspace.dbus as PDBus
 PlasmoidItem {
     id: root
 
+    // Popups live outside fullRepresentation's id scope; the history button
+    // registers itself here so the popup can anchor to it.
+    property Item historyAnchor: null
+
     readonly property string cacheDir: {
         var p = String(StandardPaths.writableLocation(StandardPaths.CacheLocation) || "");
         if (p.indexOf("file://") === 0)
@@ -505,7 +509,7 @@ PlasmoidItem {
                 visible: root.plasmoidThumbSource() !== ""
                 source: root.plasmoidThumbSource()
             }
-            PlasmaCore.IconItem {
+            Kirigami.Icon {
                 anchors.fill: parent
                 visible: root.plasmoidThumbSource() === ""
                 source: root.dbusOffline ? "network-disconnect" : "preferences-desktop-wallpaper"
@@ -574,7 +578,7 @@ PlasmoidItem {
                     source: root.plasmoidThumbSource()
                 }
 
-                PlasmaCore.IconItem {
+                Kirigami.Icon {
                     anchors.centerIn: parent
                     visible: root.plasmoidThumbSource() === ""
                     source: root.dbusOffline ? "network-disconnect" : "preferences-desktop-wallpaper"
@@ -588,7 +592,7 @@ PlasmoidItem {
                     opacity: Math.min(0.55, Math.abs(root.swipeOffset) / 90)
                 }
 
-                PlasmaCore.IconItem {
+                Kirigami.Icon {
                     anchors.centerIn: parent
                     width: Kirigami.Units.iconSizes.small
                     height: width
@@ -625,8 +629,8 @@ PlasmoidItem {
                 property real pressX: 0
                 property bool dragged: false
 
-                ToolTip.visible: containsMouse && !root.swiping
-                ToolTip.text: i18n("Click to open · drag right to like, left to mute tags")
+                QtControls2.ToolTip.visible: containsMouse && !root.swiping
+                QtControls2.ToolTip.text: i18n("Click to open · drag right to like, left to mute tags")
 
                 onPressed: function(mouse) {
                     pressX = mouse.x;
@@ -669,7 +673,6 @@ PlasmoidItem {
                 }
             }
         }
-        }
 
         ColumnLayout {
             spacing: 0
@@ -691,36 +694,42 @@ PlasmoidItem {
         QtControls2.ToolButton {
             display: QtControls2.AbstractButton.IconOnly
             icon.name: "go-previous"
-            ToolTip.text: i18n("Previous wallpaper")
+            QtControls2.ToolTip.text: i18n("Previous wallpaper")
+            QtControls2.ToolTip.visible: hovered
             enabled: !root.dbusOffline
             onClicked: root.sendCommand("prev")
         }
         QtControls2.ToolButton {
             display: QtControls2.AbstractButton.IconOnly
             icon.name: "go-next"
-            ToolTip.text: i18n("Next wallpaper")
+            QtControls2.ToolTip.text: i18n("Next wallpaper")
+            QtControls2.ToolTip.visible: hovered
             enabled: !root.dbusOffline
             onClicked: root.sendCommand("next")
         }
         QtControls2.ToolButton {
             display: QtControls2.AbstractButton.IconOnly
             icon.name: statusData.paused ? "media-playback-start" : "media-playback-pause"
-            ToolTip.text: statusData.paused ? i18n("Resume slideshow") : i18n("Pause slideshow")
+            QtControls2.ToolTip.text: statusData.paused ? i18n("Resume slideshow") : i18n("Pause slideshow")
+            QtControls2.ToolTip.visible: hovered
             enabled: !root.dbusOffline
             onClicked: root.sendCommand(statusData.paused ? "resume" : "pause")
         }
         QtControls2.ToolButton {
             display: QtControls2.AbstractButton.IconOnly
             icon.name: "view-refresh"
-            ToolTip.text: i18n("Reload wallpaper")
+            QtControls2.ToolTip.text: i18n("Reload wallpaper")
+            QtControls2.ToolTip.visible: hovered
             enabled: !root.dbusOffline
             onClicked: root.sendCommand("reload")
         }
         QtControls2.ToolButton {
             id: historyButton
+            Component.onCompleted: root.historyAnchor = historyButton
             display: QtControls2.AbstractButton.IconOnly
             icon.name: "view-history"
-            ToolTip.text: i18n("Recent wallpapers")
+            QtControls2.ToolTip.text: i18n("Recent wallpapers")
+            QtControls2.ToolTip.visible: hovered
             enabled: !root.dbusOffline && root.historyEntries.length > 0
             onClicked: {
                 root.loadHistory();
@@ -730,21 +739,24 @@ PlasmoidItem {
         QtControls2.ToolButton {
             display: QtControls2.AbstractButton.IconOnly
             icon.name: "pin"
-            ToolTip.text: i18n("Pin current wallpaper in cache")
+            QtControls2.ToolTip.text: i18n("Pin current wallpaper in cache")
+            QtControls2.ToolTip.visible: hovered
             enabled: !root.dbusOffline && statusData.id !== ""
             onClicked: root.sendCommand("pin")
         }
         QtControls2.ToolButton {
             display: QtControls2.AbstractButton.IconOnly
             icon.name: "unpin"
-            ToolTip.text: i18n("Unpin current wallpaper")
+            QtControls2.ToolTip.text: i18n("Unpin current wallpaper")
+            QtControls2.ToolTip.visible: hovered
             enabled: !root.dbusOffline && statusData.id !== ""
             onClicked: root.sendCommand("unpin")
         }
         QtControls2.ToolButton {
             display: QtControls2.AbstractButton.IconOnly
             icon.name: "open-menu-symbolic"
-            ToolTip.text: i18n("More actions")
+            QtControls2.ToolTip.text: i18n("More actions")
+            QtControls2.ToolTip.visible: hovered
             onClicked: plasmoidMenu.open()
         }
         }
@@ -790,8 +802,8 @@ PlasmoidItem {
                     flat: true
                     font.pointSize: 7
                     enabled: !root.dbusOffline
-                    ToolTip.visible: hovered
-                    ToolTip.text: typeof modelData === "string" ? modelData : String(modelData || "")
+                    QtControls2.ToolTip.visible: hovered
+                    QtControls2.ToolTip.text: typeof modelData === "string" ? modelData : String(modelData || "")
                     onClicked: {
                         var q = typeof modelData === "string" ? modelData : String(modelData || "");
                         q = q.trim();
@@ -887,8 +899,8 @@ PlasmoidItem {
                     acceptedButtons: Qt.NoButton
                     hoverEnabled: true
                     visible: root.apiKeyMissing
-                    ToolTip.visible: containsMouse
-                    ToolTip.text: i18n("NSFW requires an API key")
+                    QtControls2.ToolTip.visible: containsMouse
+                    QtControls2.ToolTip.text: i18n("NSFW requires an API key")
                 }
             }
         }
@@ -1066,7 +1078,8 @@ PlasmoidItem {
                     QtControls2.ToolButton {
                         display: QtControls2.AbstractButton.IconOnly
                         icon.name: "view-visible"
-                        ToolTip.text: i18n("Focus this monitor")
+                        QtControls2.ToolTip.text: i18n("Focus this monitor")
+                        QtControls2.ToolTip.visible: hovered
                         onClicked: {
                             root.selectedMonitorIndex = index;
                             root.applyParsedStatus(modelData);
@@ -1075,7 +1088,8 @@ PlasmoidItem {
                     QtControls2.ToolButton {
                         display: QtControls2.AbstractButton.IconOnly
                         icon.name: modelData.paused ? "media-playback-start" : "media-playback-pause"
-                        ToolTip.text: modelData.paused ? i18n("Resume this monitor") : i18n("Pause this monitor")
+                        QtControls2.ToolTip.text: modelData.paused ? i18n("Resume this monitor") : i18n("Pause this monitor")
+                        QtControls2.ToolTip.visible: hovered
                         enabled: !root.dbusOffline
                         onClicked: {
                             root.selectedMonitorIndex = index;
@@ -1186,8 +1200,9 @@ PlasmoidItem {
 
     QtControls2.Popup {
         id: detailsPopup
+        parent: root.fullRepresentationItem || root
         x: 0
-        y: fullRepresentation ? fullRepresentation.height : 0
+        y: parent ? parent.height : 0
         width: Math.min(360, Math.max(220, parent ? parent.width : 280))
         height: Math.min(280, detailsPopupLabel.implicitHeight + 48)
         padding: 12
@@ -1218,8 +1233,9 @@ PlasmoidItem {
 
     QtControls2.Popup {
         id: historyPopup
-        x: Math.max(0, historyButton.x - width + historyButton.width)
-        y: historyButton.height
+        parent: root.historyAnchor || root.fullRepresentationItem || root
+        x: parent ? parent.width - width : 0
+        y: parent ? parent.height : 0
         width: Math.min(420, Math.max(220, historyRow.implicitWidth + 24))
         height: 96
         padding: 8
@@ -1242,8 +1258,8 @@ PlasmoidItem {
                     delegate: QtControls2.AbstractButton {
                         Layout.preferredWidth: 72
                         Layout.preferredHeight: 72
-                        ToolTip.visible: hovered
-                        ToolTip.text: i18n("Show wallpaper #%1", modelData.id)
+                        QtControls2.ToolTip.visible: hovered
+                        QtControls2.ToolTip.text: i18n("Show wallpaper #%1", modelData.id)
                         onClicked: {
                             root.sendHistoryCommand(String(modelData.id));
                             historyPopup.close();

@@ -421,6 +421,22 @@ function isNavControlCommand(cmdName) {
         || name === "reload" || name === "outageoffline" || name === "resumeonline";
 }
 
+// Control-bus purity: names ("sfw,sketchy") and/or Wallhaven bitstrings ("110").
+function parsePurityQuery(query) {
+    var flags = { sfw: false, sketchy: false, nsfw: false };
+    String(query || "").toLowerCase().split(",").forEach(function(raw) {
+        var bit = raw.trim();
+        if (/^[01]{3}$/.test(bit)) {
+            flags.sfw = flags.sfw || bit.charAt(0) === "1";
+            flags.sketchy = flags.sketchy || bit.charAt(1) === "1";
+            flags.nsfw = flags.nsfw || bit.charAt(2) === "1";
+        } else if (bit === "sfw" || bit === "sketchy" || bit === "nsfw") {
+            flags[bit] = true;
+        }
+    });
+    return flags;
+}
+
 // SyncAdvance peers must not rebroadcast — that caused echo ping-pong storms.
 function shouldBroadcastSyncAdvance(fromSync) {
     return !fromSync;
@@ -644,8 +660,11 @@ function parseSeenIds(raw) {
     }
     try {
         var parsed = JSON.parse(raw);
-        if (parsed && parsed.length) {
-            return parsed.map(function(id) { return String(id); });
+        // An empty JSON array is valid — falling through split "[]" into a bogus id.
+        if (Array.isArray(parsed)) {
+            return parsed.map(function(id) { return String(id); }).filter(function(id) {
+                return id.length > 0 && id !== "[]";
+            });
         }
     } catch (e) {
         // fall through
@@ -1165,7 +1184,7 @@ function searchDedupeFingerprint(cfg) {
 }
 
 function pluginVersion() {
-    return "3.5.5";
+    return "3.5.6";
 }
 
 function buildPresetFromConfig(name, cfg) {
@@ -2665,7 +2684,7 @@ var BUNDLED_CURATED_PRESETS = [
         CategoryGeneral: true,
         CategoryAnime: false,
         CategoryPeople: false,
-        SampleWallpaperId: "85k258",
+        SampleWallpaperId: "y85yld",
     },
     {
         name: "Cyberpunk",
@@ -2684,7 +2703,7 @@ var BUNDLED_CURATED_PRESETS = [
         CategoryGeneral: true,
         CategoryAnime: false,
         CategoryPeople: false,
-        SampleWallpaperId: "28jdg9",
+        SampleWallpaperId: "j3g7yy",
     },
 ];
 

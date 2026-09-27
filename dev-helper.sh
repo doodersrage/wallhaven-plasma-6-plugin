@@ -34,7 +34,7 @@ Commands:
   dbus-install    Install and enable user D-Bus service
   dbus-uninstall  Disable and remove user D-Bus service
   register-preset Register wallhaven:// preset URL handler (xdg-mime)
-  install-shortcuts Build and autostart KGlobalAccel shortcuts (Meta+Alt+arrows)
+  install-shortcuts Build and autostart KGlobalAccel shortcuts (Meta+Ctrl+Alt+arrows)
   uninstall-shortcuts Remove shortcuts autostart entry
   help            Show this help
 EOF
@@ -154,7 +154,8 @@ package_plugin() {
     if [[ -f "${SCRIPT_DIR}/preview.jpg" ]]; then
         files+=(preview.jpg)
     fi
-    tar -cJf "${archive}" -C "${SCRIPT_DIR}" "${files[@]}"
+    # Local test runs leave __pycache__ under tools/; never ship bytecode.
+    tar -cJf "${archive}" --exclude=__pycache__ --exclude="*.pyc" -C "${SCRIPT_DIR}" "${files[@]}"
     echo "Created ${archive}"
 }
 
@@ -258,7 +259,7 @@ install_shortcuts() {
         > "${HOME}/.config/autostart/wallhaven-shortcuts.desktop"
     echo "Installed wallhaven-shortcuts to ${DATA_DIR}/bin/wallhaven-shortcuts"
     echo "Autostart entry: ~/.config/autostart/wallhaven-shortcuts.desktop"
-    echo "Shortcuts: Meta+Alt+Right/Left/P/R"
+    echo "Shortcuts: Meta+Ctrl+Alt+Right/Left/P/R"
     echo "Log out and back in (or reboot) if shortcuts do not register immediately."
 }
 

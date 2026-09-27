@@ -28,6 +28,7 @@ PLAYER_PATH = "/Player"
 MPRIS_PATH = "/org/mpris/MediaPlayer2"
 INTERFACE = "org.robertsm.Wallhaven"
 RUNNER_IFACE = "org.kde.krunner1"
+KRUNNER_EXACT_MATCH = 100  # KRunner::QueryMatch::CategoryRelevance::Highest
 PLAYER_IFACE = "org.robertsm.Wallhaven.Player"
 MPRIS_IFACE = "org.mpris.MediaPlayer2"
 MPRIS_PLAYER_IFACE = "org.mpris.MediaPlayer2.Player"
@@ -88,12 +89,11 @@ BASH_SCRIPT_ALLOWLIST = (
     ),
     # KWallet write (API key).
     re.compile(
-        r"^printf '%s' '[^']*' \| kwallet-query -w wallhaven -f org\.robertsm\.wallhaven apikey 2>/dev/null"
-        r" \|\| printf '%s' '[^']*' \| kwallet-query --write-password apikey -f org\.robertsm\.wallhaven -w kdewallet 2>/dev/null$"
+        r"^printf '%s' '[^']*' \| kwallet-query -w apikey -f org\.robertsm\.wallhaven kdewallet 2>/dev/null$"
     ),
     # KWallet read into a plasmashell-cache temp file.
     re.compile(
-        r"^kwallet-query -r apikey -f org\.robertsm\.wallhaven -w wallhaven > '[^']+' 2>/dev/null$"
+        r"^kwallet-query -r apikey -f org\.robertsm\.wallhaven kdewallet > '[^']+' 2>/dev/null$"
     ),
 )
 
@@ -482,11 +482,50 @@ def list_sync_groups() -> list[str]:
     return groups or ["default"]
 
 
+def primary_output_name() -> str:
+    """Name of the primary (priority 1) KScreen output, or "" if unknown."""
+    if not shutil.which("kscreen-doctor"):
+        return ""
+    try:
+        proc = subprocess.run(
+            ["kscreen-doctor", "-j"], capture_output=True, text=True, timeout=3, check=False,
+        )
+        outputs = json.loads(proc.stdout or "{}").get("outputs") or []
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError, AttributeError):
+        return ""
+    enabled = [o for o in outputs if isinstance(o, dict) and o.get("enabled") and o.get("name")]
+    enabled.sort(key=lambda o: o.get("priority") or 999)
+    return str(enabled[0]["name"]) if enabled else ""
+
+
+def primary_sync_group() -> str:
+    """Sync group of the wallpaper on the primary screen (fallback: shared status)."""
+    name = primary_output_name()
+    if name:
+        safe = re.sub(r"[^A-Za-z0-9._-]+", "_", name)[:80]
+        try:
+            with open(os.path.join(PLASMA_CACHE, f"wallhaven-status-{safe}.json"), encoding="utf-8") as handle:
+                data = json.load(handle)
+            group = str(data.get("syncGroup") or data.get("cacheNamespace") or "").strip()
+            if group:
+                return group
+        except (OSError, json.JSONDecodeError, AttributeError):
+            pass
+    data = read_status()
+    return str(data.get("syncGroup") or data.get("cacheNamespace") or "").strip()
+
+
 def write_command(cmd: str, group: str = "default", query: str = "") -> None:
     name = str(cmd or "").strip().lower()
     if not CONTROL_CMD_RE.match(name):
         raise ValueError(f"invalid control command: {cmd!r}")
     target = re.sub(r"[^A-Za-z0-9_.-]", "_", str(group or "default"))[:64] or "default"
+    # Screens isolate onto their own sync group, so a "default" search/like/info
+    # reached nobody. Nav still broadcasts; everything else goes to the primary screen.
+    if target == "default" and name not in _NAV_FANOUT:
+        primary = re.sub(r"[^A-Za-z0-9_.-]", "_", primary_sync_group())[:64]
+        if primary:
+            target = primary
     text = str(query or "")
     if len(text) > MAX_CONTROL_QUERY_CHARS:
         text = text[:MAX_CONTROL_QUERY_CHARS]
@@ -649,7 +688,7 @@ class WallhavenControl(dbus.service.Object):
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def GetPluginVersion(self) -> str:
-        return "3.5.5"
+        return "3.5.6"
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def ListMonitorStatuses(self) -> str:
@@ -949,6 +988,15 @@ class MprisMediaPlayer2(dbus.service.Object):
         status = read_status()
         write_command("resume" if status.get("paused") else "pause", self.group)
 
+    # CanPlay/CanPause are advertised, so MPRIS clients may call these directly.
+    @dbus.service.method(MPRIS_PLAYER_IFACE)
+    def Play(self) -> None:
+        write_command("resume", self.group)
+
+    @dbus.service.method(MPRIS_PLAYER_IFACE)
+    def Pause(self) -> None:
+        write_command("pause", self.group)
+
     @dbus.service.method(MPRIS_PLAYER_IFACE)
     def Stop(self) -> None:
         write_command("pause", self.group)
@@ -999,7 +1047,12 @@ class WallhavenRunner(dbus.service.Object):
         matches: list[tuple[str, str, str, float, str, dict]] = []
 
         def add(match_id: str, text: str, subtext: str, relevance: float) -> None:
-            matches.append((match_id, text, "preferences-desktop-wallpaper", relevance, subtext, {}))
+            # krunner1 wants (id, text, icon, categoryRelevance:int, relevance:double,
+            # properties); a float in the int slot made every Match raise TypeError.
+            matches.append((
+                match_id, text, "preferences-desktop-wallpaper", KRUNNER_EXACT_MATCH, relevance,
+                {"subtext": subtext},
+            ))
 
         if re.match(r"^(wh|wallhaven)\s*(next)?$", lowered):
             add("wh-next", "Next Wallhaven wallpaper", "Advance slideshow", 1.0)
