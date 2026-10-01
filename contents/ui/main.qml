@@ -9,7 +9,6 @@ import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
 import org.kde.kirigami as Kirigami
 import org.kde.notification
-import org.kde.plasma.workspace.dbus as PDBus
 import "../code/wallhaven.js" as Wallhaven
 
 WallpaperItem {
@@ -55,6 +54,82 @@ WallpaperItem {
     readonly property string rateLimitBusFile: diskCacheDir + "/wallhaven-ratelimit.json"
     readonly property string debugLogFile: diskCacheDir + "/wallhaven-debug.log"
     readonly property int diskCacheEntryCount: Wallhaven.listCachedIds(_diskCacheIndex).length
+
+    // ---- components (each owns one concern; see docs/ARCHITECTURE.md) ----
+
+    DBusHelper {
+        id: dbusHelper
+    }
+
+    ApiKeyStore {
+        id: apiKeys
+        host: root
+        dbus: dbusHelper
+    }
+
+    ApiHealth {
+        id: apiState
+        host: root
+        dbus: dbusHelper
+        engine: engine
+    }
+
+    DiskCache {
+        id: diskCache
+        host: root
+        dbus: dbusHelper
+    }
+
+    LockScreenSync {
+        id: lockSync
+        host: root
+        dbus: dbusHelper
+    }
+
+    ControlBus {
+        id: controlBus
+        host: root
+        dbus: dbusHelper
+        engine: engine
+        onScreenLockChanged: locked => root.noteScreenLocked(locked)
+        onServiceRegisteredChanged: root.refreshServiceAvailability()
+        onSignalsActiveChanged: root.refreshServiceAvailability()
+    }
+
+    SessionMonitors {
+        id: sessionMonitors
+        host: root
+        dbus: dbusHelper
+    }
+
+    // State owned by the components, under the names the engine below, the
+    // settings dialog (liveWallpaper.*) and the status snapshot already use.
+    property alias _diskCacheIndex: diskCache.cacheIndex
+    property alias _rateLimitUntilMs: apiState._rateLimitUntilMs
+    property alias _apiLastStatus: apiState._apiLastStatus
+    property alias _apiOutageOffline: apiState._apiOutageOffline
+    readonly property var apiHealth: apiState.apiHealth
+    readonly property string apiHealthSummary: apiState.apiHealthSummary
+    property alias lockScreenLastSyncAt: lockSync.lastSyncAt
+    property alias lockScreenLastSyncPath: lockSync.lastSyncPath
+    property alias lockScreenLastSyncOk: lockSync.lastSyncOk
+    readonly property int _batteryPercent: sessionMonitors.batteryPercent
+    readonly property bool _sessionIdle: sessionMonitors.sessionIdle
+    readonly property bool _musicPlaying: sessionMonitors.musicPlaying
+    readonly property string walletStatus: apiKeys.status
+    // True when control/sync/lock changes arrive as D-Bus signals (no polling).
+    readonly property bool busSignalsActive: controlBus.signalsActive
+    // Key used for requests: typed into settings, else loaded from KWallet
+    // (in which case it exists only in memory, never in the config file).
+    readonly property string effectiveApiKey: apiKeys.effectiveKey
+
+    onEffectiveApiKeyChanged: {
+        // The first fetch is still pending during startup and will use the key;
+        // cache-only modes never send it.
+        if (root._configured && !startupOnlineFetchTimer.running && !root.effectiveOfflineOnly()) {
+            engine.resetSlideshow();
+        }
+    }
     readonly property int seenIdsCount: {
         try {
             return Wallhaven.parseSeenIds(cfg && cfg.SeenIdsJson ? cfg.SeenIdsJson : "[]").length;
@@ -63,23 +138,14 @@ WallpaperItem {
         }
     }
 
-    function syncAdvanceFile() {
-        var group = (cfg.SyncAdvanceGroup || "default").replace(/[^a-zA-Z0-9_-]/g, "_");
-        return diskCacheDir + "/wallhaven-sync-" + group + ".json";
-    }
-
     function effectiveOfflineOnly() {
         return cfg.OfflineOnlyMode
             || root._apiOutageOffline
-            || root.isRateLimitedNow()
+            || apiState.isRateLimitedNow()
             || Wallhaven.tripModeActive(cfg.TripModeUntilMs)
             || cfg.BrowseMode === "playlist"
             || cfg.BrowseMode === "local"
             || (cfg.MeteredCacheOnly && root.meteredConnection);
-    }
-
-    function isRateLimitedNow() {
-        return root._rateLimitUntilMs > 0 && Date.now() < root._rateLimitUntilMs;
     }
 
     function effectsMotionAllowed() {
@@ -88,10 +154,6 @@ WallpaperItem {
 
     function slideshowActive() {
         return Wallhaven.baseIntervalMinutes(cfg, Wallhaven.isDayPeriod()) > 0;
-    }
-
-    function diskCacheMaxSlots() {
-        return Math.max(5, Math.min(200, cfg.DiskCacheMaxSlots || 40));
     }
 
     // Decode near display size (slightly larger when Ken Burns pans/zooms) to cut RAM/VRAM.
@@ -152,17 +214,12 @@ WallpaperItem {
     property string _pendingWallpaperId: ""
     property bool _pendingUsedCache: false
     property bool _configWritePending: false
-    property var _diskCacheIndex: ({ ids: [], next: 0, categories: {}, purities: {}, dimensions: {}, tags: {} })
-    property var _diskCacheSaveRequest: null
     property int _fetchRetryCount: 0
     // Resume the same API callback after backoff — never skipForward on retry
     // (that was burning through cache on 429 storms).
     property var _retryOnDone: null
     property var _retryRequestId: 0
     property int _cacheErrorSkipCount: 0
-    // Hard cooldown that survives attribution/detail 200s clearing soft-offline.
-    // Search /api/v1 must not run until this timestamp.
-    property double _rateLimitUntilMs: 0
     property bool _connectivityOnline: true
     property bool _needsReconnectFetch: false
     property double _resumeWatchLastMs: 0
@@ -173,8 +230,6 @@ WallpaperItem {
     property bool _pendingSyncAdvance: false
     property double _pendingSyncAdvanceAt: 0
     property var _pendingControlCmd: null
-    property double _outageProbeAtMs: 0
-    property int _outageProbeFailCount: 0
     property bool _awaitingTransitionReady: false
     property string _awaitingTransitionMode: ""
     property bool _wasScreenLocked: false
@@ -183,11 +238,6 @@ WallpaperItem {
     property string _dedupeFingerprint: ""
     property var _localImagePaths: []
     property int _localCursor: -1
-    property string lockScreenLastSyncAt: ""
-    property string lockScreenLastSyncPath: ""
-    property bool lockScreenLastSyncOk: false
-    property int _lockSyncSeq: 0
-    property var _lockSyncRetry: null
     property string _pendingFadeUrl: ""
     property double _lastControlTs: 0
     property double _lastSyncAdvanceTs: 0
@@ -197,62 +247,21 @@ WallpaperItem {
     property string wallpaperDetailsPurity: ""
     property string wallpaperDetailsCategory: ""
     property bool wallpaperDetailsOpen: false
-    property int _apiLastStatus: 0
-    property string _apiLastError: ""
-    property int _apiRateLimitCount: 0
-    property string _apiLastRateLimitAt: ""
-    property string _apiLastSuccessAt: ""
-    // Temporary soft-offline while Wallhaven is unreachable; clears on API recovery.
-    property bool _apiOutageOffline: false
-    property string _walletStatus: "unknown"
-    property bool _walletLoadAttempted: false
-    readonly property var apiHealth: Wallhaven.buildApiHealthSnapshot({
-        lastStatus: _apiLastStatus,
-        lastError: _apiLastError,
-        rateLimitCount: _apiRateLimitCount,
-        lastRateLimitAt: _apiLastRateLimitAt,
-        lastSuccessAt: _apiLastSuccessAt,
-        outageOffline: root._apiOutageOffline,
-        apiKey: cfg ? cfg.ApiKey : "",
-        walletStatus: root._walletStatus,
-    })
-    readonly property string apiHealthSummary: {
-        if (root._apiOutageOffline) {
-            return i18n("API down — using cache (%1)", diskCacheEntryCount);
-        }
-        if (_apiLastStatus === 401 || _apiLastStatus === 403) {
-            var tail = Wallhaven.apiKeyLastFour(cfg && cfg.ApiKey);
-            return tail
-                ? i18n("Invalid API key (…%1) — clear or re-enter", tail)
-                : i18n("API unauthorized (401/403) — check or clear API key");
-        }
-        if (_apiRateLimitCount > 0 && _apiLastStatus === 429) {
-            return i18n("Rate limited (429) — %1 time(s)", _apiRateLimitCount);
-        }
-        if (_apiLastStatus >= 400) {
-            return i18n("Last API error: HTTP %1", _apiLastStatus);
-        }
-        if (_apiLastSuccessAt) {
-            var keyTail = Wallhaven.apiKeyLastFour(cfg && cfg.ApiKey);
-            return keyTail ? i18n("API OK (key …%1)", keyTail) : i18n("API OK");
-        }
-        return i18n("API idle");
-    }
     readonly property string apiKeyDisplayHint: {
-        var tail = Wallhaven.apiKeyLastFour(cfg && cfg.ApiKey);
+        var tail = Wallhaven.apiKeyLastFour(root.effectiveApiKey);
         if (tail) {
             return i18n("Key set (…%1)", tail);
         }
-        if (root._walletStatus === "loaded") {
+        if (root.walletStatus === "loaded") {
             return i18n("Key loaded from KWallet");
         }
-        if (root._walletStatus === "missing") {
+        if (root.walletStatus === "missing") {
             return i18n("KWallet: no key stored");
         }
-        if (root._walletStatus === "failed") {
+        if (root.walletStatus === "failed") {
             return i18n("KWallet: load failed");
         }
-        if (root._walletStatus === "disabled") {
+        if (root.walletStatus === "disabled") {
             return i18n("KWallet disabled");
         }
         return i18n("No API key");
@@ -265,11 +274,8 @@ WallpaperItem {
     property string monitorTrustMapText: ""
     property double _nextSlideshowAt: 0
     property var _metrics: Wallhaven.createMetricsState()
-    property int _batteryPercent: 100
     property bool _rulesPausedSlideshow: false
     property bool _pausedByRules: false
-    property bool _musicPlaying: false
-    property string _weatherLastLocation: ""
     // Public so config.qml can bind (function getters do not re-evaluate).
     property bool dbusServiceAvailable: false
     property string upscalerBinaryPath: ""
@@ -277,7 +283,6 @@ WallpaperItem {
     readonly property bool upscalerAvailable: upscalerStatusKnown && upscalerBinaryPath !== ""
     property var wallpaperHistoryEntries: []
     property bool _screenLocked: false
-    property bool _sessionIdle: false
 
     property real parallaxPhase: 0
     readonly property real parallaxScreenPhase: {
@@ -468,36 +473,6 @@ WallpaperItem {
         return "wallpaper";
     }
 
-    function urlToLocalPath(url) {
-        var path = String(url == null ? "" : url);
-        if (!path)
-            return "";
-        if (path.indexOf("file://") === 0) {
-            path = path.substring(7);
-            // file://localhost/home/... or leftover host form
-            if (path.indexOf("localhost/") === 0)
-                path = path.substring(9);
-        } else if (path.indexOf("file:") === 0) {
-            path = path.substring(5);
-        }
-        try {
-            return decodeURIComponent(path);
-        } catch (e) {
-            return path;
-        }
-    }
-
-    function localPathToUrl(path) {
-        path = String(path || "");
-        if (!path) {
-            return "";
-        }
-        if (path.indexOf("file://") === 0) {
-            return path;
-        }
-        return "file://" + path;
-    }
-
     function scheduleConfigWrite() {
         _configWritePending = true;
         configWriteTimer.restart();
@@ -510,14 +485,6 @@ WallpaperItem {
         }
         _configWritePending = false;
         root.configuration.writeConfig();
-    }
-
-    function loadDiskCacheIndex() {
-        if (!root.configuration) {
-            _diskCacheIndex = { ids: [], next: 0, categories: {}, purities: {}, dimensions: {} };
-            return;
-        }
-        _diskCacheIndex = Wallhaven.parseDiskCacheIndex(root.configuration.DiskCacheIndexJson || "");
     }
 
     function ensureCacheNamespace() {
@@ -562,209 +529,6 @@ WallpaperItem {
             scheduleConfigWrite();
             logDebug("SyncAdvanceGroup set to screen " + screen);
         }
-    }
-
-    function controlCommandTargetsThisScreen(cmd) {
-        if (!cmd) {
-            return false;
-        }
-        return Wallhaven.controlCommandTargetsGroup(
-            cmd.group,
-            cfg.SyncAdvanceGroup || "default",
-            diskCacheNamespace || "",
-            cmd.cmd,
-        );
-    }
-
-    function isSettingsControlCommand(cmdName) {
-        var name = String(cmdName || "");
-        return name === "search" || name === "applysearch" || name === "savesearch"
-            || name === "purity" || name === "trip" || name === "endtrip"
-            || name === "clearkey" || name === "testkey" || name === "warm"
-            || name === "cancelwarm" || name === "copysearch"
-            || name === "importpreset";
-    }
-
-    function handleControlCommand(cmd) {
-        if (!cmd || !cmd.cmd) {
-            return;
-        }
-        switch (cmd.cmd) {
-        case "next":
-        case "prev":
-        case "reload":
-            // Queue nav while a fetch is in flight — stamping ts then no-op used
-            // to drop KRunner/ctl/MPRIS commands forever.
-            if (engine.busy) {
-                root._pendingControlCmd = { cmd: cmd.cmd, ts: cmd.ts || Date.now() };
-                return;
-            }
-            root._pendingControlCmd = null;
-            if (cmd.cmd === "next") {
-                engine.skipForward(false);
-            } else if (cmd.cmd === "prev") {
-                engine.previousWallpaper();
-            } else {
-                root.reloadWallpaper();
-            }
-            break;
-        case "pause":
-            root.setSlideshowPaused(true);
-            break;
-        case "resume":
-            root.setSlideshowPaused(false);
-            break;
-        case "search":
-            if (cmd.query && root.configuration) {
-                root.snapshotSettingsForUndo();
-                root.configuration.BrowseMode = "search";
-                root.configuration.SearchText = cmd.query;
-                root.configuration.WallpaperOfDayEnabled = false;
-                root.recordSearchHistory(cmd.query);
-                scheduleConfigWrite();
-                engine.resetSlideshow();
-            }
-            break;
-        case "open":
-            if (root.currentPageUrl) {
-                Qt.openUrlExternally(root.currentPageUrl);
-            }
-            break;
-        case "block":
-            root.blockCurrentWallpaper();
-            break;
-        case "copytags":
-            root.copyCurrentTags();
-            break;
-        case "similar":
-            root.loadSimilarWallpapers();
-            break;
-        case "info":
-            root.showWallpaperInfo();
-            break;
-        case "importpreset":
-            if (cmd.query) {
-                root.importPresetFromUrl(cmd.query);
-            }
-            break;
-        case "like":
-            root.rateCurrentWallpaper(true);
-            break;
-        case "dislike":
-            root.rateCurrentWallpaper(false);
-            break;
-        case "history":
-            if (cmd.query) {
-                root.showHistoryWallpaper(cmd.query);
-            }
-            break;
-        case "pin":
-            if (root.currentWallpaperId && root.currentWallpaperId !== "wallpaper") {
-                root.pinCacheId(root.currentWallpaperId);
-            }
-            break;
-        case "unpin":
-            if (root.currentWallpaperId && root.currentWallpaperId !== "wallpaper") {
-                root.unpinCacheId(root.currentWallpaperId);
-            }
-            break;
-        case "outageoffline":
-            root.enterApiOutageOffline(0);
-            break;
-        case "resumeonline":
-            // User/ctl intent — clear even if a rate-limit latch is still active.
-            root.clearApiOutageOffline(true, true);
-            break;
-        case "clearkey":
-            root.clearApiKey(false);
-            break;
-        case "testkey":
-            root.testApiKeyNow();
-            break;
-        case "copyid":
-            root.copyWallpaperId();
-            break;
-        case "copyurl":
-            root.copyPageUrl();
-            break;
-        case "prune":
-            root.pruneUnpinnedCache();
-            break;
-        case "warm":
-            root.warmDiskCache(cmd.query ? parseInt(cmd.query, 10) : 0);
-            break;
-        case "cancelwarm":
-            root.cancelWarmCache();
-            break;
-        case "trip":
-            root.enterTripModeWithWarm(cmd.query ? parseInt(cmd.query, 10) : 24, cfg.CacheWarmCount || 12);
-            break;
-        case "endtrip":
-            root.clearTripMode(true);
-            break;
-        case "copysearch":
-            root.copySearchToOtherScreens(cmd.query || "");
-            break;
-        case "undo":
-            root.undoLastSettingsChange();
-            break;
-        case "savesearch":
-            root.saveCurrentAsSavedSearch(cmd.query || "");
-            break;
-        case "applysearch":
-            if (cmd.query) {
-                root.applySavedSearch(cmd.query);
-            }
-            break;
-        case "purity":
-            if (cmd.query) {
-                var purity = Wallhaven.parsePurityQuery(cmd.query);
-                if (purity.sfw || purity.sketchy || purity.nsfw) {
-                    root.setPurityFlags(purity.sfw, purity.sketchy, purity.nsfw);
-                }
-            }
-            break;
-        default:
-            break;
-        }
-    }
-
-    function persistDiskCacheIndex() {
-        if (!root.configuration) {
-            return;
-        }
-        root.configuration.DiskCacheIndexJson = Wallhaven.serializeDiskCacheIndex(_diskCacheIndex);
-        scheduleConfigWrite();
-    }
-
-    function diskCacheLocalPath(slot) {
-        return diskCacheDir + "/" + Wallhaven.diskCacheFileName(slot, diskCacheNamespace);
-    }
-
-    function diskCacheLocalUrl(slot) {
-        return localPathToUrl(diskCacheLocalPath(slot));
-    }
-
-    function resolveImageSource(wallpaper, remoteUrl) {
-        if (!remoteUrl) {
-            return "";
-        }
-        if (!cfg.DiskCacheEnabled || !wallpaper || !wallpaper.id) {
-            // Soft-offline must never open a network image URL.
-            if (root.effectiveOfflineOnly()) {
-                return "";
-            }
-            return remoteUrl;
-        }
-        var slot = Wallhaven.diskCacheSlotForId(_diskCacheIndex, wallpaper.id);
-        if (slot < 0) {
-            if (root.effectiveOfflineOnly()) {
-                return "";
-            }
-            return remoteUrl;
-        }
-        Wallhaven.touchDiskCacheId(_diskCacheIndex, wallpaper.id);
-        return diskCacheLocalUrl(slot);
     }
 
     function releaseInactiveLayer() {
@@ -829,304 +593,13 @@ WallpaperItem {
         foregroundTransform.zoomScale = 1;
     }
 
-    function scheduleDiskCacheSave(img) {
-        if (!cfg.DiskCacheEnabled || !img || _pendingUsedCache || !_pendingWallpaperId) {
-            return;
-        }
-        if (String(img.source) !== String(_pendingImageUrl)) {
-            return;
-        }
-        _diskCacheSaveRequest = {
-            id: _pendingWallpaperId,
-            remoteUrl: _pendingRemoteUrl,
-            image: img,
-        };
-        diskCacheSaveTimer.restart();
-    }
-
-    function writeDiskCacheFromImage() {
-        var req = _diskCacheSaveRequest;
-        _diskCacheSaveRequest = null;
-        if (!req || !req.image || !req.id || !cfg.DiskCacheEnabled) {
-            return;
-        }
-        if (req.image.status !== Image.Ready) {
-            return;
-        }
-        var slot = Wallhaven.allocateDiskCacheSlot(
-            _diskCacheIndex,
-            req.id,
-            diskCacheMaxSlots(),
-            pinnedCacheIds(),
-            root.currentWallpaper && root.currentWallpaper.category
-                ? root.currentWallpaper.category : "",
-            root.currentWallpaper && root.currentWallpaper.purity
-                ? root.currentWallpaper.purity : "",
-        );
-        if (slot < 0) {
-            return;
-        }
-        var path = diskCacheLocalPath(slot);
-        var size = wallpaperSourceSize;
-        var wallpaperForUpscale = root.currentWallpaper;
-        Wallhaven.setDiskCacheDimensions(
-            _diskCacheIndex,
-            req.id,
-            wallpaperForUpscale && wallpaperForUpscale.dimension_x,
-            wallpaperForUpscale && wallpaperForUpscale.dimension_y,
-        );
-        Wallhaven.setDiskCacheTags(_diskCacheIndex, req.id, root._currentTags);
-        var originalUrl = String(req.remoteUrl || "");
-        if (cfg.CacheDownloadOriginal && originalUrl.indexOf("http") === 0) {
-            dbusHelper.runArgv([
-                "curl", "-fsSL", "--max-time", "120", "-o", path, originalUrl,
-            ], function(reply) {
-                var text = String(reply || "").trim();
-                if (text !== "ok") {
-                    logDebug("Original cache curl failed for " + req.id + " reply=" + text);
-                    Wallhaven.releaseDiskCacheId(_diskCacheIndex, req.id);
-                    persistDiskCacheIndex();
-                    return;
-                }
-                dbusHelper.runArgv(["test", "-s", path], function(sizeReply) {
-                    var sizeOk = String(sizeReply || "").trim();
-                    if (sizeOk !== "ok") {
-                        logDebug("Original cache empty after curl for " + req.id);
-                        Wallhaven.releaseDiskCacheId(_diskCacheIndex, req.id);
-                        persistDiskCacheIndex();
-                        return;
-                    }
-                    persistDiskCacheIndex();
-                    if (cfg.SyncLockScreen || cfg.VarietySymlinkEnabled) {
-                        root.syncLockScreenImage(path, req.id);
-                        root.updateVarietySymlink(path);
-                    }
-                    root.maybeUpscaleCachedFile(path, wallpaperForUpscale);
-                });
-            });
-            return;
-        }
-        req.image.grabToImage(function(result) {
-            if (!result) {
-                return;
-            }
-            // Wallpaper may have advanced while grabToImage was pending.
-            if (String(root._pendingWallpaperId || "") !== String(req.id)) {
-                return;
-            }
-            if (result.saveToFile(path)) {
-                persistDiskCacheIndex();
-                if (cfg.SyncLockScreen || cfg.VarietySymlinkEnabled) {
-                    root.syncLockScreenImage(path, req.id);
-                    root.updateVarietySymlink(path);
-                }
-                root.maybeUpscaleCachedFile(path, wallpaperForUpscale);
-            }
-        }, size);
-    }
-
-    // If enabled and this wallpaper's native resolution genuinely falls short
-    // of the screen, hand the just-written disk-cache file to an installed
-    // external upscaler (e.g. realesrgan-ncnn-vulkan) and overwrite it in
-    // place with the upscaled result. Silently does nothing when the setting
-    // is off, the wallpaper doesn't need it, or no upscaler is installed --
-    // the cached file is left exactly as plain-scaling would have shown it.
-    function maybeUpscaleCachedFile(path, wallpaper) {
-        if (!cfg.UpscaleEnabled || !path || !wallpaper) {
-            return;
-        }
-        var screenWidth = Math.round(root.width) || 1920;
-        var screenHeight = Math.round(root.height) || 1080;
-        if (!Wallhaven.needsUpscale(wallpaper, screenWidth, screenHeight)) {
-            return;
-        }
-        dbusHelper.checkUpscalerAvailable(function(binaryPath) {
-            if (!binaryPath) {
-                return;
-            }
-            dbusHelper.upscale(path, path, function(ok) {
-                root.logDebug((ok ? "Upscaled" : "Upscale failed for") + " disk-cache image: " + path);
-            });
-        });
-    }
-
-    // Retroactively applies the external upscaler to wallpapers already
-    // sitting in the disk cache from before "Upscale low-res" was turned on
-    // (or from before this dimension-tracking existed at all -- those are
-    // silently skipped since there's no recorded native resolution to judge
-    // by). Runs the upscale calls one at a time rather than in parallel: each
-    // is a real GPU-bound external process, and firing dozens at once would
-    // just make them all compete for the same GPU with no net time saved.
-    function reupscaleCachedWallpapers() {
-        if (!cfg.UpscaleEnabled) {
-            engine.showStatus(i18n("Enable \"Upscale low-res\" first."), "warn");
-            return;
-        }
-        dbusHelper.checkUpscalerAvailable(function(binaryPath) {
-            if (!binaryPath) {
-                engine.showStatus(i18n("No upscaler installed (realesrgan-ncnn-vulkan not found on PATH)."), "warn");
-                return;
-            }
-            var entries = getCacheEntries();
-            var screenWidth = Math.round(root.width) || 1920;
-            var screenHeight = Math.round(root.height) || 1080;
-            var queue = [];
-            for (var i = 0; i < entries.length; i++) {
-                var entry = entries[i];
-                if (!entry.dimensionX || !entry.dimensionY) {
-                    continue;
-                }
-                var wallpaper = { dimension_x: entry.dimensionX, dimension_y: entry.dimensionY };
-                if (Wallhaven.needsUpscale(wallpaper, screenWidth, screenHeight)) {
-                    queue.push(diskCacheLocalPath(entry.slot));
-                }
-            }
-            if (!queue.length) {
-                engine.showStatus(i18n("No cached wallpapers need upscaling right now."), "info");
-                return;
-            }
-            var total = queue.length;
-            var upscaled = 0;
-            var failed = 0;
-            var runNext = function() {
-                if (!queue.length) {
-                    engine.showStatus(i18n("Re-upscale finished: %1 upscaled, %2 failed.", upscaled, failed), "info");
-                    return;
-                }
-                var path = queue.shift();
-                dbusHelper.upscale(path, path, function(ok) {
-                    if (ok) {
-                        upscaled++;
-                    } else {
-                        failed++;
-                    }
-                    runNext();
-                });
-            };
-            engine.showStatus(i18n("Re-upscaling %1 cached wallpaper(s)…", total), "info");
-            runNext();
-        });
-    }
-
-    function clearDiskCache() {
-        var slots = diskCacheMaxSlots();
-        var paths = [];
-        for (var i = 0; i < slots; i++) {
-            paths.push(diskCacheLocalPath(i));
-        }
-        cacheFileDeleter.deletePaths(paths);
-        _diskCacheIndex = { ids: [], next: 0, categories: {}, purities: {}, dimensions: {} };
-        persistDiskCacheIndex();
-        preloadImage.source = "";
-        preloadImage2.source = "";
-        engine.nextPreloadedUrl = "";
-        engine.showStatus(i18n("Disk cache cleared."), "info");
-    }
-
-    function pruneUnpinnedCache(keepSlots) {
-        var maxKeep = keepSlots !== undefined && keepSlots !== null
-            ? keepSlots
-            : diskCacheMaxSlots();
-        var pinned = Wallhaven.parsePinnedCacheIds(cfg.PinnedCacheIdsJson);
-        var victims = Wallhaven.listUnpinnedCacheIdsOldestFirst(_diskCacheIndex, pinned);
-        var occupied = Wallhaven.listCachedIds(_diskCacheIndex).length;
-        var paths = [];
-        var removed = 0;
-        for (var i = 0; i < victims.length && occupied - removed > maxKeep; i++) {
-            var id = victims[i];
-            var slot = Wallhaven.diskCacheSlotForId(_diskCacheIndex, id);
-            if (slot < 0) {
-                continue;
-            }
-            paths.push(diskCacheLocalPath(slot));
-            Wallhaven.evictDiskCacheOccupant(_diskCacheIndex, id);
-            _diskCacheIndex.ids[slot] = "";
-            removed++;
-        }
-        if (!removed) {
-            engine.showStatus(i18n("No unpinned cache entries to prune."), "info");
-            return 0;
-        }
-        cacheFileDeleter.deletePaths(paths);
-        persistDiskCacheIndex();
-        engine.showStatus(i18n("Pruned %1 unpinned cache entr(y/ies).", removed), "info");
-        publishStatus();
-        return removed;
-    }
-
-    function enforceCacheQuota(sizeMap) {
-        var pinned = Wallhaven.parsePinnedCacheIds(cfg.PinnedCacheIdsJson);
-        var removedSlots = Wallhaven.pruneUnpinnedCacheIds(
-            _diskCacheIndex,
-            pinned,
-            diskCacheMaxSlots(),
-        );
-        var maxMb = Math.max(0, parseInt(cfg.DiskCacheMaxMb, 10) || 0);
-        var removedBytes = [];
-        if (maxMb > 0 && sizeMap) {
-            removedBytes = Wallhaven.pruneCacheToMaxBytes(
-                _diskCacheIndex,
-                pinned,
-                sizeMap,
-                maxMb * 1024 * 1024,
-            );
-        }
-        var removed = removedSlots.concat(removedBytes);
-        if (!removed.length) {
-            return 0;
-        }
-        var paths = [];
-        var slots = diskCacheMaxSlots();
-        for (var s = 0; s < slots; s++) {
-            if (!String(_diskCacheIndex.ids[s] || "")) {
-                paths.push(diskCacheLocalPath(s));
-            }
-        }
-        cacheFileDeleter.deletePaths(paths);
-        persistDiskCacheIndex();
-        publishStatus();
-        return removed.length;
-    }
-
-    function refreshCacheFileSizes(callback) {
-        var ids = Wallhaven.listCachedIds(_diskCacheIndex);
-        var sizeMap = {};
-        var pending = ids.length;
-        if (!pending) {
-            if (callback)
-                callback(sizeMap);
-            return;
-        }
-        function doneOne() {
-            pending--;
-            if (pending <= 0 && callback) {
-                callback(sizeMap);
-            }
-        }
-        for (var i = 0; i < ids.length; i++) {
-            (function(id) {
-                var slot = Wallhaven.diskCacheSlotForId(_diskCacheIndex, id);
-                if (slot < 0) {
-                    doneOne();
-                    return;
-                }
-                var path = diskCacheLocalPath(slot);
-                dbusHelper.runArgv(["stat", "-c", "%s", path], function(reply) {
-                    var text = Wallhaven.dbusReplyAsString(reply).trim();
-                    sizeMap[id] = parseInt(text, 10) || 0;
-                    doneOne();
-                });
-            })(ids[i]);
-        }
-    }
-
     function warmDiskCache(count) {
         count = Math.max(1, Math.min(48, parseInt(count, 10) || cfg.CacheWarmCount || 12));
         if (cfg.OfflineOnlyMode || cfg.BrowseMode === "playlist" || cfg.BrowseMode === "local") {
             engine.showStatus(i18n("Switch to an online browse mode to warm the cache."), "warn");
             return;
         }
-        if ((root.isRateLimitedNow() || root._apiOutageOffline) && !root.tripModeActive) {
+        if ((apiState.isRateLimitedNow() || root._apiOutageOffline) && !root.tripModeActive) {
             engine.showStatus(i18n("Cannot warm cache while Wallhaven is unreachable or rate-limited."), "warn");
             return;
         }
@@ -1155,23 +628,14 @@ WallpaperItem {
             return;
         }
         var myGroup = String(cfg.SyncAdvanceGroup || diskCacheNamespace || "default");
-        dbusHelper.wallhavenMessage("ListMonitorStatuses", "", [], function(reply) {
-            var list = [];
-            try {
-                list = JSON.parse(Wallhaven.dbusReplyAsString(reply) || "[]");
-            } catch (e) {
-                list = [];
-            }
-            if (!Array.isArray(list)) {
-                list = [];
-            }
+        dbusHelper.listMonitorStatuses(function(list) {
             var targets = Wallhaven.otherMonitorSyncGroups(list, myGroup);
             if (!targets.length) {
                 engine.showStatus(i18n("No other monitors to copy search to."), "info");
                 return;
             }
             for (var i = 0; i < targets.length; i++) {
-                dbusHelper.wallhavenMessage("Search", "ss", [query, targets[i]]);
+                dbusHelper.sendSearch(query, targets[i]);
             }
             engine.showStatus(i18n("Copied search to %1 other screen(s).", targets.length), "info");
             root.refreshMonitorTrustMap();
@@ -1179,16 +643,7 @@ WallpaperItem {
     }
 
     function refreshMonitorTrustMap() {
-        dbusHelper.wallhavenMessage("ListMonitorStatuses", "", [], function(reply) {
-            var list = [];
-            try {
-                list = JSON.parse(Wallhaven.dbusReplyAsString(reply) || "[]");
-            } catch (e) {
-                list = [];
-            }
-            if (!Array.isArray(list)) {
-                list = [];
-            }
+        dbusHelper.listMonitorStatuses(function(list) {
             var lines = Wallhaven.formatMonitorTrustLines(list);
             root.monitorTrustMapText = lines || i18n("(no monitors reporting)");
         });
@@ -1258,8 +713,8 @@ WallpaperItem {
         snapshotSettingsForUndo();
         root.configuration.PuritySfw = !!sfw;
         root.configuration.PuritySketchy = !!sketchy;
-        root.configuration.PurityNsfw = !!nsfw && !!Wallhaven.sanitizeApiKey(cfg.ApiKey);
-        if (nsfw && !Wallhaven.sanitizeApiKey(cfg.ApiKey)) {
+        root.configuration.PurityNsfw = !!nsfw && root.effectiveApiKey !== "";
+        if (nsfw && root.effectiveApiKey === "") {
             engine.showStatus(i18n("NSFW needs a valid API key."), "warn");
         }
         scheduleConfigWrite();
@@ -1371,19 +826,7 @@ WallpaperItem {
             clipboardHelper.selectAll();
             clipboardHelper.copy();
         };
-        if (typeof PDBus !== "undefined" && PDBus.SessionBus) {
-            var msg = new PDBus.dbusMessage({
-                service: "org.kde.klipper",
-                path: "/klipper",
-                iface: "org.kde.klipper.klipper",
-                member: "setClipboardContents",
-                signature: dbusHelper.wallhavenNormalizeSignature("s"),
-                arguments: dbusHelper.wallhavenTypedArgs("s", [String(text)]),
-            });
-            PDBus.SessionBus.asyncCall(msg, function() {}, copyViaTextEdit);
-        } else {
-            copyViaTextEdit();
-        }
+        dbusHelper.setClipboard(text, copyViaTextEdit);
         if (successMessage) {
             engine.showStatus(successMessage, "info");
         }
@@ -1645,35 +1088,35 @@ WallpaperItem {
         });
         // Prefer pathless Publish* helpers; fall back to WriteTextFile with a
         // plasmashell-cache path for older helper builds.
-        dbusHelper.wallhavenMessage("PublishStatusJson", "s", [statusJson], function(reply) {
-            if (!Wallhaven.dbusReplyAsString(reply)) {
-                settingsFileWriter.writeFile(statusBusFile, statusJson);
+        dbusHelper.publishStatus(statusJson, function(ok) {
+            if (!ok) {
+                dbusHelper.writeFile(statusBusFile, statusJson);
             }
         });
-        dbusHelper.wallhavenMessage(
-            "PublishMonitorStatusJson",
-            "ss",
-            [String(diskCacheNamespace || "default"), statusJson],
-            function(reply) {
-                if (!Wallhaven.dbusReplyAsString(reply)) {
-                    settingsFileWriter.writeFile(
-                        diskCacheDir + "/wallhaven-status-" + diskCacheNamespace + ".json",
-                        statusJson,
-                    );
-                }
-            },
-        );
+        dbusHelper.publishMonitorStatus(diskCacheNamespace, statusJson, function(ok) {
+            if (!ok) {
+                dbusHelper.writeFile(
+                    diskCacheDir + "/wallhaven-status-" + diskCacheNamespace + ".json",
+                    statusJson,
+                );
+            }
+        });
         publishDbusConfig();
     }
 
+    property string _lastDbusConfig: ""
+
     function publishDbusConfig() {
-        settingsFileWriter.writeFile(
-            dbusConfigFile,
-            JSON.stringify({
-                varietyWatchEnabled: !!cfg.VarietyWatchEnabled,
-                syncGroup: cfg.SyncAdvanceGroup || "default",
-            }),
-        );
+        var config = JSON.stringify({
+            varietyWatchEnabled: !!cfg.VarietyWatchEnabled,
+            syncGroup: cfg.SyncAdvanceGroup || "default",
+        });
+        // Rarely changes; no need to rewrite it with every status publish.
+        if (config === _lastDbusConfig) {
+            return;
+        }
+        _lastDbusConfig = config;
+        dbusHelper.writeFile(dbusConfigFile, config);
     }
 
     function persistWallpaperHistory(wallpaper) {
@@ -1689,7 +1132,7 @@ WallpaperItem {
         root.configuration.WallpaperHistoryJson = Wallhaven.serializeWallpaperHistory(history, 30);
         wallpaperHistoryEntries = history;
         scheduleConfigWrite();
-        settingsFileWriter.writeFile(historyBusFile, Wallhaven.serializeWallpaperHistory(history, 12));
+        dbusHelper.writeFile(historyBusFile, Wallhaven.serializeWallpaperHistory(history, 12));
     }
 
     function loadWallpaperHistory() {
@@ -1712,7 +1155,7 @@ WallpaperItem {
         }
         var wp = Wallhaven.makeCachedWallpaper(id);
         var remote = Wallhaven.thumbUrlForId(id);
-        var source = resolveImageSource(wp, remote);
+        var source = diskCache.resolveImageSource(wp, remote);
         if (source.indexOf("file:") === 0) {
             // Still in the local disk cache: show the full-resolution cached file directly.
             engine.displayWallpaper(wp, source, true);
@@ -1722,7 +1165,7 @@ WallpaperItem {
         // Not cached locally anymore (LRU evicted it, or disk cache is off): fetch the
         // full wallpaper record so we can display the real image, not just its thumbnail.
         engine.showStatus(i18n("Loading wallpaper #%1 from history…", id), "info");
-        engine.requestJson(Wallhaven.buildWallpaperUrl(id, cfg.ApiKey), function(json) {
+        engine.requestJson(Wallhaven.buildWallpaperUrl(id, root.effectiveApiKey), function(json) {
             if (!json.data) {
                 engine.showStatus(i18n("Could not load wallpaper #%1.", id), "error");
                 return;
@@ -1743,95 +1186,8 @@ WallpaperItem {
         root.configuration.WallpaperHistoryJson = "[]";
         wallpaperHistoryEntries = [];
         scheduleConfigWrite();
-        settingsFileWriter.writeFile(historyBusFile, "[]");
+        dbusHelper.writeFile(historyBusFile, "[]");
         engine.showStatus(i18n("Wallpaper history cleared."), "info");
-    }
-
-    function lockScreenImagePath(wallpaperId) {
-        return diskCacheDir + "/" + Wallhaven.lockScreenImageFileName(
-            wallpaperId || root._pendingWallpaperId || root.currentWallpaperId,
-        );
-    }
-
-    function syncLockScreenImage(localPath, wallpaperId) {
-        if (!cfg.SyncLockScreen || !localPath) {
-            return;
-        }
-        // Flock in buildLockScreenSyncCommand serializes multi-monitor writers.
-        // Do not gate on geometric "primary" — SyncLockScreen often lives only on
-        // a non-origin screen, and skipping there left the lock image stale forever.
-        var source = urlToLocalPath(localPath);
-        if (!source) {
-            lockScreenLastSyncOk = false;
-            lockScreenLastSyncAt = new Date().toISOString();
-            lockScreenLastSyncPath = "";
-            publishStatus();
-            return;
-        }
-        var dest = lockScreenImagePath(wallpaperId);
-        var command = Wallhaven.buildLockScreenSyncCommand(source, dest);
-        if (!command) {
-            lockScreenLastSyncOk = false;
-            lockScreenLastSyncAt = new Date().toISOString();
-            lockScreenLastSyncPath = dest;
-            publishStatus();
-            return;
-        }
-        var seq = ++root._lockSyncSeq;
-        var expectedId = String(wallpaperId || root._pendingWallpaperId || root.currentWallpaperId || "");
-        dbusHelper.runArgv(["bash", "-lc", command], function(reply) {
-            // A newer sync superseded this one (rapid next / overlapping callbacks).
-            if (seq !== root._lockSyncSeq) {
-                return;
-            }
-            var text = String(reply || "").trim();
-            lockScreenLastSyncOk = text === "ok";
-            lockScreenLastSyncAt = new Date().toISOString();
-            lockScreenLastSyncPath = dest;
-            publishStatus();
-            if (lockScreenLastSyncOk) {
-                root._lockSyncRetry = null;
-                logDebug("Lock screen synced → " + dest);
-                return;
-            }
-            logDebug("Lock screen sync failed → " + dest + " reply=" + text);
-            engine.showStatus(i18n("Lock screen sync failed."), "warn", false, { notify: false });
-            // One deferred retry for the same wallpaper id only (settling cache file).
-            var priorAttempts = 0;
-            if (root._lockSyncRetry && root._lockSyncRetry.id === expectedId) {
-                priorAttempts = root._lockSyncRetry.attempts || 0;
-            }
-            if (priorAttempts < 1) {
-                root._lockSyncRetry = { id: expectedId, path: source, attempts: priorAttempts + 1 };
-                lockSyncRetryTimer.restart();
-            } else {
-                root._lockSyncRetry = null;
-                // Last resort: repair from current mirror / any leftover file.
-                root.ensureLockScreenImage("sync-failed");
-            }
-        });
-    }
-
-    // Any monitor can repair a blank lock Image. Screens without SyncLockScreen
-    // mirror whatever the syncing monitor last published (current.jpg / leftovers).
-    function ensureLockScreenImage(reason) {
-        var command = Wallhaven.buildLockScreenEnsureCommand(diskCacheDir);
-        if (!command) {
-            return;
-        }
-        logDebug("ensureLockScreenImage(" + reason + ")");
-        dbusHelper.runArgv(["bash", "-lc", command], function(reply) {
-            var text = String(reply || "").trim();
-            if (text === "ok") {
-                lockScreenLastSyncOk = true;
-                lockScreenLastSyncAt = new Date().toISOString();
-                lockScreenLastSyncPath = diskCacheDir + "/" + Wallhaven.lockScreenCurrentFileName();
-                publishStatus();
-                logDebug("Lock screen ensure OK (" + reason + ")");
-            } else {
-                logDebug("Lock screen ensure failed (" + reason + ") reply=" + text);
-            }
-        });
     }
 
     function maybeSyncSidecars(img) {
@@ -1844,7 +1200,7 @@ WallpaperItem {
         var source = String(img.source || "");
         var wallpaperId = root._pendingWallpaperId || root.currentWallpaperId;
         if (source.indexOf("file:") === 0) {
-            var path = urlToLocalPath(source);
+            var path = Wallhaven.urlToLocalPath(source);
             syncLockScreenImage(path, wallpaperId);
             updateVarietySymlink(path);
             return;
@@ -1853,7 +1209,7 @@ WallpaperItem {
         // locking before the disk-cache write finishes still shows this wallpaper.
         // Disk-cache completion may refresh the lock image again at higher quality.
         if (cfg.SyncLockScreen) {
-            var dest = lockScreenImagePath(wallpaperId);
+            var dest = lockSync.lockScreenImagePath(wallpaperId);
             var captureId = String(wallpaperId || "");
             img.grabToImage(function(result) {
                 if (String(root._pendingWallpaperId || root.currentWallpaperId || "") !== captureId) {
@@ -1870,13 +1226,7 @@ WallpaperItem {
         if (!cfg.VarietySymlinkEnabled || !cfg.VarietyFolderPath || !localPath) {
             return;
         }
-        var folder = String(cfg.VarietyFolderPath).replace(/"/g, '\\"');
-        var source = localPath.replace(/"/g, '\\"');
-        dbusHelper.runArgv([
-            "bash", "-lc",
-            "mkdir -p '" + folder + "' && ln -sf '" + source + "' '"
-                + folder + "/" + Wallhaven.varietySymlinkName() + "'",
-        ]);
+        dbusHelper.linkVarietyCurrent(cfg.VarietyFolderPath, localPath);
     }
 
     function writePanelTint(hexColor, wallpaperId) {
@@ -1892,7 +1242,7 @@ WallpaperItem {
             }
         }
         if (cfg.PanelTintEnabled) {
-            settingsFileWriter.writeFile(
+            dbusHelper.writeFile(
                 panelTintFile,
                 Wallhaven.buildPanelTintMetadata(hexColor, wallpaperId, cfg.PanelBlurStrength),
                 (cfg.AutoPanelAccentEnabled || cfg.SystemThemeSyncEnabled) ? applyAccents : null,
@@ -1931,12 +1281,7 @@ WallpaperItem {
         if (!kdeColor) {
             return;
         }
-        var script = "kwriteconfig6 --file kdeglobals --group General --key AccentColor '" + kdeColor + "'; ";
-        if (gnomeAccent) {
-            script += "command -v gsettings >/dev/null 2>&1 && gsettings set org.gnome.desktop.interface accent-color "
-                + "'" + gnomeAccent + "' 2>/dev/null; true";
-        }
-        dbusHelper.runArgv(["bash", "-lc", script]);
+        dbusHelper.syncSystemAccent(kdeColor, gnomeAccent || "");
     }
 
     function applySmartColorFilter(hexColor) {
@@ -2041,169 +1386,6 @@ WallpaperItem {
         engine.showStatus(i18n("Offline mode applied (playlist / cache only, no network fetches)."), "info");
     }
 
-    function enterApiOutageOffline(statusCode, cooldownMs) {
-        root._apiOutageOffline = true;
-        engine.stopRetries();
-        var msg;
-        if (statusCode === 429) {
-            var cool = Wallhaven.rateLimitCooldownMs(cooldownMs);
-            root._rateLimitUntilMs = Math.max(root._rateLimitUntilMs, Date.now() + cool);
-            msg = i18n("Rate limited by Wallhaven. Using cache until it recovers.");
-            root.publishRateLimitLatch(cool, statusCode);
-        } else if (statusCode) {
-            msg = i18n("Wallhaven unreachable (%1). Using cache until it recovers.", statusCode);
-        } else {
-            msg = i18n("Using cache until Wallhaven recovers.");
-        }
-        if (!engine.tryOfflineFallback(msg)) {
-            engine.showStatus(msg, "error");
-        }
-        publishStatus();
-    }
-
-    function clearApiOutageOffline(resumeFetch, force) {
-        // Never clear while the hard rate-limit cooldown is still active —
-        // wallpaper detail /api/v1/w/{id} 200s used to clear soft-offline and
-        // immediately re-open search fetches. Explicit resumeonline may force.
-        if (!force && root.isRateLimitedNow()) {
-            return;
-        }
-        if (force) {
-            root._rateLimitUntilMs = 0;
-            clearRateLimitLatch();
-        }
-        if (!root._apiOutageOffline) {
-            return;
-        }
-        root._apiOutageOffline = false;
-        root._outageProbeFailCount = 0;
-        root._outageProbeAtMs = 0;
-        publishStatus();
-        // Never auto-resetSlideshow here. Favicon/connectivity used to clear the
-        // latch and immediately re-fetch, which caused wallpaper jumping + fresh
-        // 429 storms. Resume on the normal interval / explicit user action only.
-        if (resumeFetch && !cfg.OfflineOnlyMode && cfg.BrowseMode !== "playlist" && cfg.BrowseMode !== "local") {
-            engine.showStatus(i18n("Wallhaven is back — resuming on the next change."), "info");
-        }
-    }
-
-    // Quiet API probe while soft-offline from a non-429 outage. Favicon must never
-    // clear outage; only a real /api/v1 200 may. Backs off on repeated failures.
-    function maybeProbeApiOutageClear() {
-        if (!root._apiOutageOffline) {
-            return;
-        }
-        if (root.isRateLimitedNow()) {
-            return;
-        }
-        // A non-quiet 200 can land while the 429 latch still blocked clear —
-        // once the latch is gone, trust that success and leave soft-offline.
-        if (root._apiLastStatus === 200) {
-            clearApiOutageOffline(false);
-            engine.showStatus(i18n("Wallhaven is back — resuming on the next change."), "info");
-            return;
-        }
-        if (root._apiLastStatus === 429) {
-            return;
-        }
-        if (!root.configuration || cfg.OfflineOnlyMode
-                || cfg.BrowseMode === "playlist" || cfg.BrowseMode === "local") {
-            return;
-        }
-        var fails = root._outageProbeFailCount || 0;
-        var gapMs = Math.min(300000, 30000 * Math.pow(2, Math.min(fails, 3)));
-        var now = Date.now();
-        if (root._outageProbeAtMs > 0 && (now - root._outageProbeAtMs) < gapMs) {
-            return;
-        }
-        root._outageProbeAtMs = now;
-        var url = "https://wallhaven.cc/api/v1/search?categories=100&purity=100&page=1&sorting=date_added&order=desc";
-        var key = Wallhaven.sanitizeApiKey(cfg.ApiKey);
-        if (key) {
-            url += "&apikey=" + encodeURIComponent(key);
-        }
-        engine.requestJson(url, function(json) {
-            if (!root._apiOutageOffline) {
-                return;
-            }
-            if (root.isRateLimitedNow()) {
-                return;
-            }
-            if (!json || typeof json !== "object") {
-                root._outageProbeFailCount = fails + 1;
-                return;
-            }
-            root._outageProbeFailCount = 0;
-            // Quiet XHR success does not call noteApiResult — clear explicitly.
-            root._apiLastStatus = 200;
-            root._apiLastSuccessAt = new Date().toISOString();
-            root._apiLastError = "";
-            clearApiOutageOffline(false);
-            engine.showStatus(i18n("Wallhaven is back — resuming on the next change."), "info");
-            publishStatus();
-        }, function() {
-            root._outageProbeFailCount = (root._outageProbeFailCount || 0) + 1;
-        }, { quiet: true });
-    }
-
-    function publishRateLimitLatch(cooldownMs, statusCode) {
-        var cool = Wallhaven.rateLimitCooldownMs(cooldownMs);
-        root._rateLimitUntilMs = Math.max(root._rateLimitUntilMs, Date.now() + cool);
-        var untilMs = root._rateLimitUntilMs;
-        var payload = Wallhaven.buildRateLimitLatch(untilMs, statusCode || 429);
-        dbusHelper.writeFile(rateLimitBusFile, payload, function() {});
-    }
-
-    function clearRateLimitLatch() {
-        if (root.isRateLimitedNow()) {
-            return;
-        }
-        root._rateLimitUntilMs = 0;
-        dbusHelper.writeFile(rateLimitBusFile, "{\"untilMs\":0}", function() {});
-    }
-
-    function pollSharedRateLimit() {
-        dbusHelper.readFile(rateLimitBusFile, function(text) {
-            var latch = Wallhaven.parseRateLimitLatch(text);
-            var now = Date.now();
-            if (Wallhaven.rateLimitLatchActive(latch, now)) {
-                root._rateLimitUntilMs = Math.max(root._rateLimitUntilMs, latch.untilMs);
-                if (!root._apiOutageOffline) {
-                    root._apiOutageOffline = true;
-                    engine.stopRetries();
-                    if (!engine.tryOfflineFallback(
-                            i18n("Rate limited by Wallhaven. Using cache until it recovers."))) {
-                        engine.showStatus(
-                            i18n("Rate limited by Wallhaven. Using cache until it recovers."),
-                            "error",
-                        );
-                    }
-                    publishStatus();
-                }
-                return;
-            }
-            // Latch expired — allow online again without forcing a new fetch.
-            if (root._rateLimitUntilMs && now >= root._rateLimitUntilMs) {
-                root._rateLimitUntilMs = 0;
-            }
-            // A detail/search 200 can arrive while the latch still blocked
-            // clearApiOutageOffline — once the latch is gone, leave soft-offline
-            // for both prior-429 and already-healthy (200) states.
-            if (Wallhaven.shouldClearSoftOutage(
-                    root._apiOutageOffline, root._apiLastStatus, root.isRateLimitedNow())) {
-                clearApiOutageOffline(false);
-            }
-        });
-    }
-
-    function setCacheEntryTags(id, tags) {
-        if (!id) {
-            return;
-        }
-        Wallhaven.setDiskCacheTags(_diskCacheIndex, id, tags);
-        persistDiskCacheIndex();
-    }
-
     function useScreenNameAsSyncGroup() {
         if (!root.configuration) {
             return;
@@ -2250,84 +1432,21 @@ WallpaperItem {
         root.sendSystemNotification(i18n("Wallpaper info"), details, false);
     }
 
-    function saveApiKeyToKWallet() {
-        var key = String(cfg.ApiKey || "").trim();
-        if (!key) {
-            engine.showStatus(i18n("Enter an API key first."), "warn");
-            return;
-        }
-        var escaped = key.replace(/'/g, "'\\''");
-        dbusHelper.runArgv([
-            "bash", "-lc",
-            // kwallet-query [options] <wallet>: -w names the entry, the wallet is positional.
-            "printf '%s' '" + escaped + "' | kwallet-query -w apikey -f org.robertsm.wallhaven kdewallet 2>/dev/null",
-        ], function() {
-            if (root.configuration) {
-                root.configuration.UseKWalletForApiKey = true;
-                scheduleConfigWrite();
-            }
-            engine.showStatus(i18n("API key saved to KWallet (folder org.robertsm.wallhaven)."), "info");
-        });
+    // `key` is the one typed in the settings dialog (not applied yet); callback(ok).
+    function saveApiKeyToKWallet(key, callback) {
+        apiKeys.save(key, callback);
     }
 
-    function noteApiResult(status, errorText) {
-        root._apiLastStatus = status || 0;
-        root._apiLastError = String(errorText || "");
-        if (status === 429) {
-            root._apiRateLimitCount = (root._apiRateLimitCount || 0) + 1;
-            root._apiLastRateLimitAt = new Date().toISOString();
-            _metrics = Wallhaven.recordRateLimitMetrics(_metrics);
-        } else if (status === 200) {
-            root._apiLastSuccessAt = new Date().toISOString();
-            root._apiLastError = "";
-            if (root.configuration) {
-                root.configuration.ApiKeyValid = !!Wallhaven.sanitizeApiKey(cfg.ApiKey);
-            }
-            // Clear soft-offline without forcing a new slideshow reset/fetch.
-            clearApiOutageOffline(false);
-            clearRateLimitLatch();
-        } else if (status === 401 || status === 403) {
-            if (root.configuration) {
-                root.configuration.ApiKeyValid = false;
-            }
-            // Auth errors are not outages — keep online path so user can clear the key.
-            var keyHint = Wallhaven.apiKeyLastFour(cfg.ApiKey);
-            engine.showStatus(
-                keyHint
-                    ? i18n("Wallhaven rejected API key (…%1). Clear or re-enter it.", keyHint)
-                    : i18n("Wallhaven unauthorized (%1). Check API key / NSFW settings.", status),
-                "error",
-            );
-            // Still paint something when the current frame is missing/broken.
-            if (!root.wallpaperIsVisible()) {
-                if (!engine.tryOfflineFallback(i18n("Using cached wallpaper while API key is fixed."))) {
-                    root.bootstrapWallpaperFromCache();
-                }
-            }
-        }
-        publishStatus();
+    function loadApiKeyFromKWallet() {
+        apiKeys.load();
     }
 
     function clearApiKey(keepWallet) {
-        if (!root.configuration) {
-            return;
-        }
-        root.configuration.ApiKey = "";
-        root.configuration.ApiKeyValid = false;
-        if (!keepWallet) {
-            root.configuration.UseKWalletForApiKey = false;
-            root._walletStatus = "disabled";
-        }
-        scheduleConfigWrite();
-        engine.showStatus(i18n("API key cleared."), "info");
-        publishStatus();
-        if (!root.effectiveOfflineOnly()) {
-            engine.resetSlideshow();
-        }
+        apiKeys.clear(keepWallet);
     }
 
     function testApiKeyNow(callback) {
-        var key = Wallhaven.sanitizeApiKey(cfg.ApiKey);
+        var key = root.effectiveApiKey;
         if (!key) {
             engine.showStatus(i18n("Enter an API key first."), "warn");
             if (callback)
@@ -2342,12 +1461,12 @@ WallpaperItem {
             return;
         }
         engine.requestJson(url, function() {
-            root.noteApiResult(200, "");
+            apiState.noteApiResult(200, "");
             engine.showStatus(i18n("API key is valid."), "info");
             if (callback)
                 callback(true, 200);
         }, function(status) {
-            root.noteApiResult(status || 0, "key test failed");
+            apiState.noteApiResult(status || 0, "key test failed");
             if (callback)
                 callback(false, status || 0);
         });
@@ -2355,39 +1474,130 @@ WallpaperItem {
 
     function exportDebugBundleToFile(destUrl) {
         getDebugInfo(function(info) {
-            var dest = urlToLocalPath(destUrl) || String(destUrl || "");
+            var dest = Wallhaven.urlToLocalPath(destUrl) || String(destUrl || "");
             if (!dest) {
                 engine.showStatus(i18n("Invalid export path."), "warn");
                 return;
             }
-            settingsFileWriter.writeFile(dest, info, function() {
+            dbusHelper.writeFile(dest, info, function() {
                 engine.showStatus(i18n("Exported bug report bundle."), "info");
             });
         });
     }
 
     function isDbusServiceAvailable() {
-        // Every other D-Bus call in this file goes through the async
-        // dbusMessage()+asyncCall() pattern (see dbusAvailabilityLoader.poll()
-        // below, or musicReactiveLoader.poll()) because QML cannot block on IPC.
-        // This used to call PDBus.SessionBus.nameHasOwner(...) directly as if it
-        // were a synchronous getter, which isn't part of that API — the check
-        // silently always evaluated as unavailable, so the "D-Bus service is not
-        // running" banner and the Variety buttons stayed stuck in the offline
-        // state even with `systemctl --user status wallhaven-dbus.service`
-        // showing it active. Read the periodically-refreshed cached result instead.
         return root.dbusServiceAvailable;
     }
 
-    // Bindable properties (upscalerStatusKnown / upscalerAvailable) are the
-    // source of truth. QML does not re-run these getters when the async poll
-    // finishes, so settings must bind the properties rather than call these.
-    function isUpscalerAvailable() {
-        return root.upscalerAvailable;
+    function setServiceAvailable(available) {
+        var was = root.dbusServiceAvailable;
+        root.dbusServiceAvailable = available;
+        if (!available) {
+            root.upscalerBinaryPath = "";
+            root.upscalerStatusKnown = true;
+            return;
+        }
+        dbusHelper.checkUpscalerAvailable(function(binaryPath) {
+            root.upscalerBinaryPath = binaryPath || "";
+            root.upscalerStatusKnown = true;
+        });
+        if (!was && root._configured) {
+            // The helper (re)appeared: everything that needed it can catch up.
+            root.publishStatus();
+            controlBus.pollControl();
+            if (cfg.UseKWalletForApiKey && root.walletStatus !== "loaded") {
+                apiKeys.load();
+            }
+        }
     }
 
-    function isUpscalerStatusKnown() {
-        return root.upscalerStatusKnown;
+    // With bus signals the service's name owner is watched; otherwise ping.
+    function refreshServiceAvailability() {
+        if (controlBus.signalsActive) {
+            setServiceAvailable(controlBus.serviceRegistered);
+            return;
+        }
+        dbusHelper.ping(function() {
+            setServiceAvailable(true);
+        }, function() {
+            setServiceAvailable(false);
+        });
+    }
+
+    // Screen lock state arrives by signal (or the resume watchdog's poll).
+    // Unlocking is treated like a wake: textures are often gone.
+    function noteScreenLocked(locked) {
+        locked = !!locked;
+        if (root._wasScreenLocked && !locked) {
+            root.recoverAfterWake("unlock");
+        }
+        root._wasScreenLocked = locked;
+        if (root._screenLocked !== locked) {
+            root._screenLocked = locked;
+            root.evaluateSlideshowRules();
+        }
+    }
+
+    function showStatus(message, type, autoHide, opts) {
+        engine.showStatus(message, type, autoHide, opts);
+    }
+
+    // ---- thin entry points into the components. The settings dialog reaches
+    // the wallpaper as `liveWallpaper.<name>`, and components call each other
+    // through the root (`host.<name>`) rather than by id.
+
+    function syncLockScreenImage(localPath, wallpaperId) {
+        lockSync.syncLockScreenImage(localPath, wallpaperId);
+    }
+
+    function ensureLockScreenImage(reason) {
+        lockSync.ensureLockScreenImage(reason);
+    }
+
+    function enterApiOutageOffline(statusCode, cooldownMs) {
+        apiState.enterApiOutageOffline(statusCode, cooldownMs);
+    }
+
+    function clearApiOutageOffline(resumeFetch, force) {
+        apiState.clearApiOutageOffline(resumeFetch, force);
+    }
+
+    function getCacheEntries() {
+        return diskCache.getCacheEntries();
+    }
+
+    function pinCacheId(id) {
+        diskCache.pinCacheId(id);
+    }
+
+    function unpinCacheId(id) {
+        diskCache.unpinCacheId(id);
+    }
+
+    function evictCacheId(id) {
+        diskCache.evictCacheId(id);
+    }
+
+    function setCacheEntryTags(id, tags) {
+        diskCache.setCacheEntryTags(id, tags);
+    }
+
+    function clearDiskCache() {
+        diskCache.clearDiskCache();
+    }
+
+    function pruneUnpinnedCache(keepSlots) {
+        return diskCache.pruneUnpinnedCache(keepSlots);
+    }
+
+    function reupscaleCachedWallpapers() {
+        diskCache.reupscaleCachedWallpapers();
+    }
+
+    function clearPreloads() {
+        preloadImage.source = "";
+        preloadImage2.source = "";
+        engine.nextPreloadedUrl = "";
     }
 
     function varietyConfigPath() {
@@ -2446,6 +1656,7 @@ WallpaperItem {
         var group = String(cfg.SyncAdvanceGroup || "default").trim() || "default";
         var profiles = Wallhaven.parseSyncProfiles(cfg.SyncProfilesJson || "{}");
         profiles[group] = engine.configObject();
+        delete profiles[group].ApiKey;
         root.configuration.SyncProfilesJson = Wallhaven.serializeSyncProfiles(profiles);
         scheduleConfigWrite();
         engine.showStatus(i18n("Saved search profile for sync group \"%1\".", group), "info");
@@ -2520,58 +1731,12 @@ WallpaperItem {
         return Wallhaven.pickTransitionMode(cfg);
     }
 
-    function pinnedCacheIds() {
-        return Wallhaven.parsePinnedCacheIds(cfg.PinnedCacheIdsJson || "[]");
-    }
-
     function logDebug(message) {
         if (!cfg.DebugLogEnabled) {
             return;
         }
         var line = new Date().toISOString() + " " + String(message || "");
-        debugLogWriter.appendLine(line);
-    }
-
-    function getCacheEntries() {
-        return Wallhaven.listCacheEntries(_diskCacheIndex, pinnedCacheIds());
-    }
-
-    function pinCacheId(id) {
-        id = String(id || "").trim();
-        if (!id || !root.configuration) {
-            return;
-        }
-        var ids = pinnedCacheIds();
-        if (ids.indexOf(id) === -1) {
-            ids.push(id);
-            root.configuration.PinnedCacheIdsJson = Wallhaven.serializePinnedCacheIds(ids);
-            scheduleConfigWrite();
-        }
-    }
-
-    function unpinCacheId(id) {
-        id = String(id || "").trim();
-        if (!id || !root.configuration) {
-            return;
-        }
-        var ids = pinnedCacheIds().filter(function(entry) { return entry !== id; });
-        root.configuration.PinnedCacheIdsJson = Wallhaven.serializePinnedCacheIds(ids);
-        scheduleConfigWrite();
-    }
-
-    function evictCacheId(id) {
-        id = String(id || "").trim();
-        if (!id || pinnedCacheIds().indexOf(id) !== -1) {
-            return;
-        }
-        var slot = Wallhaven.diskCacheSlotForId(_diskCacheIndex, id);
-        if (slot >= 0) {
-            Wallhaven.evictDiskCacheOccupant(_diskCacheIndex, id);
-            _diskCacheIndex.ids[slot] = "";
-            persistDiskCacheIndex();
-            dbusHelper.runArgv(["rm", "-f", diskCacheLocalPath(slot)]);
-            logDebug("Evicted cache id " + id);
-        }
+        dbusHelper.appendFile(debugLogFile, line);
     }
 
     function buildDebugBundleText(logTail) {
@@ -2644,46 +1809,15 @@ WallpaperItem {
         });
     }
 
-    function writeControlCommand(cmd) {
-        if (!cfg.ControlBusEnabled) {
-            return;
-        }
-        settingsFileWriter.writeFile(
-            controlBusFile,
-            Wallhaven.buildControlCommand(cmd, cfg.SyncAdvanceGroup || "default"),
-        );
-    }
-
-    function pollControlBus() {
-        if (!cfg.ControlBusEnabled) {
-            return;
-        }
-        controlBusLoader.load(controlBusFile);
-    }
-
-    function broadcastSyncAdvance() {
-        if (!cfg.SyncAdvanceEnabled) {
-            return;
-        }
-        settingsFileWriter.writeFile(syncAdvanceFile(), Wallhaven.buildSyncAdvance(_instanceId));
-    }
-
-    function pollSyncAdvance() {
-        if (!cfg.SyncAdvanceEnabled) {
-            return;
-        }
-        syncAdvanceLoader.load(syncAdvanceFile());
-    }
-
     function writeVarietyMetadata(wallpaper, imageUrl) {
         if (!cfg.VarietyMetadataEnabled) {
             return;
         }
-        var localPath = resolveImageSource(wallpaper, imageUrl);
+        var localPath = diskCache.resolveImageSource(wallpaper, imageUrl);
         if (localPath.indexOf("file:") === 0) {
-            localPath = urlToLocalPath(localPath);
+            localPath = Wallhaven.urlToLocalPath(localPath);
         }
-        settingsFileWriter.writeFile(
+        dbusHelper.writeFile(
             varietyMetadataFile,
             Wallhaven.buildVarietyMetadata(wallpaper, imageUrl, localPath),
         );
@@ -2691,25 +1825,9 @@ WallpaperItem {
 
     function exportSettingsToFile(destUrl) {
         var json = Wallhaven.exportSettingsSnapshot(cfg);
-        settingsFileWriter.writeFile(settingsExportFile, json, function() {
-            dbusHelper.runArgv(["cp", settingsExportFile, urlToLocalPath(destUrl)]);
+        dbusHelper.writeFile(settingsExportFile, json, function() {
+            dbusHelper.runArgv(["cp", settingsExportFile, Wallhaven.urlToLocalPath(destUrl)]);
             engine.showStatus(i18n("Settings exported."), "info");
-        });
-    }
-
-    function loadApiKeyFromKWallet() {
-        if (!cfg.UseKWalletForApiKey) {
-            root._walletStatus = "disabled";
-            return;
-        }
-        root._walletLoadAttempted = true;
-        var tmp = urlToLocalPath(diskCacheDir + "/kwallet-apikey.txt");
-        dbusHelper.runArgv([
-            "bash", "-lc",
-            "kwallet-query -r apikey -f org.robertsm.wallhaven kdewallet > '"
-                + tmp.replace(/'/g, "'\\''") + "' 2>/dev/null",
-        ], function() {
-            kwalletReadLoader.read(tmp);
         });
     }
 
@@ -2747,7 +1865,8 @@ WallpaperItem {
         xhr.open("HEAD", "https://wallhaven.cc/favicon.ico");
         xhr.timeout = 8000;
         xhr.onreadystatechange = function() {
-            if (xhr.readyState !== XMLHttpRequest.DONE) {
+            // The reply can arrive after the wallpaper item was destroyed.
+            if (xhr.readyState !== XMLHttpRequest.DONE || !engine) {
                 return;
             }
             var online = xhr.status >= 200 && xhr.status < 400;
@@ -2759,9 +1878,9 @@ WallpaperItem {
             // returning 429; clearing here used to resetSlideshow every 45s and
             // burn through wallpapers. Recovery is latch expiry, a real API 200,
             // or maybeProbeApiOutageClear for non-429 soft-offline.
-            root.pollSharedRateLimit();
+            apiState.pollSharedRateLimit();
             if (online) {
-                root.maybeProbeApiOutageClear();
+                apiState.maybeProbeApiOutageClear();
             }
             if (!online && _connectivityOnline) {
                 _needsReconnectFetch = true;
@@ -2773,6 +1892,9 @@ WallpaperItem {
             }
         };
         xhr.onerror = function() {
+            if (!engine) {
+                return;
+            }
             if (_connectivityOnline) {
                 _needsReconnectFetch = true;
             }
@@ -2799,7 +1921,7 @@ WallpaperItem {
             if (!remote || remote.indexOf("http") !== 0) {
                 remote = Wallhaven.thumbUrlForId(String(wallpaper.id));
             }
-            var resolved = resolveImageSource(wallpaper, remote);
+            var resolved = diskCache.resolveImageSource(wallpaper, remote);
             if (!resolved) {
                 return false;
             }
@@ -2970,7 +2092,7 @@ WallpaperItem {
     }
 
     function saveCurrentWallpaper(destUrl) {
-        var destPath = urlToLocalPath(destUrl);
+        var destPath = Wallhaven.urlToLocalPath(destUrl);
         if (!destPath) {
             engine.showStatus(i18n("Could not save wallpaper."), "error");
             return;
@@ -3033,7 +2155,7 @@ WallpaperItem {
                 root._pendingSyncAdvanceAt = 0;
                 Qt.callLater(function() {
                     if (!busy) {
-                        root.handleControlCommand(pending);
+                        controlBus.handleControlCommand(pending);
                     } else {
                         root._pendingControlCmd = pending;
                     }
@@ -3145,8 +2267,8 @@ WallpaperItem {
                         var slot = Wallhaven.allocateDiskCacheSlot(
                             root._diskCacheIndex,
                             id,
-                            root.diskCacheMaxSlots(),
-                            root.pinnedCacheIds(),
+                            diskCache.diskCacheMaxSlots(),
+                            diskCache.pinnedCacheIds(),
                             wp.category || "",
                             wp.purity || "",
                         );
@@ -3160,7 +2282,7 @@ WallpaperItem {
                             wp.dimension_x,
                             wp.dimension_y,
                         );
-                        var path = root.diskCacheLocalPath(slot);
+                        var path = diskCache.diskCacheLocalPath(slot);
                         var url = Wallhaven.wallpaperUrl(wp, cfg.ImageQuality);
                         showStatus(i18n("Warming… %1 / %2", warmed + 1, count), "info");
                         dbusHelper.runArgv([
@@ -3174,7 +2296,7 @@ WallpaperItem {
                             var text = String(reply || "").trim();
                             if (text !== "ok") {
                                 Wallhaven.releaseDiskCacheId(root._diskCacheIndex, id);
-                                root.persistDiskCacheIndex();
+                                diskCache.persistDiskCacheIndex();
                                 skipped++;
                                 step();
                                 return;
@@ -3190,14 +2312,14 @@ WallpaperItem {
                                 var sizeOk = String(sizeReply || "").trim();
                                 if (sizeOk !== "ok") {
                                     Wallhaven.releaseDiskCacheId(root._diskCacheIndex, id);
-                                    root.persistDiskCacheIndex();
+                                    diskCache.persistDiskCacheIndex();
                                     skipped++;
                                     step();
                                     return;
                                 }
                                 warmed++;
                                 root._warmDone = warmed;
-                                root.persistDiskCacheIndex();
+                                diskCache.persistDiskCacheIndex();
                                 root.publishStatus();
                                 step();
                             });
@@ -3294,7 +2416,7 @@ WallpaperItem {
             favoritesId = "";
             nextPreloadedUrl = "";
             cachedApiPage = 0;
-            if (root.isRateLimitedNow() || root._apiOutageOffline) {
+            if (apiState.isRateLimitedNow() || root._apiOutageOffline) {
                 // Stay on the current frame during cooldown — advancing cache on
                 // every reset was the visible "jump through wallpapers" symptom.
                 if (!root.wallpaperIsVisible()) {
@@ -3309,7 +2431,7 @@ WallpaperItem {
             if (root.effectiveOfflineOnly()) {
                 // Prefer holding the current image during soft-offline; only pull
                 // from cache when the screen would otherwise be empty.
-                if (root.wallpaperIsVisible() && (root.isRateLimitedNow() || root._apiOutageOffline)) {
+                if (root.wallpaperIsVisible() && (apiState.isRateLimitedNow() || root._apiOutageOffline)) {
                     return;
                 }
                 showOfflineWallpaper(fromHistory, true);
@@ -3399,7 +2521,8 @@ WallpaperItem {
         function configObject() {
             return {
                 SearchText: cfg.SearchText,
-                ApiKey: cfg.ApiKey,
+                // Not cfg.ApiKey: with KWallet the key is only held in memory.
+                ApiKey: root.effectiveApiKey,
                 BrowseMode: cfg.BrowseMode,
                 CollectionUser: cfg.CollectionUser,
                 CollectionId: cfg.CollectionId,
@@ -3560,11 +2683,11 @@ WallpaperItem {
                 finishXhr();
                 // Attribution/detail probes must not drive search outage / latch state.
                 if (!quiet) {
-                    root.noteApiResult(status, text);
+                    apiState.noteApiResult(status, text);
                 } else if (status === 429) {
                     // Still honor rate limits discovered via detail fetches.
-                    root.noteApiResult(429, text);
-                    root.enterApiOutageOffline(429, rateDelayMs);
+                    apiState.noteApiResult(429, text);
+                    apiState.enterApiOutageOffline(429, rateDelayMs);
                 }
                 if (status === 0) {
                     root._needsReconnectFetch = true;
@@ -3580,7 +2703,7 @@ WallpaperItem {
                 settled = true;
                 finishXhr();
                 if (!quiet) {
-                    root.noteApiResult(200, "");
+                    apiState.noteApiResult(200, "");
                 }
                 onSuccess(json);
             }
@@ -3692,7 +2815,7 @@ WallpaperItem {
 
             // Soft-offline (rate-limit / outage latch) must short-circuit here too —
             // otherwise warmCache and resume paths keep hitting /api/v1.
-            if (root.isRateLimitedNow() || root._apiOutageOffline || config.OfflineOnlyMode
+            if (apiState.isRateLimitedNow() || root._apiOutageOffline || config.OfflineOnlyMode
                     || config.BrowseMode === "playlist"
                     || config.BrowseMode === "local"
                     || (config.MeteredCacheOnly && root.meteredConnection)) {
@@ -3780,7 +2903,7 @@ WallpaperItem {
                     // Hard outages: stop hammering Wallhaven and stay on cache.
                     if (status === 502 || status === 503 || status === 504) {
                         root._retryOnDone = null;
-                        root.enterApiOutageOffline(status);
+                        apiState.enterApiOutageOffline(status);
                         endBusy();
                         return;
                     }
@@ -3790,7 +2913,7 @@ WallpaperItem {
                     if (status === 429) {
                         root._retryOnDone = null;
                         root._fetchRetryCount = 0;
-                        root.enterApiOutageOffline(429, rateDelayMs);
+                        apiState.enterApiOutageOffline(429, rateDelayMs);
                         endBusy();
                         return;
                     }
@@ -3800,7 +2923,7 @@ WallpaperItem {
                     if (root._fetchRetryCount > maxAttempts) {
                         root._retryOnDone = null;
                         if (status === 0 || status >= 500) {
-                            root.enterApiOutageOffline(status);
+                            apiState.enterApiOutageOffline(status);
                             endBusy();
                             return;
                         }
@@ -3866,7 +2989,13 @@ WallpaperItem {
             root.wallpaperDetailsText = "";
             root.syncPreviewMetadata(wallpaper);
 
-            if (!cfg.ShowAttribution && !cfg.ApiKey) {
+            // Cache-only modes make no requests; the tags saved with the
+            // cached file keep copy-tags / like / dislike working.
+            if (root.effectiveOfflineOnly()) {
+                root._currentTags = Wallhaven.diskCacheTagsForId(root._diskCacheIndex, wallpaper.id);
+                return;
+            }
+            if (!cfg.ShowAttribution && !root.effectiveApiKey) {
                 return;
             }
             fetchWallpaperDetails(wallpaper, null);
@@ -3881,15 +3010,16 @@ WallpaperItem {
                 }
             };
             // Do not probe /w/{id} while rate-limited — those calls were clearing
-            // the shared latch on 200 and accelerating the 429 storm.
-            if (!wallpaper || !wallpaper.id || root.isRateLimitedNow() || root._apiOutageOffline) {
+            // the shared latch on 200 and accelerating the 429 storm. Nor in any
+            // other cache-only mode (offline only, playlist, trip, metered).
+            if (!wallpaper || !wallpaper.id || root.effectiveOfflineOnly()) {
                 done();
                 return;
             }
             var resolution = wallpaper.resolution || (wallpaper.dimension_x + "x" + wallpaper.dimension_y);
             var link = wallpaper.url || ("https://wallhaven.cc/w/" + wallpaper.id);
 
-            requestJson(Wallhaven.buildWallpaperUrl(wallpaper.id, cfg.ApiKey), function(json) {
+            requestJson(Wallhaven.buildWallpaperUrl(wallpaper.id, root.effectiveApiKey), function(json) {
                 // A slow reply must not stamp its tags onto a newer wallpaper.
                 if (!json.data || !root.currentWallpaper || String(root.currentWallpaper.id) !== String(wallpaper.id)) {
                     done();
@@ -3928,7 +3058,7 @@ WallpaperItem {
             root.currentWallpaper = wallpaper;
             root._pendingRemoteUrl = url;
             root._pendingWallpaperId = wallpaper && wallpaper.id ? String(wallpaper.id) : "";
-            var source = root.resolveImageSource(wallpaper, url);
+            var source = diskCache.resolveImageSource(wallpaper, url);
             if (!source) {
                 // Soft-offline with no local file — caller should pick another id.
                 return false;
@@ -4029,7 +3159,7 @@ WallpaperItem {
                 var remote = Wallhaven.thumbUrlForId(id);
                 // Probe resolve before committing history / status — soft-offline
                 // skips ids that have no local file instead of painting a remote URL.
-                if (!root.resolveImageSource(wp, remote)) {
+                if (!diskCache.resolveImageSource(wp, remote)) {
                     markSeen(id);
                     continue;
                 }
@@ -4102,7 +3232,7 @@ WallpaperItem {
                 endBusy();
                 return;
             }
-            dbusHelper.listImageFiles(folder, function(raw) {
+            dbusHelper.listImageFiles(folder, cfg.LocalFolderMaxDepth, cfg.LocalFolderExclude, function(raw) {
                 var paths = [];
                 try {
                     paths = Wallhaven.listLocalImagePaths(
@@ -4170,7 +3300,7 @@ WallpaperItem {
             } else {
                 root.reloadCurrentImage();
             }
-            if (root.isRateLimitedNow() || root._apiOutageOffline) {
+            if (apiState.isRateLimitedNow() || root._apiOutageOffline) {
                 return;
             }
             // Soft online refresh once a frame is on screen.
@@ -4212,7 +3342,7 @@ WallpaperItem {
             var urls = [];
             for (var i = 0; i < ahead.length; i++) {
                 var remote = Wallhaven.wallpaperUrl(ahead[i], cfg.ImageQuality);
-                var source = root.resolveImageSource(ahead[i], remote);
+                var source = diskCache.resolveImageSource(ahead[i], remote);
                 if (source && urls.indexOf(source) === -1) {
                     urls.push(source);
                 }
@@ -4261,7 +3391,7 @@ WallpaperItem {
             root.loading = false;
             // Followers must not rebroadcast — that ping-ponged sync ticks forever.
             if (Wallhaven.shouldBroadcastSyncAdvance(fromSync)) {
-                root.broadcastSyncAdvance();
+                controlBus.broadcastSyncAdvance();
             }
             maybeAdvanceCollectionRotation();
             if (root.effectiveOfflineOnly()) {
@@ -4595,7 +3725,7 @@ WallpaperItem {
             root._imageLoadStartedMs = 0;
             root.tryStartPendingTransition();
             scheduleConfigPreviewCapture();
-            scheduleDiskCacheSave(img);
+            diskCache.scheduleDiskCacheSave(img);
             maybeSyncSidecars(img);
             return;
         }
@@ -4611,7 +3741,7 @@ WallpaperItem {
             if (slot >= 0 && _diskCacheIndex.ids) {
                 Wallhaven.evictDiskCacheOccupant(_diskCacheIndex, _pendingWallpaperId);
                 _diskCacheIndex.ids[slot] = "";
-                persistDiskCacheIndex();
+                diskCache.persistDiskCacheIndex();
             }
             // Soft-offline / rate-limit: never fall back to a remote thumb — that
             // fails under 429 and used to skip through the entire cache in seconds.
@@ -4772,193 +3902,20 @@ WallpaperItem {
         height: 1
     }
 
-    QtObject {
-        id: cacheFileDeleter
-        property var pendingPaths: []
-
-        function deletePaths(paths) {
-            pendingPaths = paths || [];
-            deleteNext();
-        }
-
-        function deleteNext() {
-            if (!pendingPaths.length) {
-                return;
-            }
-            var path = pendingPaths.shift();
-            dbusHelper.runArgv(["rm", "-f", path], deleteNext);
-        }
+    // Fallback for Plasma builds without D-Bus signal watchers (see ControlBus).
+    Timer {
+        id: dbusAvailabilityTimer
+        interval: 5000
+        running: root._configured && !controlBus.signalsActive
+        repeat: true
+        onTriggered: root.refreshServiceAvailability()
     }
 
-    QtObject {
-        id: dbusHelper
-
-        function wallhavenNormalizeSignature(signature) {
-            var sig = String(signature || "").trim();
-            if (!sig)
-                return "";
-            // Plasma's D-Bus encoder expects parenthesized signatures, e.g. "(ss)".
-            if (sig.charAt(0) !== "(")
-                sig = "(" + sig + ")";
-            return sig;
-        }
-
-        function wallhavenTypedArgs(signature, args) {
-            // Prefer typed wrappers when available; fall back to plain values.
-            var out = [];
-            var sig = String(signature || "").replace(/[()]/g, "");
-            var list = args || [];
-            var ai = 0;
-            var hasStringCtor = typeof PDBus.string === "function";
-            var hasBoolCtor = typeof PDBus.bool === "function";
-            for (var i = 0; i < sig.length && ai < list.length; i++) {
-                var ch = sig.charAt(i);
-                var value = list[ai++];
-                if (ch === "s" && hasStringCtor)
-                    out.push(new PDBus.string(String(value == null ? "" : value)));
-                else if (ch === "b" && hasBoolCtor)
-                    out.push(new PDBus.bool(!!value));
-                else
-                    out.push(value);
-            }
-            while (ai < list.length)
-                out.push(list[ai++]);
-            return out;
-        }
-
-        function wallhavenMessage(member, signature, args, callback) {
-            var normalized = wallhavenNormalizeSignature(signature);
-            var msg = new PDBus.dbusMessage({
-                service: "org.robertsm.Wallhaven",
-                path: "/Wallhaven",
-                iface: "org.robertsm.Wallhaven",
-                member: member,
-                signature: normalized,
-                arguments: wallhavenTypedArgs(normalized, args),
-            });
-            PDBus.SessionBus.asyncCall(msg, function(reply) {
-                if (callback)
-                    callback(reply);
-            }, function(err) {
-                var detail = "";
-                try {
-                    if (err && err.error)
-                        detail = String(err.error.message || err.error.name || "");
-                    else if (err && err.message)
-                        detail = String(err.message);
-                } catch (e) {}
-                console.warn("Wallhaven D-Bus call failed:", member, detail || err);
-                if (callback)
-                    callback("");
-            });
-        }
-
-        function writeFile(path, text, callback) {
-            wallhavenMessage("WriteTextFile", "ss", [urlToLocalPath(path), text || ""], function(reply) {
-                if (callback)
-                    callback(Wallhaven.dbusReplyAsString(reply));
-            });
-        }
-
-        function readFile(path, callback) {
-            wallhavenMessage("ReadTextFile", "s", [urlToLocalPath(path)], function(reply) {
-                if (callback)
-                    callback(Wallhaven.dbusReplyAsString(reply));
-            });
-        }
-
-        function appendFile(path, line, callback) {
-            wallhavenMessage("AppendTextFile", "ss", [urlToLocalPath(path), line || ""], function(reply) {
-                if (callback)
-                    callback(Wallhaven.dbusReplyAsString(reply));
-            });
-        }
-
-        function runArgv(argv, callback) {
-            var cleaned = [];
-            for (var i = 0; i < (argv || []).length; i++) {
-                var arg = String(argv[i] == null ? "" : argv[i]);
-                // Never pass file:// URLs to shell tools (cp, bash redirects, etc.).
-                if (arg.indexOf("file://") === 0 || arg.indexOf("file:") === 0)
-                    arg = urlToLocalPath(arg);
-                cleaned.push(arg);
-            }
-            wallhavenMessage("RunArgv", "s", [JSON.stringify(cleaned)], function(reply) {
-                if (callback)
-                    callback(Wallhaven.dbusReplyAsString(reply));
-            });
-        }
-
-        function listImageFiles(folder, callback) {
-            var options = JSON.stringify({
-                maxDepth: Math.max(0, Math.min(8, parseInt(cfg.LocalFolderMaxDepth, 10) || 3)),
-                exclude: String(cfg.LocalFolderExclude || ""),
-            });
-            wallhavenMessage("ListImageFiles", "ss", [folder || "", options], function(reply) {
-                if (callback) {
-                    callback(Wallhaven.dbusReplyAsString(reply));
-                }
-            });
-        }
-
-        // callback(binaryPath) -- binaryPath is "" when no upscaler is installed
-        // or the D-Bus method fails (old service, missing binary, etc.).
-        function checkUpscalerAvailable(callback) {
-            var done = function(reply) {
-                if (callback) {
-                    callback(Wallhaven.dbusReplyAsString(reply));
-                }
-            };
-            var msg = new PDBus.dbusMessage({
-                service: "org.robertsm.Wallhaven",
-                path: "/Wallhaven",
-                iface: "org.robertsm.Wallhaven",
-                member: "UpscalerAvailable",
-                signature: "",
-                arguments: [],
-            });
-            PDBus.SessionBus.asyncCall(msg, done, function() {
-                done("");
-            });
-        }
-
-        // callback(ok) -- ok is false on any failure (not installed, timed out,
-        // tool errored); callers should just keep using the plain-scaled image.
-        function upscale(inputPath, outputPath, callback) {
-            wallhavenMessage("Upscale", "ss", [inputPath, outputPath], callback);
-        }
-    }
-
-    QtObject {
-        id: settingsFileWriter
-        function writeFile(path, text, callback) {
-            dbusHelper.writeFile(path, text, callback);
-        }
-    }
-
-    QtObject {
-        id: kwalletReadLoader
-        function read(tmpPath) {
-            dbusHelper.readFile(tmpPath, function(reply) {
-                if (!root.configuration) {
-                    return;
-                }
-                var key = Wallhaven.sanitizeApiKey(reply);
-                if (key) {
-                    root.configuration.ApiKey = key;
-                    root._walletStatus = "loaded";
-                    scheduleConfigWrite();
-                } else if (root._walletLoadAttempted) {
-                    root._walletStatus = "missing";
-                }
-                publishStatus();
-            });
-        }
-    }
-
+    // Heartbeat only: every real change publishes immediately. The plasmoid
+    // treats a status older than 90 s as "engine idle?".
     Timer {
         id: statusPublishTimer
-        interval: 5000
+        interval: 30000
         running: root._configured
         repeat: true
         onTriggered: {
@@ -4972,219 +3929,7 @@ WallpaperItem {
                 engine.showStatus(i18n("Trip mode ended."), "info");
             }
             root.publishStatus();
-            if (cfg.DiskCacheMaxMb > 0) {
-                root.refreshCacheFileSizes(function(sizeMap) {
-                    root.enforceCacheQuota(sizeMap);
-                });
-            }
         }
-    }
-
-    QtObject {
-        id: debugLogWriter
-        function appendLine(line) {
-            dbusHelper.appendFile(debugLogFile, line);
-        }
-    }
-
-    QtObject {
-        id: dbusAvailabilityLoader
-
-        function poll() {
-            if (typeof PDBus === "undefined" || !PDBus.SessionBus) {
-                root.dbusServiceAvailable = false;
-                return;
-            }
-            var msg = new PDBus.dbusMessage({
-                service: "org.robertsm.Wallhaven",
-                path: "/Wallhaven",
-                iface: "org.robertsm.Wallhaven",
-                member: "Ping",
-                signature: "",
-                arguments: [],
-            });
-            PDBus.SessionBus.asyncCall(msg, function() {
-                root.dbusServiceAvailable = true;
-                pollUpscaler();
-            }, function() {
-                root.dbusServiceAvailable = false;
-                root.upscalerBinaryPath = "";
-                root.upscalerStatusKnown = true;
-            });
-        }
-
-        // Piggybacks on the same 5s cadence as the D-Bus availability poll
-        // above (only reachable once that poll confirms the service is up):
-        // shutil.which() on the service side is cheap, and realesrgan-ncnn-vulkan
-        // being installed/removed mid-session is rare enough that re-checking
-        // this often is plenty responsive without being wasteful.
-        function pollUpscaler() {
-            dbusHelper.checkUpscalerAvailable(function(binaryPath) {
-                root.upscalerBinaryPath = binaryPath || "";
-                root.upscalerStatusKnown = true;
-            });
-        }
-    }
-
-    Timer {
-        id: dbusAvailabilityTimer
-        interval: 5000
-        running: root._configured
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: dbusAvailabilityLoader.poll()
-    }
-
-    QtObject {
-        id: musicReactiveLoader
-
-        function poll() {
-            if (!cfg.MusicReactiveEnabled) {
-                root._musicPlaying = false;
-                return;
-            }
-            var msg = new PDBus.dbusMessage({
-                service: "org.freedesktop.DBus",
-                path: "/org/freedesktop/DBus",
-                iface: "org.freedesktop.DBus",
-                member: "ListNames",
-                signature: "",
-                arguments: [],
-            });
-            PDBus.SessionBus.asyncCall(msg, function(names) {
-                var found = "";
-                for (var i = 0; names && i < names.length; i++) {
-                    var name = String(names[i]);
-                    if (name.indexOf("org.mpris.MediaPlayer2.") === 0 && name !== "org.mpris.MediaPlayer2.wallhaven") {
-                        found = name;
-                        break;
-                    }
-                }
-                if (!found) {
-                    root._musicPlaying = false;
-                    return;
-                }
-                queryPlayback(found);
-            }, function() {
-                root._musicPlaying = false;
-            });
-        }
-
-        function queryPlayback(service) {
-            var msg = new PDBus.dbusMessage({
-                service: service,
-                path: "/org/mpris/MediaPlayer2",
-                iface: "org.freedesktop.DBus.Properties",
-                member: "Get",
-                signature: "ss",
-                arguments: ["org.mpris.MediaPlayer2.Player", "PlaybackStatus"],
-            });
-            PDBus.SessionBus.asyncCall(msg, function(status) {
-                // Same PDBus variant/array wrapping as UpscalerAvailable / Ping replies.
-                root._musicPlaying = Wallhaven.dbusReplyAsString(status) === "Playing";
-            }, function() {
-                root._musicPlaying = false;
-            });
-        }
-    }
-
-    Timer {
-        id: musicReactiveTimer
-        interval: 4000
-        running: root._configured && cfg.MusicReactiveEnabled
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: musicReactiveLoader.poll()
-    }
-
-    QtObject {
-        id: weatherLoader
-
-        function fetchJson(url, onSuccess, onError) {
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", url);
-            xhr.setRequestHeader("Accept", "application/json");
-            xhr.timeout = 10000;
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState !== XMLHttpRequest.DONE) {
-                    return;
-                }
-                if (xhr.status === 200) {
-                    try {
-                        onSuccess(JSON.parse(xhr.responseText));
-                    } catch (e) {
-                        onError();
-                    }
-                } else {
-                    onError();
-                }
-            };
-            xhr.onerror = function() { onError(); };
-            xhr.ontimeout = function() { onError(); };
-            xhr.send();
-        }
-
-        function refresh() {
-            if (!cfg.WeatherReactiveEnabled || !root.configuration) {
-                return;
-            }
-            var location = String(cfg.WeatherLocation || "").trim();
-            if (!location) {
-                return;
-            }
-            if (location === root._weatherLastLocation && cfg.WeatherResolvedLat) {
-                fetchWeather(cfg.WeatherResolvedLat, cfg.WeatherResolvedLon);
-                return;
-            }
-            var direct = Wallhaven.parseLatLon(location);
-            if (direct) {
-                root._weatherLastLocation = location;
-                root.configuration.WeatherResolvedLat = String(direct.lat);
-                root.configuration.WeatherResolvedLon = String(direct.lon);
-                scheduleConfigWrite();
-                fetchWeather(direct.lat, direct.lon);
-                return;
-            }
-            var geocodeUrl = "https://geocoding-api.open-meteo.com/v1/search?count=1&name="
-                + encodeURIComponent(location);
-            fetchJson(geocodeUrl, function(json) {
-                var place = Wallhaven.parseGeocodeResponse(json);
-                if (!place) {
-                    return;
-                }
-                root._weatherLastLocation = location;
-                root.configuration.WeatherResolvedLat = String(place.lat);
-                root.configuration.WeatherResolvedLon = String(place.lon);
-                scheduleConfigWrite();
-                fetchWeather(place.lat, place.lon);
-            }, function() {});
-        }
-
-        function fetchWeather(lat, lon) {
-            var url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat
-                + "&longitude=" + lon + "&current_weather=true";
-            fetchJson(url, function(json) {
-                var current = Wallhaven.parseCurrentWeatherResponse(json);
-                if (!current || !root.configuration) {
-                    return;
-                }
-                var tag = Wallhaven.mapWeatherCodeToTag(current.code);
-                if (tag && tag !== cfg.WeatherTagCache) {
-                    root.configuration.WeatherTagCache = tag;
-                    scheduleConfigWrite();
-                    logDebug("Weather-reactive tag set to " + tag);
-                }
-            }, function() {});
-        }
-    }
-
-    Timer {
-        id: weatherReactiveTimer
-        interval: 1800000
-        running: root._configured && cfg.WeatherReactiveEnabled
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: weatherLoader.refresh()
     }
 
     Timer {
@@ -5194,113 +3939,6 @@ WallpaperItem {
         repeat: true
         triggeredOnStart: true
         onTriggered: root.checkTimeCapsules()
-    }
-
-    QtObject {
-        id: batteryPollLoader
-        property var paths: [
-            "/sys/class/power_supply/BAT0/capacity",
-            "/sys/class/power_supply/BAT1/capacity",
-        ]
-
-        function tryPath(index) {
-            if (index >= paths.length) {
-                return;
-            }
-            dbusHelper.readFile(paths[index], function(text) {
-                var pct = parseInt(String(text || "").trim(), 10);
-                if (!isNaN(pct)) {
-                    root._batteryPercent = pct;
-                    root.evaluateSlideshowRules();
-                    return;
-                }
-                tryPath(index + 1);
-            });
-        }
-    }
-
-    Timer {
-        id: batteryPollTimer
-        interval: 60000
-        running: root._configured && cfg.PauseOnBatteryLow
-        repeat: true
-        onTriggered: batteryPollLoader.tryPath(0)
-    }
-
-    QtObject {
-        id: screenLockLoader
-
-        // org.freedesktop.ScreenSaver is the standard cross-desktop-environment
-        // interface kscreenlocker (and every other screensaver-aware Linux app)
-        // uses to publish lock state; GetActive() takes no arguments and
-        // returns a bool. Polled the same way as dbusAvailabilityLoader/
-        // musicReactiveLoader elsewhere in this file, since PDBus has no QML
-        // API for subscribing to the interface's ActiveChanged signal directly.
-        function poll() {
-            if (typeof PDBus === "undefined" || !PDBus.SessionBus) {
-                root._screenLocked = false;
-                return;
-            }
-            var msg = new PDBus.dbusMessage({
-                service: "org.freedesktop.ScreenSaver",
-                path: "/org/freedesktop/ScreenSaver",
-                iface: "org.freedesktop.ScreenSaver",
-                member: "GetActive",
-                signature: "",
-                arguments: [],
-            });
-            PDBus.SessionBus.asyncCall(msg, function(active) {
-                root._screenLocked = Wallhaven.dbusReplyIsTrue(active);
-                root.evaluateSlideshowRules();
-            }, function() {
-                root._screenLocked = false;
-            });
-        }
-    }
-
-    Timer {
-        id: screenLockTimer
-        interval: 5000
-        running: root._configured && cfg.PauseWhenInactive
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: screenLockLoader.poll()
-    }
-
-    QtObject {
-        id: idleSessionLoader
-
-        function poll() {
-            if (typeof PDBus === "undefined" || !PDBus.SessionBus) {
-                root._sessionIdle = false;
-                return;
-            }
-            var msg = new PDBus.dbusMessage({
-                service: "org.freedesktop.ScreenSaver",
-                path: "/org/freedesktop/ScreenSaver",
-                iface: "org.freedesktop.ScreenSaver",
-                member: "GetSessionIdleTime",
-                signature: "",
-                arguments: [],
-            });
-            PDBus.SessionBus.asyncCall(msg, function(seconds) {
-                var idleSec = Number(Wallhaven.dbusReplyAsString(seconds)) || 0;
-                var threshold = Math.max(1, cfg.IdlePauseMinutes || 5) * 60;
-                root._sessionIdle = idleSec >= threshold;
-                root.evaluateSlideshowRules();
-            }, function() {
-                root._sessionIdle = false;
-            });
-        }
-    }
-
-    Timer {
-        id: idleSessionTimer
-        interval: 15000
-        running: root._configured && cfg.PauseOnIdleEnabled
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: idleSessionLoader.poll()
     }
 
     Connections {
@@ -5345,76 +3983,6 @@ WallpaperItem {
                     }
                 } catch (e) {
                 }
-            });
-        }
-    }
-
-    QtObject {
-        id: controlBusLoader
-        function load(path) {
-            dbusHelper.readFile(path, function(text) {
-                if (!text) {
-                    return;
-                }
-                var commands = Wallhaven.parseControlCommands(text);
-                if (!commands.length) {
-                    var single = Wallhaven.parseControlCommand(text);
-                    commands = single ? [single] : [];
-                }
-                for (var ci = 0; ci < commands.length; ci++) {
-                    var cmd = commands[ci];
-                    if (!cmd || cmd.ts <= root._lastControlTs) {
-                        continue;
-                    }
-                    // Drop stale leftovers (ms timestamps must not live in property int).
-                    if (!Wallhaven.isFreshBusTimestamp(cmd.ts, Date.now(), 300000)) {
-                        root._lastControlTs = Math.max(root._lastControlTs, cmd.ts);
-                        continue;
-                    }
-                    if (!root.controlCommandTargetsThisScreen(cmd)) {
-                        // Still advance the watermark so foreign-group cmds are
-                        // not re-scanned every 400ms.
-                        root._lastControlTs = Math.max(root._lastControlTs, cmd.ts);
-                        continue;
-                    }
-                    root._lastControlTs = Math.max(root._lastControlTs, cmd.ts);
-                    root.handleControlCommand(cmd);
-                }
-            });
-        }
-    }
-
-    QtObject {
-        id: syncAdvanceLoader
-        function load(path) {
-            dbusHelper.readFile(path, function(text) {
-                if (!text) {
-                    return;
-                }
-                var sync = Wallhaven.parseSyncAdvance(text);
-                if (!sync || sync.advanceAt <= root._lastSyncAdvanceTs) {
-                    return;
-                }
-                if (!Wallhaven.isFreshBusTimestamp(sync.advanceAt, Date.now(), 300000)) {
-                    root._lastSyncAdvanceTs = Math.max(root._lastSyncAdvanceTs, sync.advanceAt);
-                    return;
-                }
-                if (sync.issuer === root._instanceId) {
-                    root._lastSyncAdvanceTs = Math.max(root._lastSyncAdvanceTs, sync.advanceAt);
-                    return;
-                }
-                // Don't stamp the tick until we can advance — busy used to
-                // permanently drop sync advances on multi-monitor setups.
-                if (engine.busy) {
-                    root._pendingSyncAdvance = true;
-                    root._pendingSyncAdvanceAt = Math.max(
-                        root._pendingSyncAdvanceAt || 0,
-                        sync.advanceAt,
-                    );
-                    return;
-                }
-                root._lastSyncAdvanceTs = sync.advanceAt;
-                engine.skipForward(true);
             });
         }
     }
@@ -5668,83 +4236,6 @@ WallpaperItem {
         }
     }
 
-    QtObject {
-        id: kenBurnsAnimation
-        property real bgScale: 1
-        property real fgScale: 1
-        property real bgX: 0
-        property real bgY: 0
-        property real fgX: 0
-        property real fgY: 0
-
-        function stopAll() {
-            bgKenBurns.stop();
-            fgKenBurns.stop();
-            bgPanX.stop();
-            fgPanX.stop();
-            bgPanY.stop();
-            fgPanY.stop();
-        }
-
-        function restart() {
-            stopAll();
-            if (!cfg.KenBurnsEnabled || !root.effectsMotionAllowed()) {
-                bgScale = fgScale = 1;
-                bgX = bgY = fgX = fgY = 0;
-                return;
-            }
-            var panX = (Math.random() - 0.5) * root.width * 0.04;
-            var panY = (Math.random() - 0.5) * root.height * 0.03;
-            if (activeIsForeground) {
-                fgScale = 1.06;
-                fgX = panX;
-                fgY = panY;
-                fgKenBurns.from = 1.06;
-                fgKenBurns.to = 1.14;
-                fgPanX.from = panX;
-                fgPanX.to = -panX;
-                fgPanY.from = panY;
-                fgPanY.to = -panY;
-                fgKenBurns.start();
-                fgPanX.start();
-                fgPanY.start();
-            } else {
-                bgScale = 1.06;
-                bgX = panX;
-                bgY = panY;
-                bgKenBurns.from = 1.06;
-                bgKenBurns.to = 1.14;
-                bgPanX.from = panX;
-                bgPanX.to = -panX;
-                bgPanY.from = panY;
-                bgPanY.to = -panY;
-                bgKenBurns.start();
-                bgPanX.start();
-                bgPanY.start();
-            }
-        }
-    }
-
-    property int kenBurnsDuration: {
-        var duration;
-        if (cfg.RandomInterval > 0) {
-            duration = cfg.RandomInterval * 60 * 1000 * 0.9;
-        } else {
-            var speed = Math.max(1, Math.min(cfg.KenBurnsSpeed, 100));
-            duration = 120000 - ((speed - 1) / 99) * 90000;
-        }
-        var multiplier = Wallhaven.musicReactiveSpeedMultiplier(
-            cfg.MusicReactiveIntensity, cfg.MusicReactiveEnabled && root._musicPlaying);
-        return Math.round(duration / multiplier);
-    }
-
-    NumberAnimation { id: bgKenBurns; target: kenBurnsAnimation; property: "bgScale"; duration: root.kenBurnsDuration; easing.type: Easing.InOutSine }
-    NumberAnimation { id: fgKenBurns; target: kenBurnsAnimation; property: "fgScale"; duration: root.kenBurnsDuration; easing.type: Easing.InOutSine }
-    NumberAnimation { id: bgPanX; target: kenBurnsAnimation; property: "bgX"; duration: root.kenBurnsDuration; easing.type: Easing.InOutSine }
-    NumberAnimation { id: fgPanX; target: kenBurnsAnimation; property: "fgX"; duration: root.kenBurnsDuration; easing.type: Easing.InOutSine }
-    NumberAnimation { id: bgPanY; target: kenBurnsAnimation; property: "bgY"; duration: root.kenBurnsDuration; easing.type: Easing.InOutSine }
-    NumberAnimation { id: fgPanY; target: kenBurnsAnimation; property: "fgY"; duration: root.kenBurnsDuration; easing.type: Easing.InOutSine }
-
     NumberAnimation {
         id: parallaxPhaseAnim
         target: root
@@ -5779,13 +4270,6 @@ WallpaperItem {
     }
 
     Timer {
-        id: diskCacheSaveTimer
-        interval: 700
-        repeat: false
-        onTriggered: root.writeDiskCacheFromImage()
-    }
-
-    Timer {
         id: intervalTimer
         interval: Wallhaven.computeIntervalMs(cfg, Wallhaven.isDayPeriod())
         running: root.slideshowActive() && !cfg.SlideshowPaused
@@ -5797,44 +4281,11 @@ WallpaperItem {
     }
 
     Timer {
-        id: controlBusTimer
-        interval: 400
-        running: root._configured && cfg.ControlBusEnabled
-        repeat: true
-        onTriggered: root.pollControlBus()
-    }
-
-    Timer {
-        id: syncAdvanceTimer
-        interval: 800
-        running: root._configured && cfg.SyncAdvanceEnabled
-        repeat: true
-        onTriggered: root.pollSyncAdvance()
-    }
-
-    Timer {
-        id: attributionHideTimer
-        interval: Math.max(1, cfg.AttributionAutoHideSec) * 1000
-        repeat: false
-        onTriggered: attributionBanner.visible = false
-    }
-
-    Timer {
         id: connectivityTimer
         interval: 45000
         running: root._configured
         repeat: true
         onTriggered: root.checkConnectivity()
-    }
-
-    // Faster probe cadence while non-429 soft-offline so recovery is not stuck
-    // waiting on the 45s favicon timer alone.
-    Timer {
-        id: outageProbeTimer
-        interval: 30000
-        running: root._configured && root._apiOutageOffline && root._apiLastStatus !== 429
-        repeat: true
-        onTriggered: root.maybeProbeApiOutageClear()
     }
 
     // Detect suspend/resume via wall-clock gaps and unlock transitions. After
@@ -5846,6 +4297,8 @@ WallpaperItem {
         running: root._configured
         repeat: true
         triggeredOnStart: true
+        // Start high so the first tick queries the current lock state.
+        property int lockPollTicks: 6
         onTriggered: {
             var now = Date.now();
             if (root._resumeWatchLastMs > 0 && (now - root._resumeWatchLastMs) > 90000) {
@@ -5859,25 +4312,15 @@ WallpaperItem {
                 root.recoverBlankFrame("watchdog");
             }
 
-            if (typeof PDBus === "undefined" || !PDBus.SessionBus) {
+            // ActiveChanged signals normally deliver lock state; ask directly
+            // every tick without them, and every 30 s as a safety net with them.
+            lockPollTicks++;
+            if (controlBus.signalsActive && lockPollTicks < 6) {
                 return;
             }
-            var msg = new PDBus.dbusMessage({
-                service: "org.freedesktop.ScreenSaver",
-                path: "/org/freedesktop/ScreenSaver",
-                iface: "org.freedesktop.ScreenSaver",
-                member: "GetActive",
-                signature: "",
-                arguments: [],
-            });
-            PDBus.SessionBus.asyncCall(msg, function(active) {
-                var locked = Wallhaven.dbusReplyIsTrue(active);
-                if (root._wasScreenLocked && !locked) {
-                    root.recoverAfterWake("unlock");
-                }
-                root._wasScreenLocked = locked;
-                root._screenLocked = locked;
-                root.evaluateSlideshowRules();
+            lockPollTicks = 0;
+            dbusHelper.screenSaverCall("GetActive", function(active) {
+                root.noteScreenLocked(Wallhaven.dbusReplyIsTrue(active));
             }, function() {});
         }
     }
@@ -5932,26 +4375,6 @@ WallpaperItem {
     }
 
     Timer {
-        id: lockSyncRetryTimer
-        interval: 1500
-        repeat: false
-        onTriggered: {
-            var retry = root._lockSyncRetry;
-            if (!retry || !retry.path || !cfg.SyncLockScreen) {
-                root._lockSyncRetry = null;
-                return;
-            }
-            if (retry.id && String(root.currentWallpaperId || "") !== String(retry.id)
-                    && String(root._pendingWallpaperId || "") !== String(retry.id)) {
-                root._lockSyncRetry = null;
-                return;
-            }
-            // Keep _lockSyncRetry so a second failure sees attempts and stops.
-            root.syncLockScreenImage(retry.path, retry.id);
-        }
-    }
-
-    Timer {
         id: retryTimer
         interval: 60000
         repeat: false
@@ -5975,139 +4398,6 @@ WallpaperItem {
             if (period !== root._timeOfDayPeriod) {
                 root._timeOfDayPeriod = period;
                 engine.resetSlideshow();
-            }
-        }
-    }
-
-    Rectangle {
-        id: statusBanner
-        z: 100
-        anchors.top: parent.top
-        anchors.topMargin: 16
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.leftMargin: 16
-        anchors.rightMargin: 16
-        height: statusVisible ? statusLabel.implicitHeight + 16 : 0
-        visible: root.statusVisible
-        radius: 8
-        color: root.statusType === "error" ? "#cc1e1e"
-             : root.statusType === "warn" ? "#785014"
-             : "#1e3c64"
-        opacity: 0.9
-
-        QQC2.Label {
-            id: statusLabel
-            anchors.centerIn: parent
-            width: parent.width - 32
-            wrapMode: Text.WordWrap
-            horizontalAlignment: Text.AlignHCenter
-            color: "white"
-            text: root.statusMessage
-        }
-    }
-
-    Rectangle {
-        id: attributionBanner
-        z: 100
-        radius: 8
-        color: "#000000"
-        opacity: 0.65
-        visible: attributionVisible
-
-        readonly property bool attributionVisible: cfg.ShowAttribution && root.attributionText !== ""
-        readonly property string corner: cfg.AttributionCorner || "bottom-left"
-        readonly property bool cornerCentered: corner === "top-center" || corner === "bottom-center"
-
-        width: Math.min(Math.max(attributionLabel.implicitWidth + 32, 120), parent.width - 32)
-        height: attributionVisible ? attributionLabel.implicitHeight + 16 : 0
-
-        anchors.left: !cornerCentered && corner.indexOf("left") >= 0 ? parent.left : undefined
-        anchors.right: corner.indexOf("right") >= 0 ? parent.right : undefined
-        anchors.top: corner.indexOf("top") >= 0 ? parent.top : undefined
-        anchors.bottom: corner.indexOf("bottom") >= 0 ? parent.bottom : undefined
-        anchors.horizontalCenter: cornerCentered ? parent.horizontalCenter : undefined
-        anchors.margins: 16
-
-        onAttributionVisibleChanged: {
-            if (attributionVisible && cfg.AttributionAutoHideSec > 0) {
-                visible = true;
-                attributionHideTimer.restart();
-            }
-        }
-
-        QQC2.Label {
-            id: attributionLabel
-            anchors.centerIn: parent
-            width: Math.min(attributionBanner.parent.width - 64, 420)
-            wrapMode: Text.WordWrap
-            color: "#ffffff"
-            font.pointSize: Math.max(7, Math.round(9 * (cfg.AttributionFontScale || 100) / 100))
-            text: root.attributionText
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            enabled: attributionBanner.attributionVisible
-            onClicked: root.showWallpaperInfo()
-        }
-    }
-
-    Rectangle {
-        id: detailsSheet
-        z: 120
-        anchors.fill: parent
-        color: "#99000000"
-        visible: root.wallpaperDetailsOpen
-        enabled: visible
-
-        MouseArea {
-            anchors.fill: parent
-            onClicked: root.wallpaperDetailsOpen = false
-        }
-
-        Rectangle {
-            anchors.centerIn: parent
-            width: Math.min(parent.width - 48, 480)
-            height: Math.min(detailsSheetLabel.implicitHeight + 72, parent.height - 48)
-            radius: 10
-            color: "#e6101014"
-
-            MouseArea {
-                anchors.fill: parent
-                onClicked: { /* keep open */ }
-            }
-
-            Column {
-                anchors.fill: parent
-                anchors.margins: 16
-                spacing: 10
-
-                QQC2.Label {
-                    width: parent.width
-                    wrapMode: Text.WordWrap
-                    color: "white"
-                    font.bold: true
-                    text: i18n("Wallpaper details")
-                }
-
-                QQC2.ScrollView {
-                    width: parent.width
-                    height: parent.height - 56
-                    clip: true
-                    QQC2.Label {
-                        id: detailsSheetLabel
-                        width: detailsSheet.width - 80
-                        wrapMode: Text.WordWrap
-                        color: "#f0f0f0"
-                        text: root.wallpaperDetailsText || i18n("No details yet.")
-                    }
-                }
-
-                QQC2.Button {
-                    text: i18n("Close")
-                    onClicked: root.wallpaperDetailsOpen = false
-                }
             }
         }
     }
@@ -6213,12 +4503,38 @@ WallpaperItem {
         }
     }
 
+    StatusBanner {
+        id: statusBanner
+        message: root.statusMessage
+        type: root.statusType
+        shown: root.statusVisible
+    }
+
+    AttributionBanner {
+        id: attributionBanner
+        cfg: root.cfg
+        attributionText: root.attributionText
+        onClicked: root.showWallpaperInfo()
+    }
+
+    DetailsSheet {
+        id: detailsSheet
+        open: root.wallpaperDetailsOpen
+        detailsText: root.wallpaperDetailsText
+        onCloseRequested: root.wallpaperDetailsOpen = false
+    }
+
+    KenBurns {
+        id: kenBurnsAnimation
+        host: root
+    }
+
     Component.onCompleted: {
         root.loading = true;
         engine.loadSeenIds();
         engine.loadBlockedIds();
         root.ensureCacheNamespace();
-        root.loadDiskCacheIndex();
+        diskCache.loadDiskCacheIndex();
         root.loadWallpaperHistory();
         root._dedupeFingerprint = Wallhaven.searchDedupeFingerprint({
             BrowseMode: cfg.BrowseMode,
@@ -6254,8 +4570,15 @@ WallpaperItem {
                 engine.showStatus(i18n("Cleared a bad API key from settings. Re-enter it if you need NSFW/favorites."), "warn");
             }
         }
+        // Sync-group profiles saved before 3.7 captured the API key into the config.
+        if (String(cfg.SyncProfilesJson || "").indexOf("ApiKey") !== -1) {
+            root.configuration.SyncProfilesJson = Wallhaven.serializeSyncProfiles(
+                Wallhaven.parseSyncProfiles(cfg.SyncProfilesJson));
+            scheduleConfigWrite();
+        }
         root.loadApiKeyFromKWallet();
-        root.pollSharedRateLimit();
+        root.refreshServiceAvailability();
+        apiState.pollSharedRateLimit();
         // Put something on screen immediately (last preview / cache) so a slow
         // or offline network at login/wake never leaves a blank desktop.
         root.bootstrapWallpaperFromCache();
@@ -6266,9 +4589,6 @@ WallpaperItem {
         root._resumeWatchLastMs = Date.now();
         // Every monitor repairs blank lock Image= (mirrors the SyncLockScreen feed).
         Qt.callLater(function() { root.ensureLockScreenImage("startup"); });
-        if (cfg.PauseOnBatteryLow) {
-            batteryPollTimer.start();
-        }
         // Defer the first online fetch so NetworkManager / Wi-Fi / VPN can come
         // up, and so sibling monitors can publish a shared rate-limit latch.
         startupOnlineFetchTimer.start();

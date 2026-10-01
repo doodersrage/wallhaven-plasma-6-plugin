@@ -457,35 +457,11 @@ function testLockScreenSyncCommand() {
     assert(Wallhaven.lockScreenImageFileName("a/b c") === "wallhaven-lockscreen-ab-c.jpg"
         || Wallhaven.lockScreenImageFileName("a/b c").indexOf("wallhaven-lockscreen-") === 0, "sanitizes id");
 
-    var cmd = Wallhaven.buildLockScreenSyncCommand("/tmp/src.jpg", "/tmp/wallhaven-lockscreen-abc.jpg");
-    assert(cmd.indexOf("flock -w 30") !== -1, "serializes with flock");
-    assert(cmd.indexOf("cp -f") !== -1, "copies to lockscreen file");
-    assert(cmd.indexOf(".tmp") !== -1, "atomic temp copy");
-    assert(cmd.indexOf("test -s") !== -1, "verifies dest non-empty");
-    assert(cmd.indexOf("--group Wallpaper") !== -1, "nested wallpaper group");
-    assert(cmd.indexOf("--group org.kde.image") !== -1, "image plugin group");
-    assert(cmd.indexOf("--key Image ") !== -1, "Image key");
-    assert(cmd.indexOf("file:///tmp/wallhaven-lockscreen-abc.jpg") !== -1, "file url");
-    assert(cmd.indexOf("--key Wallpaper ") === -1, "does not write bogus Greeter Wallpaper key");
-    assert(cmd.indexOf("wallhaven-lockscreen-current.jpg") !== -1, "maintains current mirror");
-    assert(cmd.indexOf("wallhaven-lockscreen-*.jpg") !== -1, "prunes prior lockscreen copies");
-    assert(cmd.indexOf("-mmin +30") !== -1, "age-gated prune avoids races");
-    assert(cmd.indexOf("kreadconfig6") !== -1, "prune preserves active Image path");
-    var same = Wallhaven.buildLockScreenSyncCommand("/tmp/lock.jpg", "/tmp/lock.jpg");
-    assert(same.indexOf("cp -f") !== -1 && same.indexOf("wallhaven-lockscreen-current.jpg") !== -1, "same dest still refreshes current mirror");
-
-    var ensure = Wallhaven.buildLockScreenEnsureCommand("/tmp/plasmashell");
-    assert(ensure.indexOf("flock -w 30") !== -1, "ensure serializes");
-    assert(ensure.indexOf("wallhaven-lockscreen-current.jpg") !== -1, "ensure uses current mirror");
-    assert(ensure.indexOf("wallhaven-lockscreen-repaired-") !== -1, "ensure writes repaired unique file");
-    assert(ensure.indexOf("kwriteconfig6 --file kscreenlockerrc") !== -1, "ensure rewrites greeter Image");
-
-    var fromUrl = Wallhaven.buildLockScreenSyncCommand(
-        "file:///tmp/src.jpg",
-        "file://localhost/tmp/lock.jpg",
-    );
-    assert(fromUrl.indexOf("'/tmp/src.jpg'") !== -1, "strips file:// from source");
-    assert(fromUrl.indexOf("file:///tmp/src.jpg") === -1 || fromUrl.indexOf("cp -f 'file://") === -1, "cp never gets file:// source");
+    assert(Wallhaven.lockScreenCurrentFileName() === "wallhaven-lockscreen-current.jpg", "stable mirror name");
+    // The copy/kwriteconfig pipeline lives in wallhaven-dbus.py now (SyncLockScreen /
+    // EnsureLockScreen); the QML must not be able to build shell for it.
+    assert(Wallhaven.buildLockScreenSyncCommand === undefined, "no shell builder for lock sync");
+    assert(Wallhaven.buildLockScreenEnsureCommand === undefined, "no shell builder for lock ensure");
 
     assert(Wallhaven.shouldBroadcastSyncAdvance(false) === true, "local skip broadcasts");
     assert(Wallhaven.shouldBroadcastSyncAdvance(true) === false, "sync follower does not broadcast");
@@ -919,7 +895,80 @@ function testV35Helpers() {
     assert(metrics.rateLimits === 1, "rate limit metrics");
 }
 
+function testBusIngestion() {
+    var now = 1800000000000;
+    var payload = JSON.stringify({ commands: [
+        { cmd: "next", ts: now - 10, group: "DP-1" },
+        { cmd: "next", ts: now - 9, group: "DP-2" },
+        { cmd: "pause", ts: now - 8, group: "DP-1" },
+    ] });
+    var first = Wallhaven.ingestControlPayload(payload, 0, now, "DP-1", "DP-1");
+    assert(first.run.length === 2 && first.run[0].cmd === "next" && first.run[1].cmd === "pause",
+        "runs only this screen's commands, in order");
+    assert(first.watermark === now - 8, "watermark covers foreign-group commands too");
+    // The same payload again (signal + fallback poll, or a re-read) is a no-op.
+    var again = Wallhaven.ingestControlPayload(payload, first.watermark, now, "DP-1", "DP-1");
+    assert(again.run.length === 0 && again.watermark === first.watermark, "replay is idempotent");
+
+    var stale = Wallhaven.ingestControlPayload(
+        JSON.stringify({ cmd: "next", ts: now - 400000, group: "DP-1" }), 0, now, "DP-1", "DP-1");
+    assert(stale.run.length === 0 && stale.watermark === now - 400000, "stale leftover is skipped but stamped");
+    var junk = Wallhaven.ingestControlPayload("{not json", 5, now, "DP-1", "DP-1");
+    assert(junk.run.length === 0 && junk.watermark === 5, "garbage keeps the watermark");
+    // Epoch-ms watermarks must survive as doubles (the int-overflow storm).
+    assert(first.watermark > 2147483647, "watermark is not int-clamped");
+
+    var tick = JSON.stringify({ advanceAt: now - 5, issuer: "peer" });
+    var follow = Wallhaven.ingestSyncAdvance(tick, 0, now, "me", false);
+    assert(follow.action === "advance" && follow.watermark === now - 5, "follower advances and stamps");
+    var queued = Wallhaven.ingestSyncAdvance(tick, 0, now, "me", true);
+    assert(queued.action === "queue" && queued.watermark === 0 && queued.advanceAt === now - 5,
+        "busy follower queues without stamping");
+    var own = Wallhaven.ingestSyncAdvance(JSON.stringify({ advanceAt: now - 5, issuer: "me" }), 0, now, "me", false);
+    assert(own.action === "ignore" && own.watermark === now - 5, "own broadcast is stamped, never followed");
+    assert(Wallhaven.ingestSyncAdvance(tick, now - 5, now, "me", false).action === "ignore", "replayed tick ignored");
+    assert(Wallhaven.ingestSyncAdvance("", 7, now, "me", false).watermark === 7, "empty tick keeps watermark");
+}
+
+function testWalletKeyResolution() {
+    var none = Wallhaven.resolveWalletApiKey("", "");
+    assert(none.sessionKey === "" && !none.scrubConfig && none.status === "missing", "empty wallet");
+    var legacy = Wallhaven.resolveWalletApiKey("abc123", "abc123\n");
+    assert(legacy.sessionKey === "abc123" && legacy.scrubConfig === true && legacy.status === "loaded",
+        "plain-config copy of the wallet key is scrubbed");
+    var typed = Wallhaven.resolveWalletApiKey("newkey", "oldkey");
+    assert(typed.sessionKey === "oldkey" && typed.scrubConfig === false, "a different typed key is kept");
+    var junk = Wallhaven.resolveWalletApiKey("abc123", "Failed to read entry apikey");
+    assert(junk.sessionKey === "" && !junk.scrubConfig, "wallet error text is not a key");
+
+    assert(Wallhaven.effectiveApiKey("", "wallet") === "wallet", "wallet key used when config empty");
+    assert(Wallhaven.effectiveApiKey("typed", "wallet") === "typed", "typed key wins");
+    assert(Wallhaven.effectiveApiKey("", "") === "", "no key");
+
+    var profiles = { desk: { SearchText: "nebula", ApiKey: "secret" } };
+    var stored = Wallhaven.serializeSyncProfiles(profiles);
+    assert(stored.indexOf("secret") === -1 && stored.indexOf("nebula") !== -1, "sync profiles never store the key");
+    var target = { ApiKey: "keep" };
+    Wallhaven.applySyncProfile({ SearchText: "x", ApiKey: "old-leak" }, target);
+    assert(target.ApiKey === "keep" && target.SearchText === "x", "applying a profile never touches the key");
+}
+
+function testPathHelpers() {
+    assert(Wallhaven.urlToLocalPath("file:///home/u/a%20b.jpg") === "/home/u/a b.jpg", "file url decoded");
+    assert(Wallhaven.urlToLocalPath("file://localhost/home/u/a.jpg") === "/home/u/a.jpg", "localhost form");
+    assert(Wallhaven.urlToLocalPath("file:/home/u/a.jpg") === "/home/u/a.jpg", "single-slash form");
+    assert(Wallhaven.urlToLocalPath("/home/u/a.jpg") === "/home/u/a.jpg", "plain path untouched");
+    assert(Wallhaven.urlToLocalPath(null) === "" && Wallhaven.urlToLocalPath("") === "", "empty");
+    assert(Wallhaven.urlToLocalPath("/home/u/100%.jpg") === "/home/u/100%.jpg", "bad escape kept verbatim");
+    assert(Wallhaven.localPathToUrl("/a/b.jpg") === "file:///a/b.jpg", "path to url");
+    assert(Wallhaven.localPathToUrl("file:///a/b.jpg") === "file:///a/b.jpg", "url untouched");
+    assert(Wallhaven.localPathToUrl("") === "", "empty url");
+}
+
 [
+    testBusIngestion,
+    testWalletKeyResolution,
+    testPathHelpers,
     testFileTypeFilter,
     testSimilarSearch,
     testIntervalJitter,

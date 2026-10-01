@@ -61,6 +61,16 @@ ColumnLayout {
 
         return "";
     }
+    // Key to use for requests made from this dialog: the one typed here, else
+    // the one the wallpaper holds (with KWallet it is not in the settings file,
+    // so the field above stays empty).
+    readonly property string effectiveApiKey: {
+        var typed = apiKeyField.text.trim();
+        if (typed)
+            return typed;
+
+        return liveWallpaper && liveWallpaper.effectiveApiKey ? liveWallpaper.effectiveApiKey : "";
+    }
     readonly property real previewWidth: Math.min(420, Math.max(280, width > 0 ? Math.round(width * 0.55) : 360))
     readonly property real previewHeight: Math.round(previewWidth * 9 / 16)
     property alias cfg_SearchText: searchTextField.text
@@ -951,13 +961,13 @@ ColumnLayout {
 
         function validate() {
             statusText = "";
-            if (!apiKeyField.text) {
+            if (!root.effectiveApiKey) {
                 statusText = i18n("Enter an API key first.");
                 return ;
             }
             checking = true;
             var xhr = new XMLHttpRequest();
-            xhr.open("GET", Wallhaven.buildSettingsUrl(apiKeyField.text));
+            xhr.open("GET", Wallhaven.buildSettingsUrl(root.effectiveApiKey));
             xhr.timeout = 15000;
             xhr.onreadystatechange = function() {
                 if (xhr.readyState !== XMLHttpRequest.DONE)
@@ -996,7 +1006,7 @@ ColumnLayout {
             checking = true;
             var cfg = root.buildCurrentConfigObject();
             cfg.FileTypeFilter = fileTypeCombo.currentValue;
-            cfg.ApiKey = apiKeyField.text;
+            cfg.ApiKey = root.effectiveApiKey;
             cfg.Sortings = sortingsCombo.currentValue;
             cfg.Order = orderCombo.currentValue;
             cfg.TopRange = topRangeCombo.currentValue;
@@ -1051,9 +1061,9 @@ ColumnLayout {
             var user = collectionUserField.text.trim();
             var url = "";
             if (user) {
-                url = Wallhaven.buildCollectionsUrlForUser(user, apiKeyField.text);
-            } else if (apiKeyField.text) {
-                url = Wallhaven.buildCollectionsUrl(apiKeyField.text);
+                url = Wallhaven.buildCollectionsUrlForUser(user, root.effectiveApiKey);
+            } else if (root.effectiveApiKey) {
+                url = Wallhaven.buildCollectionsUrl(root.effectiveApiKey);
             } else {
                 errorText = i18n("Enter an API key or a collection username first.");
                 return;
@@ -1577,7 +1587,7 @@ ColumnLayout {
                     text: collectionsLoader.loading ? i18n("Loading…") : i18n("Load collections")
                     visible: browseModeCombo.currentValue === "collection" && rowVisible(["collection", "load", "browse"])
                     enabled: !collectionsLoader.loading
-                        && (apiKeyField.text !== "" || collectionUserField.text.trim() !== "")
+                        && (root.effectiveApiKey !== "" || collectionUserField.text.trim() !== "")
                     onClicked: collectionsLoader.refresh()
                 }
 
@@ -3401,7 +3411,7 @@ ColumnLayout {
                     Kirigami.FormData.label: i18n("Validate key:")
                     visible: !root.uiSimple && rowVisible(["validate", "key"])
                     text: apiKeyValidator.checking ? i18n("Checking…") : i18n("Test API key")
-                    enabled: apiKeyField.text !== "" && !apiKeyValidator.checking
+                    enabled: root.effectiveApiKey !== "" && !apiKeyValidator.checking
                     onClicked: apiKeyValidator.validate()
                 }
 
@@ -3412,6 +3422,9 @@ ColumnLayout {
                     enabled: apiKeyField.text !== "" || (liveWallpaper && liveWallpaper.clearApiKey)
                     onClicked: {
                         apiKeyField.text = "";
+                        // The wallpaper stops loading the key from KWallet too;
+                        // keep this dialog's checkbox from turning that back on.
+                        kwalletCheck.checked = false;
                         if (liveWallpaper && liveWallpaper.clearApiKey)
                             liveWallpaper.clearApiKey(false);
                     }
@@ -3440,8 +3453,19 @@ ColumnLayout {
                     visible: !root.uiSimple && rowVisible(["kwallet", "wallet", "api", "key", "secret", "security"])
                     enabled: liveWallpaper !== null && apiKeyField.text.trim() !== ""
                     onClicked: {
-                        if (liveWallpaper && liveWallpaper.saveApiKeyToKWallet)
-                            liveWallpaper.saveApiKeyToKWallet();
+                        if (!liveWallpaper || !liveWallpaper.saveApiKeyToKWallet)
+                            return ;
+
+                        liveWallpaper.saveApiKeyToKWallet(apiKeyField.text.trim(), function(ok) {
+                            // The dialog may be gone by the time KWallet answers.
+                            if (!ok || !apiKeyField)
+                                return ;
+
+                            // Now held by the wallet only: do not let Apply
+                            // write it back into the settings file.
+                            apiKeyField.text = "";
+                            kwalletCheck.checked = true;
+                        });
                     }
                 }
 
@@ -3451,7 +3475,7 @@ ColumnLayout {
                     wrapMode: Text.WordWrap
                     opacity: 0.7
                     visible: rowVisible(["kwallet", "wallet", "api", "key", "secret"])
-                    text: i18n("Stores the key in KWallet folder org.robertsm.wallhaven (entry apikey). Prefer this over leaving the key only in wallpaper settings.")
+                    text: i18n("Moves the key into KWallet (folder org.robertsm.wallhaven, entry apikey) and removes it from the wallpaper settings file.")
                 }
 
                 Kirigami.Separator {

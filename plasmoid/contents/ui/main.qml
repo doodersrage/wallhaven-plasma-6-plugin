@@ -90,8 +90,13 @@ PlasmoidItem {
         var code = parseInt(h.lastStatus, 10) || 0;
         return code === 401 || code === 403;
     }
+    // True when status updates arrive as D-Bus signals (see StatusWatcher.qml).
+    readonly property bool statusSignalsActive: statusWatcherLoader.status === Loader.Ready
+    // Advanced by a timer so "stale" is re-evaluated without a new status.
+    property double _nowMs: Date.now()
+    property string _historyLoadedForId: ""
     readonly property bool statusLooksStale: {
-        var now = Date.now();
+        var now = root._nowMs;
         var ms = parseInt(statusData.statusUpdatedAtMs, 10) || 0;
         if (ms > 0)
             return (now - ms) > 90000;
@@ -262,6 +267,11 @@ PlasmoidItem {
             countdownMs = nextMs;
         } else {
             countdownMs = Math.max(0, root._countdownDeadlineMs - Date.now());
+        }
+        // History only changes when the wallpaper does.
+        if (sourceId !== root._historyLoadedForId) {
+            root._historyLoadedForId = sourceId;
+            root.loadHistory();
         }
     }
 
@@ -464,12 +474,48 @@ PlasmoidItem {
         });
     }
 
+    Loader {
+        id: statusWatcherLoader
+        source: "StatusWatcher.qml"
+    }
+
+    Connections {
+        target: statusWatcherLoader.item
+        ignoreUnknownSignals: true
+
+        function onStatusChanged(cacheNamespace) {
+            // Every monitor publishes twice per change; reload once.
+            statusRefreshTimer.start();
+        }
+
+        function onServiceRegisteredChanged() {
+            if (statusWatcherLoader.item.serviceRegistered) {
+                root.loadStatus();
+            } else {
+                root.dbusOffline = true;
+            }
+        }
+    }
+
+    Timer {
+        id: statusRefreshTimer
+        interval: 120
+        repeat: false
+        onTriggered: root.loadStatus()
+    }
+
+    // Countdown tick. It only talks to the service without signal support,
+    // where it remains the 1 s status poll it always was.
     Timer {
         interval: 1000
-        running: true
+        running: !root.statusSignalsActive
+            || (root._countdownDeadlineMs > 0 && !statusData.paused && statusData.slideshowActive)
         repeat: true
         onTriggered: {
-            root.loadStatus();
+            if (!root.statusSignalsActive) {
+                root._nowMs = Date.now();
+                root.loadStatus();
+            }
             if (root._countdownDeadlineMs > 0 && !statusData.paused && statusData.slideshowActive) {
                 countdownMs = Math.max(0, root._countdownDeadlineMs - Date.now());
             } else if (statusData.paused || !statusData.slideshowActive) {
@@ -478,11 +524,21 @@ PlasmoidItem {
         }
     }
 
+    // Safety net behind the signals, and the clock for "engine idle?".
     Timer {
-        interval: 6000
+        interval: 30000
+        running: root.statusSignalsActive
+        repeat: true
+        onTriggered: {
+            root._nowMs = Date.now();
+            root.loadStatus();
+        }
+    }
+
+    Timer {
+        interval: root.statusSignalsActive ? 60000 : 6000
         running: true
         repeat: true
-        triggeredOnStart: true
         onTriggered: root.loadHistory()
     }
 

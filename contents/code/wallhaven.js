@@ -93,6 +93,60 @@ function apiKeyLastFour(value) {
     return key.slice(-4);
 }
 
+// What to do once KWallet answers at startup. With the wallet in use the key
+// lives only in memory: an identical copy left in the plain config (written by
+// builds before 3.7) is scrubbed. A different config value means the user typed
+// a new key that was never saved to the wallet — keep it and let it win.
+function resolveWalletApiKey(configKey, walletKey) {
+    var fromConfig = sanitizeApiKey(configKey);
+    var fromWallet = sanitizeApiKey(walletKey);
+    if (!fromWallet) {
+        return { sessionKey: "", scrubConfig: false, status: "missing" };
+    }
+    return {
+        sessionKey: fromWallet,
+        scrubConfig: fromConfig !== "" && fromConfig === fromWallet,
+        status: "loaded",
+    };
+}
+
+// The key requests should use: one typed into settings beats the wallet copy.
+function effectiveApiKey(configKey, sessionKey) {
+    return sanitizeApiKey(configKey) || sanitizeApiKey(sessionKey);
+}
+
+function urlToLocalPath(url) {
+    var path = String(url == null ? "" : url);
+    if (!path) {
+        return "";
+    }
+    if (path.indexOf("file://") === 0) {
+        path = path.substring(7);
+        // file://localhost/home/... or leftover host form
+        if (path.indexOf("localhost/") === 0) {
+            path = path.substring(9);
+        }
+    } else if (path.indexOf("file:") === 0) {
+        path = path.substring(5);
+    }
+    try {
+        return decodeURIComponent(path);
+    } catch (e) {
+        return path;
+    }
+}
+
+function localPathToUrl(path) {
+    path = String(path || "");
+    if (!path) {
+        return "";
+    }
+    if (path.indexOf("file://") === 0) {
+        return path;
+    }
+    return "file://" + path;
+}
+
 function classifyApiStatus(status) {
     status = parseInt(status, 10) || 0;
     if (status === 401 || status === 403) {
@@ -828,11 +882,30 @@ function parseSyncProfiles(raw) {
     }
 }
 
+// Sync profiles are stored in the plain wallpaper config, so they must never
+// carry the API key (profiles saved before 3.7 did; it is dropped on write
+// and ignored on apply).
 function serializeSyncProfiles(profiles) {
     if (!profiles || typeof profiles !== "object") {
         return "{}";
     }
-    return JSON.stringify(profiles);
+    var clean = {};
+    var groups = Object.keys(profiles);
+    for (var g = 0; g < groups.length; g++) {
+        var profile = profiles[groups[g]];
+        if (!profile || typeof profile !== "object") {
+            continue;
+        }
+        var copy = {};
+        var keys = Object.keys(profile);
+        for (var k = 0; k < keys.length; k++) {
+            if (keys[k] !== "ApiKey") {
+                copy[keys[k]] = profile[keys[k]];
+            }
+        }
+        clean[groups[g]] = copy;
+    }
+    return JSON.stringify(clean);
 }
 
 function applySyncProfile(profile, configuration) {
@@ -841,7 +914,7 @@ function applySyncProfile(profile, configuration) {
     }
     var keys = Object.keys(profile);
     for (var i = 0; i < keys.length; i++) {
-        if (keys[i] !== "name") {
+        if (keys[i] !== "name" && keys[i] !== "ApiKey") {
             configuration[keys[i]] = profile[keys[i]];
         }
     }
@@ -1184,7 +1257,7 @@ function searchDedupeFingerprint(cfg) {
 }
 
 function pluginVersion() {
-    return "3.6.0";
+    return "3.7.0";
 }
 
 function buildPresetFromConfig(name, cfg) {
@@ -2268,6 +2341,50 @@ function buildSyncAdvance(issuer) {
     });
 }
 
+// One control-bus payload (signal or poll) → the commands this screen should
+// run, plus the new watermark. Stale leftovers and commands for other sync
+// groups still advance the watermark so they are never looked at again; that
+// also makes a signal and a fallback poll of the same file idempotent.
+function ingestControlPayload(raw, lastTs, nowMs, myGroup, namespace, maxAgeMs) {
+    var watermark = Number(lastTs) || 0;
+    var run = [];
+    var commands = parseControlCommands(raw);
+    for (var i = 0; i < commands.length; i++) {
+        var cmd = commands[i];
+        if (!cmd || cmd.ts <= watermark) {
+            continue;
+        }
+        watermark = cmd.ts;
+        if (!isFreshBusTimestamp(cmd.ts, nowMs, maxAgeMs)) {
+            continue;
+        }
+        if (!controlCommandTargetsGroup(cmd.group, myGroup, namespace, cmd.cmd)) {
+            continue;
+        }
+        run.push(cmd);
+    }
+    return { run: run, watermark: watermark };
+}
+
+// Decide what a sync-advance tick means for this instance.
+//   "ignore"  – old, stale, malformed, or our own broadcast
+//   "advance" – follow now and stamp the watermark
+//   "queue"   – a fetch is in flight; follow once it ends (do not stamp yet)
+function ingestSyncAdvance(raw, lastTs, nowMs, instanceId, busy, maxAgeMs) {
+    var watermark = Number(lastTs) || 0;
+    var sync = parseSyncAdvance(raw);
+    if (!sync || sync.advanceAt <= watermark) {
+        return { action: "ignore", watermark: watermark, advanceAt: 0 };
+    }
+    if (!isFreshBusTimestamp(sync.advanceAt, nowMs, maxAgeMs) || sync.issuer === String(instanceId || "")) {
+        return { action: "ignore", watermark: sync.advanceAt, advanceAt: sync.advanceAt };
+    }
+    if (busy) {
+        return { action: "queue", watermark: watermark, advanceAt: sync.advanceAt };
+    }
+    return { action: "advance", watermark: sync.advanceAt, advanceAt: sync.advanceAt };
+}
+
 function parseCollectionRotation(raw) {
     if (!raw) {
         return [];
@@ -2511,131 +2628,6 @@ function lockScreenImageUrl(path) {
         return dest;
     }
     return "file://" + dest;
-}
-
-function shellSingleQuote(value) {
-    return "'" + String(value || "").replace(/'/g, "'\\''") + "'";
-}
-
-function buildLockScreenSyncCommand(sourcePath, destPath) {
-    function plainPath(value) {
-        var path = String(value || "");
-        if (path.indexOf("file://") === 0) {
-            path = path.substring(7);
-            if (path.indexOf("localhost/") === 0) {
-                path = path.substring(9);
-            }
-        } else if (path.indexOf("file:") === 0) {
-            path = path.substring(5);
-        }
-        return path;
-    }
-    var source = plainPath(sourcePath);
-    var dest = plainPath(destPath);
-    if (!source || !dest) {
-        return "";
-    }
-    var url = lockScreenImageUrl(dest);
-    var destDir = dest.lastIndexOf("/") >= 0 ? dest.substring(0, dest.lastIndexOf("/")) : "";
-    var destBase = dest.lastIndexOf("/") >= 0 ? dest.substring(dest.lastIndexOf("/") + 1) : dest;
-    var currentName = lockScreenCurrentFileName();
-    var currentPath = destDir ? (destDir + "/" + currentName) : currentName;
-    var lockFile = destDir
-        ? destDir + "/wallhaven-lockscreen.lock"
-        : "/tmp/wallhaven-lockscreen.lock";
-    var parts = [];
-    // Serialize concurrent monitor syncs: overlapping find -delete used to remove
-    // the file another pipeline had just pointed kscreenlockerrc at.
-    parts.push("flock -w 30 " + shellSingleQuote(lockFile) + " bash -c " + shellSingleQuote([
-        "set -e",
-        "test -f " + shellSingleQuote(source),
-        (source !== dest
-            ? ("cp -f " + shellSingleQuote(source) + " " + shellSingleQuote(dest) + ".tmp"
-                + " && mv -f " + shellSingleQuote(dest) + ".tmp " + shellSingleQuote(dest))
-            : "true"),
-        "test -s " + shellSingleQuote(dest),
-        // Stable mirror for screens that do not sync — never leave lock Image empty.
-        "cp -f " + shellSingleQuote(dest) + " " + shellSingleQuote(currentPath) + ".tmp"
-            + " && mv -f " + shellSingleQuote(currentPath) + ".tmp " + shellSingleQuote(currentPath),
-        "test -s " + shellSingleQuote(currentPath),
-        "kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image",
-        "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image " + shellSingleQuote(url),
-        "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key PreviewImage " + shellSingleQuote(url),
-        "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key FillMode 2",
-        // Age-gated prune; never delete the active unique file, current mirror, or
-        // whatever path kscreenlockerrc still references (repaired/stale ids).
-        (destDir
-            ? ("ACTIVE=$(kreadconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image 2>/dev/null | sed -e 's|^file://||' -e 's|^file:||'); "
-                + "ACTIVE_BASE=$(basename \"${ACTIVE:-}\"); "
-                + "find " + shellSingleQuote(destDir)
-                + " -maxdepth 1 \\( -name 'wallhaven-lockscreen-*.jpg' -o -name 'wallhaven-lockscreen.jpg' \\)"
-                + " ! -name " + shellSingleQuote(destBase)
-                + " ! -name " + shellSingleQuote(currentName)
-                + " ! -name \"${ACTIVE_BASE:-.}\""
-                + " -mmin +30 -delete")
-            : "true"),
-        "test -s " + shellSingleQuote(dest),
-        "test -s " + shellSingleQuote(currentPath),
-    ].join(" && ")));
-    return parts.join(" && ");
-}
-
-// Repair blank lock screens: if Image= points at a missing file (or is empty),
-// re-point every greeter page at wallhaven-lockscreen-current.jpg (or the newest
-// unique copy). Safe to run from monitors that do not have SyncLockScreen on —
-// they mirror whatever the syncing monitor last published.
-function buildLockScreenEnsureCommand(cacheDir) {
-    function plainPath(value) {
-        var path = String(value || "");
-        if (path.indexOf("file://") === 0) {
-            path = path.substring(7);
-            if (path.indexOf("localhost/") === 0) {
-                path = path.substring(9);
-            }
-        } else if (path.indexOf("file:") === 0) {
-            path = path.substring(5);
-        }
-        return path.replace(/\/+$/, "");
-    }
-    var dir = plainPath(cacheDir);
-    if (!dir) {
-        return "";
-    }
-    var currentName = lockScreenCurrentFileName();
-    var currentPath = dir + "/" + currentName;
-    var lockFile = dir + "/wallhaven-lockscreen.lock";
-    // Prefer an existing Image= when fresh (<90s): sibling monitors then only
-    // refresh current.jpg instead of stampeding unique repaired-*.jpg paths.
-    // Stale or missing Image= gets a new unique path so Plasma reloads textures.
-    var inner = [
-        "set -e",
-        "DIR=" + shellSingleQuote(dir),
-        "CURRENT=" + shellSingleQuote(currentPath),
-        "IMG=$(kreadconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image 2>/dev/null | sed -e 's|^file://||' -e 's|^file:||')",
-        "if [ -n \"$IMG\" ] && [ -s \"$IMG\" ]; then "
-            + "NOW=$(date +%s); MTIME=$(stat -c %Y \"$IMG\" 2>/dev/null || echo 0); AGE=$((NOW - MTIME)); "
-            + "if [ \"$AGE\" -lt 90 ]; then "
-            + "cp -f \"$IMG\" \"$CURRENT.tmp\" && mv -f \"$CURRENT.tmp\" \"$CURRENT\"; "
-            + "kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image; "
-            + "exit 0; fi; "
-            + "fi",
-        "SRC=\"\"",
-        "if [ -n \"$IMG\" ] && [ -s \"$IMG\" ]; then SRC=\"$IMG\"; "
-            + "elif [ -s \"$CURRENT\" ]; then SRC=\"$CURRENT\"; "
-            + "else SRC=$(ls -1t \"$DIR\"/wallhaven-lockscreen-*.jpg 2>/dev/null | head -n 1 || true); fi",
-        "if [ -z \"$SRC\" ] || [ ! -s \"$SRC\" ]; then exit 1; fi",
-        "DEST=\"$DIR/wallhaven-lockscreen-repaired-$(date +%s).jpg\"",
-        "cp -f \"$SRC\" \"$DEST.tmp\" && mv -f \"$DEST.tmp\" \"$DEST\"",
-        "cp -f \"$DEST\" \"$CURRENT.tmp\" && mv -f \"$CURRENT.tmp\" \"$CURRENT\"",
-        "test -s \"$DEST\"",
-        "test -s \"$CURRENT\"",
-        "URL=\"file://$DEST\"",
-        "kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image",
-        "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image \"$URL\"",
-        "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key PreviewImage \"$URL\"",
-        "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key FillMode 2",
-    ].join("; ");
-    return "flock -w 30 " + shellSingleQuote(lockFile) + " bash -c " + shellSingleQuote(inner);
 }
 
 function parsePinnedCacheIds(raw) {
