@@ -5,7 +5,7 @@ Summary:        Wallhaven wallpaper plugin for KDE Plasma 6
 License:        GPL-2.0-or-later
 URL:            https://github.com/doodersrage/wallhaven-plasma-6-plugin
 BuildArch:      noarch
-Requires:       plasma-workspace
+Requires:       plasma-workspace >= 6.2
 Requires:       python3-dbus
 Requires:       python3-gobject
 

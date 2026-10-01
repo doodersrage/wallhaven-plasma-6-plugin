@@ -24,6 +24,19 @@ grep -q "^Version:[[:space:]]*${version}$" packaging/wallhaven-plasma.spec \
 grep -q 'wallhaven-plasma-${pkgver}.tar.xz' packaging/PKGBUILD.release \
     || fail "packaging/PKGBUILD.release must download wallhaven-plasma-\${pkgver}.tar.xz"
 
+# plasma-framework is the KF5 name and no longer exists on Arch; Node is a
+# test-only tool. Either one makes the package uninstallable or bloated.
+for pkgbuild in packaging/PKGBUILD packaging/PKGBUILD.release; do
+    depends_line="$(grep -E '^depends=' "${pkgbuild}")"
+    for bad in plasma-framework nodejs; do
+        if grep -q "'${bad}'" <<< "${depends_line}"; then
+            fail "${pkgbuild} must not depend on ${bad}"
+        fi
+    done
+    grep -q "plasma-workspace>=6.2" <<< "${depends_line}" \
+        || fail "${pkgbuild} must depend on plasma-workspace>=6.2"
+done
+
 test -f flatpak/org.robertsm.wallhaven.yaml \
     || fail "missing flatpak/org.robertsm.wallhaven.yaml"
 grep -q "org.robertsm.wallhaven" flatpak/org.robertsm.wallhaven.yaml \

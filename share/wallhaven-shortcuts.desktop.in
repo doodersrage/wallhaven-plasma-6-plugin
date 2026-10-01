@@ -5,6 +5,7 @@ Comment=Meta+Ctrl+Alt+arrows for next, previous, pause, and reload
 Exec=@INSTALL_DIR@/bin/wallhaven-shortcuts
 Icon=preferences-desktop-wallpaper
 Categories=Utility;
+NoDisplay=true
 StartupNotify=false
 X-KDE-autostart-after=panel
 X-KDE-StartupNotify=false

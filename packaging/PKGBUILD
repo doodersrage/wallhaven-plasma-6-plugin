@@ -6,9 +6,12 @@ pkgdesc="Wallhaven.cc wallpaper plugin for KDE Plasma 6"
 arch=('any')
 url="https://github.com/doodersrage/wallhaven-plasma-6-plugin"
 license=('GPL-2.0-or-later')
-depends=('plasma-framework' 'nodejs' 'python-dbus' 'python-gobject')
+# plasma-workspace provides the D-Bus QML module (needs >= 6.2) and pulls in
+# libplasma, kirigami and knotifications. Node is only used by the test suite.
+depends=('plasma-workspace>=6.2' 'python-dbus' 'python-gobject')
 optdepends=(
     'kwallet: API key storage'
+    'qt6-tools: qdbus6 for wallhaven-ctl.sh'
     'spectacle: screenshot capture helper'
     'variety: wallpaper bridge'
 )

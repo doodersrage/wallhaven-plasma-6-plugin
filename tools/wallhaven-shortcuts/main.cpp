@@ -55,6 +55,9 @@ int main(int argc, char *argv[])
     // QAction lives in QtGui in Qt 6: a QCoreApplication segfaults on the first new QAction.
     QGuiApplication app(argc, argv);
     QGuiApplication::setApplicationName(QStringLiteral("wallhaven-shortcuts"));
+    // Without a desktop file name Qt registers an empty app id with the desktop
+    // portal and logs "Could not register app ID: App info not found for ''".
+    QGuiApplication::setDesktopFileName(QStringLiteral("wallhaven-shortcuts"));
     QGuiApplication::setQuitOnLastWindowClosed(false);
     KLocalizedString::setApplicationDomain("org.robertsm.wallhaven");
 

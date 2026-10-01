@@ -269,6 +269,9 @@ install_shortcuts() {
     sed "s|@INSTALL_DIR@|${DATA_DIR}|g" \
         "${SCRIPT_DIR}/share/wallhaven-shortcuts.desktop.in" \
         > "${HOME}/.config/autostart/wallhaven-shortcuts.desktop"
+    # Also under applications/ so the desktop portal can resolve the app id.
+    mkdir -p "${APPLICATIONS_DIR}"
+    cp "${HOME}/.config/autostart/wallhaven-shortcuts.desktop" "${APPLICATIONS_DIR}/wallhaven-shortcuts.desktop"
     echo "Installed wallhaven-shortcuts to ${DATA_DIR}/bin/wallhaven-shortcuts"
     echo "Autostart entry: ~/.config/autostart/wallhaven-shortcuts.desktop"
     echo "Shortcuts: Meta+Ctrl+Alt+Right/Left/P/R"
@@ -277,6 +280,7 @@ install_shortcuts() {
 
 uninstall_shortcuts() {
     rm -f "${HOME}/.config/autostart/wallhaven-shortcuts.desktop"
+    rm -f "${APPLICATIONS_DIR}/wallhaven-shortcuts.desktop"
     rm -f "${DATA_DIR}/bin/wallhaven-shortcuts"
     echo "Removed Wallhaven global shortcuts autostart"
 }

@@ -6,9 +6,12 @@ pkgdesc="Wallhaven.cc wallpaper plugin for KDE Plasma 6"
 arch=('any')
 url="https://github.com/doodersrage/wallhaven-plasma-6-plugin"
 license=('GPL-2.0-or-later')
-depends=('plasma-framework' 'nodejs' 'python-dbus' 'python-gobject' 'kglobalaccel' 'qt6-base')
+# plasma-workspace provides the D-Bus QML module (needs >= 6.2) and pulls in
+# libplasma, kirigami and knotifications. Node is only used by the test suite.
+depends=('plasma-workspace>=6.2' 'python-dbus' 'python-gobject' 'kglobalaccel' 'ki18n' 'kcoreaddons' 'qt6-base')
 optdepends=(
     'kwallet: API key storage'
+    'qt6-tools: qdbus6 for wallhaven-ctl.sh'
     'spectacle: screenshot capture helper'
     'variety: wallpaper bridge'
     'extra-cmake-modules: build global shortcuts from source'
@@ -61,4 +64,7 @@ package() {
         "${pkgdir}/etc/xdg/autostart/wallhaven-shortcuts.desktop"
     sed -i "s|@INSTALL_DIR@/bin/wallhaven-shortcuts|/usr/bin/wallhaven-shortcuts|g" \
         "${pkgdir}/etc/xdg/autostart/wallhaven-shortcuts.desktop"
+    # Also under applications/ so the desktop portal can resolve the app id.
+    install -Dm644 "${pkgdir}/etc/xdg/autostart/wallhaven-shortcuts.desktop" \
+        "${pkgdir}/usr/share/applications/wallhaven-shortcuts.desktop"
 }

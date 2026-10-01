@@ -15,6 +15,9 @@
 - **A slow download or upscale froze the helper** — `RunArgv`, `Upscale`, lock sync and KWallet calls run off the main loop, so control commands and status keep flowing meanwhile
 - **Unplugged monitors lingered** — a status file left by a disconnected screen showed up as a ghost entry in the plasmoid's monitor picker and as a fan-out target nobody listened on. Status files older than 5 minutes are ignored
 - **"Offline only" still went online** — with attribution on or an API key set, every displayed wallpaper triggered a tag lookup, also in playlist, trip and metered-cache modes. Cache-only modes make no requests now and use the tags stored with the cached file
+- **Arch packages could not be installed** — both PKGBUILDs depended on `plasma-framework` (the KF5 name, no longer in the repos) and on `nodejs` (only the tests use it). They now depend on `plasma-workspace>=6.2`; the RPM spec carries the same minimum
+- **`wallhaven-shortcuts` logged a portal error at every login** ("Could not register app ID: App info not found for ''"): it now sets a desktop file name and installs its desktop entry under `applications/` (hidden from menus) as well as autostart
+- The settings dialog no longer pings the helper every 4 s while a Wallhaven wallpaper is running; it reads the wallpaper's own state
 - `TypeError: Cannot read property 'retryAfterReconnect' of null` when a connectivity check answered after the wallpaper item was destroyed
 - Pausing by lock/idle/battery rules now publishes the paused state immediately instead of at the next heartbeat
 

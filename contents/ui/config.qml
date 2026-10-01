@@ -671,6 +671,15 @@ ColumnLayout {
         triggeredOnStart: true
         onTriggered: {
             root.refreshHistoryModel();
+            // The running wallpaper already tracks the helper and the upscaler
+            // (dbusServiceOnline / upscaler* read it); only ask ourselves when
+            // Wallhaven is not the active wallpaper yet.
+            if (liveWallpaper) {
+                root.dbusPolledOnline = false;
+                root.upscalerPollCompleted = false;
+                root.dbusPollCompleted = true;
+                return;
+            }
             if (typeof PDBus === "undefined" || !PDBus.SessionBus) {
                 root.dbusPollCompleted = true;
                 root.dbusPolledOnline = !!(liveWallpaper && liveWallpaper.dbusServiceAvailable);

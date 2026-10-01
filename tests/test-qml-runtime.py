@@ -368,6 +368,8 @@ Window {
                 wallpaperEffectiveKey: w.effectiveApiKey,
                 previewWallpaperId: d.previewWallpaperId,
                 useKWalletChecked: d.cfg_UseKWalletForApiKey,
+                dialogServiceOnline: d.dbusServiceOnline,
+                dialogPollCompleted: d.dbusPollCompleted,
             }));
         }
     }
@@ -1015,6 +1017,9 @@ class SettingsDialogRuntimeTests(RuntimeBase):
             self.wait_for(lambda: self.qml.state().get("dialogEffectiveKey") == API_KEY, 10), self.qml.state(),
         )
         self.assertEqual(self.qml.state()["dialogApiKeyField"], "")
+        # Helper availability comes from the running wallpaper, without pinging.
+        self.assertTrue(self.wait_for(lambda: self.qml.state().get("dialogPollCompleted") is True, 5))
+        self.assertIs(self.qml.state()["dialogServiceOnline"], True)
         # A key typed into the field wins over the wallet copy.
         self.call("__setDialog", "cfg_ApiKey", "TypedKeyInTheDialog0123456789")
         self.assertTrue(
