@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Install build dependencies
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq gettext
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gettext ripgrep python3-dbus python3-gi dbus
 
       - name: Full check suite
         run: |
@@ -26,13 +26,7 @@ jobs:
         run: ./dev-helper.sh package
 
       - name: Verify tarball paths
-        run: |
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'krunner/org.robertsm.wallhaven.desktop'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/presets/curated.json'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'examples/plasma-shortcuts.md'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'packaging/PKGBUILD'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/locale/es/LC_MESSAGES/org.robertsm.wallhaven.mo'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'CONTRIBUTING.md'
+        run: chmod +x scripts/verify-archive.sh && ./scripts/verify-archive.sh
 
       - name: Packaging and Flatpak smoke
         run: |

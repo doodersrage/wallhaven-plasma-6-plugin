@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Install build dependencies
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq gettext python3-dbus python3-gi ripgrep
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gettext python3-dbus python3-gi ripgrep dbus
 
       - name: Validate plugin structure
         run: |
@@ -40,7 +40,10 @@ jobs:
       - name: Variety D-Bus tests
         run: python3 tests/test-variety-dbus.py
 
-      - name: QML smoke checks
+      - name: D-Bus helper on a private bus (methods, signals, no shell)
+        run: python3 tests/test-dbus-service.py
+
+      - name: QML checks (structure, dangling references, dead handlers)
         run: chmod +x tests/validate-qml.sh && ./tests/validate-qml.sh
 
       - name: Validate tool scripts are executable
@@ -54,28 +57,34 @@ jobs:
         run: ./dev-helper.sh package
 
       - name: Verify archive contents
-        run: |
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/ui/main.qml'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'metadata.json'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'plasmoid/contents/ui/main.qml'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'tools/wallhaven-dbus.py'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'share/wallhaven-preset.desktop.in'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'packaging/PKGBUILD'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/locale/de/LC_MESSAGES/org.robertsm.wallhaven.mo'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/locale/fr/LC_MESSAGES/org.robertsm.wallhaven.mo'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/locale/es/LC_MESSAGES/org.robertsm.wallhaven.mo'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'contents/locale/it/LC_MESSAGES/org.robertsm.wallhaven.mo'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'po/es.po'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'po/it.po'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'docs/CONTROL.md'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'docs/KDE_STORE.md'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'docs/KWALLET.md'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'screenshots/desktop-wallpaper.png'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'share/wallhaven-shortcuts.desktop.in'
-          tar -tJf wallhaven-plasma-*.tar.xz | grep -q 'metainfo/org.robertsm.wallhaven.metainfo.xml'
+        run: chmod +x scripts/verify-archive.sh && ./scripts/verify-archive.sh
 
       - name: Packaging smoke
         run: chmod +x scripts/validate-packaging.sh && ./scripts/validate-packaging.sh
 
       - name: Flatpak manifest smoke
         run: chmod +x scripts/validate-flatpak.sh && ./scripts/validate-flatpak.sh
+
+  # Loads the real wallpaper and plasmoid QML headless against the real D-Bus
+  # helper. Needs Plasma 6, which ubuntu-latest does not ship, hence the Arch
+  # container. Non-blocking until it has a few green runs behind it.
+  qml-runtime:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    container: archlinux:latest
+    steps:
+      - name: Install Plasma and test dependencies
+        run: |
+          pacman -Syu --noconfirm --needed git nodejs ripgrep dbus python python-dbus python-gobject \
+            python-pyqt6 qt6-declarative plasma-workspace libplasma kirigami knotifications
+
+      - uses: actions/checkout@v5
+
+      - name: QML checks with qmllint
+        run: bash tests/validate-qml.sh
+
+      - name: Headless wallpaper + plasmoid runtime test
+        env:
+          WALLHAVEN_REQUIRE_QML_RUNTIME: "1"
+          WALLHAVEN_TEST_SETTLE: "7"
+        run: python tests/test-qml-runtime.py -v

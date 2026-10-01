@@ -4,9 +4,18 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MAIN="${ROOT}/contents/ui/main.qml"
 JS="${ROOT}/contents/code/wallhaven.js"
 DBUS="${ROOT}/tools/wallhaven-dbus.py"
+
+# The engine is split across main.qml and its components (DiskCache, ApiHealth,
+# ControlBus, LockScreenSync, …); a guard may live in any of them, so search the
+# wallpaper's QML as one text. config.qml is the settings dialog, not the engine.
+MAIN="$(mktemp)"
+trap 'rm -f "${MAIN}"' EXIT
+for f in "${ROOT}"/contents/ui/*.qml; do
+    [[ "$(basename "${f}")" == "config.qml" ]] && continue
+    cat "${f}" >> "${MAIN}"
+done
 
 # match_q [--fixed-strings] PATTERN FILE
 match_q() {
@@ -58,7 +67,7 @@ required_qml=(
 
 for needle in "${required_qml[@]}"; do
     match_q --fixed-strings "${needle}" "${MAIN}" || {
-        echo "Missing in main.qml: ${needle}" >&2
+        echo "Missing in contents/ui/*.qml: ${needle}" >&2
         exit 1
     }
 done
@@ -74,7 +83,14 @@ match_q --fixed-strings 'return "ok" if code == 0 else f"fail:{code}"' "${DBUS}"
 match_q '"curl"' "${DBUS}"
 match_q 'def validate_run_argv' "${DBUS}"
 match_q 'CURL_HOST_RE' "${DBUS}"
-match_q 'is_lock_flock' "${DBUS}" || match_q 'Lock-screen flock scripts intentionally use' "${DBUS}"
+# Lock sync runs inside the service (no client-supplied shell) under a flock.
+match_q 'def lock_screen_sync' "${DBUS}"
+match_q 'def lock_screen_ensure' "${DBUS}"
+match_q 'def lock_screen_flock' "${DBUS}"
+if match_q '"bash"' "${DBUS}"; then
+    echo "wallhaven-dbus.py must not allow a shell again" >&2
+    exit 1
+fi
 match_q 'fadeBlackOut.stop()' "${MAIN}"
 match_q 'wallpaperIsVisible()' "${MAIN}"
 
@@ -109,7 +125,7 @@ match_q --fixed-strings '"test", "-s"' "${MAIN}" || match_q --fixed-strings "['t
 match_q 'attempts:' "${MAIN}"
 match_q 'function isLockSyncPrimaryWinner' "${JS}"
 match_q 'function ensureLockScreenImage' "${MAIN}"
-match_q 'function buildLockScreenEnsureCommand' "${JS}"
+match_q 'skip:foreign-image' "${DBUS}"
 match_q 'function lockScreenCurrentFileName' "${JS}"
 match_q --fixed-strings 'wallhaven-lockscreen-current.jpg' "${JS}"
 match_q --fixed-strings 'ensureLockScreenImage("startup")' "${MAIN}"
@@ -139,7 +155,23 @@ match_q 'function shouldThrottleCacheAdvance' "${JS}"
 match_q --fixed-strings 'property double _lastControlTs' "${MAIN}"
 match_q --fixed-strings 'property double _lastSyncAdvanceTs' "${MAIN}"
 match_q --fixed-strings 'property double _nextSlideshowAt' "${MAIN}"
-match_q 'isFreshBusTimestamp' "${MAIN}"
+match_q 'function ingestControlPayload' "${JS}"
+match_q 'function ingestSyncAdvance' "${JS}"
+match_q 'ingestControlPayload' "${MAIN}"
+match_q 'ingestSyncAdvance' "${MAIN}"
+
+# Settings must be watched with bindings: per-key Connections handlers are
+# never called for capitalized KConfig keys.
+match_q 'searchSettingsFingerprint' "${MAIN}"
+match_q 'function acknowledgeSearchSettings' "${MAIN}"
+
+# The API key from KWallet stays in memory; it never goes back into the config.
+match_q 'effectiveApiKey' "${MAIN}"
+match_q 'def wallet_read_api_key' "${DBUS}"
+if match_q 'kwallet-apikey.txt' "${MAIN}"; then
+    echo "QML must not write the API key to a temp file" >&2
+    exit 1
+fi
 match_q 'shouldThrottleCacheAdvance' "${MAIN}"
 match_q --fixed-strings 'statusOverride === undefined' "${JS}"
 

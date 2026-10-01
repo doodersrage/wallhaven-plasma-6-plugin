@@ -25,7 +25,7 @@ Commands:
   restart         Restart plasmashell
   deploy          translations + install + dbus + restart
   package         Create distributable .tar.xz package
-  test            Run wallhaven.js unit tests, QML smoke checks, and D-Bus service tests (if python3-dbus is installed)
+  test            Run unit tests, QML checks, D-Bus helper tests, the headless QML runtime test, and (when deployed) live regressions
   check           Validate structure + run tests
   release         Tag and publish GitHub release (see scripts/release.sh)
   translations    Compile .po files to contents/locale/
@@ -105,6 +105,13 @@ uninstall_plugin() {
 }
 
 restart_plasma() {
+    # On systemd-managed sessions plasmashell is a user unit; restarting it
+    # there keeps it supervised (and not a child of this script's shell).
+    if systemctl --user is-active --quiet plasma-plasmashell.service 2>/dev/null; then
+        systemctl --user restart plasma-plasmashell.service
+        echo "Plasmashell restarted (plasma-plasmashell.service)"
+        return
+    fi
     kquitapp6 plasmashell 2>/dev/null || true
     nohup plasmashell >/dev/null 2>&1 &
     echo "Plasmashell restarted"
@@ -117,8 +124,13 @@ run_tests() {
     if python3 -c "import dbus, gi" >/dev/null 2>&1; then
         python3 "${SCRIPT_DIR}/tests/test-variety-dbus.py"
         python3 "${SCRIPT_DIR}/tests/test-control-fanout.py"
+        # Private session bus + throwaway HOME: never touches the real wallet,
+        # lock-screen config or running wallpaper. Both skip themselves (exit 0)
+        # when their runtime is missing.
+        python3 "${SCRIPT_DIR}/tests/test-dbus-service.py"
+        python3 "${SCRIPT_DIR}/tests/test-qml-runtime.py"
     else
-        echo "Skipping tests/test-variety-dbus.py (python3-dbus/python3-gi not installed)"
+        echo "Skipping D-Bus and QML runtime tests (python3-dbus/python3-gi not installed)"
     fi
     if systemctl --user is-active wallhaven-dbus.service >/dev/null 2>&1; then
         bash "${SCRIPT_DIR}/tests/test-soft-offline-storm.sh"

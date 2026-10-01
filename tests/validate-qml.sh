@@ -9,7 +9,14 @@ for f in contents/ui/main.qml contents/ui/config.qml plasmoid/contents/ui/main.q
     grep -q "WallpaperItem\|ColumnLayout\|PlasmoidItem" "${ROOT}/${f}"
 done
 
-if rg -q 'Process\s*\{' "${ROOT}/contents/ui/main.qml" "${ROOT}/plasmoid/contents/ui/main.qml" 2>/dev/null; then
+# Every component main.qml instantiates must ship next to it.
+for f in ApiHealth ApiKeyStore AttributionBanner BusSignals ControlBus DBusHelper DetailsSheet \
+        DiskCache KenBurns LockScreenSync SessionMonitors StatusBanner; do
+    [[ -f "${ROOT}/contents/ui/${f}.qml" ]] || { echo "Missing contents/ui/${f}.qml" >&2; exit 1; }
+done
+[[ -f "${ROOT}/plasmoid/contents/ui/StatusWatcher.qml" ]] || { echo "Missing plasmoid StatusWatcher.qml" >&2; exit 1; }
+
+if rg -q 'Process\s*\{' "${ROOT}/contents/ui" "${ROOT}/plasmoid/contents/ui" 2>/dev/null; then
     echo "FAIL: QML Process is unavailable in plasmashell; use D-Bus helper instead" >&2
     exit 1
 fi
@@ -19,7 +26,7 @@ if rg -q 'QtControls2\.TextEdit|QQC2\.TextEdit' "${ROOT}/contents/ui" "${ROOT}/p
     exit 1
 fi
 
-if rg '= PDBus\.dbusMessage\(\{' "${ROOT}/contents/ui/main.qml" "${ROOT}/plasmoid/contents/ui/main.qml" 2>/dev/null; then
+if rg '= PDBus\.dbusMessage\(\{' "${ROOT}/contents/ui" "${ROOT}/plasmoid/contents/ui" 2>/dev/null; then
     echo "FAIL: PDBus.dbusMessage must be constructed with new" >&2
     exit 1
 fi
@@ -29,7 +36,7 @@ if rg -U 'OverlaySheet\s*\{[^}]*preferredWidth' "${ROOT}/contents/ui/config.qml"
     exit 1
 fi
 
-if rg -q 'xhr\.open\("GET", "file://' "${ROOT}/contents/ui/main.qml" "${ROOT}/plasmoid/contents/ui/main.qml" 2>/dev/null; then
+if rg -q 'xhr\.open\("GET", "file://' "${ROOT}/contents/ui" "${ROOT}/plasmoid/contents/ui" 2>/dev/null; then
     echo "FAIL: XMLHttpRequest cannot read local files in plasmashell; use D-Bus ReadTextFile" >&2
     exit 1
 fi
@@ -47,6 +54,16 @@ if rg -n 'PlasmaCore\.IconItem|NetworkInformation\.(Cellular|Ethernet|WiFi|Bluet
     exit 1
 fi
 
+# The service has no shell any more: lock sync, Variety links, accent sync and
+# KWallet are dedicated D-Bus methods. QML must not try to build scripts again.
+if grep -rnE '"bash"|"sh", *"-c"|kwallet-query|kwriteconfig6' "${ROOT}/contents/ui" "${ROOT}/plasmoid/contents/ui"; then
+    echo "FAIL: QML must call the dedicated D-Bus methods, not shell commands" >&2
+    exit 1
+fi
+
+# Dangling references, settings-dialog entry points and dead change handlers.
+python3 "${ROOT}/tests/check-qml-refs.py"
+
 # Real parse when a Qt 6 qmllint is available (catches unbalanced braces).
 QMLLINT=""
 for cand in qmllint6 /usr/lib/qt6/bin/qmllint /usr/lib/x86_64-linux-gnu/qt6/bin/qmllint; do
@@ -56,7 +73,8 @@ for cand in qmllint6 /usr/lib/qt6/bin/qmllint /usr/lib/x86_64-linux-gnu/qt6/bin/
     fi
 done
 if [[ -n "${QMLLINT}" ]]; then
-    for f in contents/ui/main.qml contents/ui/config.qml plasmoid/contents/ui/main.qml plasmoid/contents/ui/config.qml; do
+    for path in "${ROOT}"/contents/ui/*.qml "${ROOT}"/plasmoid/contents/ui/*.qml; do
+        f="${path#"${ROOT}"/}"
         if "${QMLLINT}" --json - "${ROOT}/${f}" 2>/dev/null | python3 -c '
 import json, sys
 d = json.load(sys.stdin)

@@ -26,6 +26,13 @@ for path in "${required[@]}"; do
     [[ -f "${path}" ]] || { echo "Missing required file: ${path}" >&2; exit 1; }
 done
 
+# main.qml instantiates these by type name; a missing file is a blank desktop.
+for component in ApiHealth ApiKeyStore AttributionBanner BusSignals ControlBus DBusHelper DetailsSheet \
+        DiskCache KenBurns LockScreenSync SessionMonitors StatusBanner; do
+    [[ -f "contents/ui/${component}.qml" ]] || { echo "Missing component: contents/ui/${component}.qml" >&2; exit 1; }
+done
+[[ -f plasmoid/contents/ui/StatusWatcher.qml ]] || { echo "Missing plasmoid/contents/ui/StatusWatcher.qml" >&2; exit 1; }
+
 version="$(grep -Po '"Version"\s*:\s*"\K[^"]+' metadata.json)"
 plasmoid_version="$(grep -Po '"Version"\s*:\s*"\K[^"]+' plasmoid/metadata.json)"
 [[ "${version}" == "${plasmoid_version}" ]] || {
