@@ -762,6 +762,7 @@ WallpaperItem {
         root.configuration.TripModeUntilMs = String(Wallhaven.tripModeUntilMsFromHours(hours));
         root.configuration.OfflineOnlyMode = true;
         scheduleConfigWrite();
+        root.acknowledgeSearchSettings();
         engine.stopRetries();
         engine.showStatus(i18n("Trip mode on for %1 hour(s) — cache only.", hours), "info");
         if (!engine.tryOfflineFallback(i18n("Trip mode: using cached wallpapers."))) {
@@ -785,6 +786,7 @@ WallpaperItem {
             root.configuration.TripModeUntilMs = String(Wallhaven.tripModeUntilMsFromHours(hours));
             root.configuration.OfflineOnlyMode = true;
             scheduleConfigWrite();
+            root.acknowledgeSearchSettings();
             engine.stopRetries();
             engine.showStatus(i18n("Trip mode on for %1 hour(s).", hours), "info");
             engine.tryOfflineFallback(i18n("Trip mode: using cached wallpapers."));
@@ -933,6 +935,8 @@ WallpaperItem {
             engine.showStatus(i18n("Muted tags: %1", tags.join(", ")), "info");
         }
         scheduleConfigWrite();
+        // Rating changes future searches; it must not replace this wallpaper.
+        root.acknowledgeSearchSettings();
         if (!liked) {
             Qt.callLater(function() {
                 engine.skipForward();
@@ -1292,6 +1296,8 @@ WallpaperItem {
         if (nearest && root.configuration.ColorFilter !== nearest) {
             root.configuration.ColorFilter = nearest;
             scheduleConfigWrite();
+            // Applies from the next fetch on; refetching now would chase its own tail.
+            root.acknowledgeSearchSettings();
             logDebug("Smart color filter set to " + nearest);
         }
     }
@@ -1357,6 +1363,7 @@ WallpaperItem {
             root.configuration[keys[i]] = settings[keys[i]];
         }
         scheduleConfigWrite();
+        root.acknowledgeSearchSettings();
         engine.showStatus(i18n("Laptop mode applied (metered, battery, idle pause, lighter effects)."), "info");
     }
 
@@ -1370,6 +1377,7 @@ WallpaperItem {
             root.configuration[keys[i]] = settings[keys[i]];
         }
         scheduleConfigWrite();
+        root.acknowledgeSearchSettings();
         engine.showStatus(i18n("Desktop mode applied (full quality, smart offline, original downloads)."), "info");
     }
 
@@ -1391,9 +1399,11 @@ WallpaperItem {
             return;
         }
         var group = diskCacheNamespace || "default";
+        root._adoptingSyncGroup = true;
         root.configuration.SyncAdvanceEnabled = true;
         root.configuration.SyncAdvanceGroup = group;
         root.configuration.SyncProfilesEnabled = true;
+        root._adoptingSyncGroup = false;
         scheduleConfigWrite();
         if (root.saveSyncProfileForCurrentGroup) {
             root.saveSyncProfileForCurrentGroup();
@@ -2386,6 +2396,7 @@ WallpaperItem {
         }
 
         function resetSlideshow() {
+            root.acknowledgeSearchSettings();
             stopRetries();
             invalidateRequests();
             endBusy();
@@ -4402,88 +4413,101 @@ WallpaperItem {
         }
     }
 
-    Connections {
-        target: root.configuration
-        function onSearchTextChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onApiKeyChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onSyncAdvanceGroupChanged() {
+    // ---- reacting to settings changes ----
+    //
+    // KConfig keys are capitalized ("SearchText"), and Qt never calls
+    // `Connections { function onSearchTextChanged() }` for such a key on a
+    // property map: the handler is silently dead (checked against
+    // KConfigPropertyMap on Qt 6.11). Bindings do follow those keys, so the
+    // settings are watched through derived properties instead.
+
+    // Everything that decides which wallpapers are fetched.
+    readonly property string searchSettingsFingerprint: JSON.stringify([
+        cfg.SearchText, cfg.BrowseMode, cfg.CollectionUser, cfg.CollectionId, cfg.Sortings,
+        cfg.LocalSortings, cfg.Order, cfg.CategoryGeneral, cfg.CategoryAnime, cfg.CategoryPeople,
+        cfg.PuritySfw, cfg.PuritySketchy, cfg.PurityNsfw, cfg.MinWidth, cfg.MinHeight, cfg.Ratio,
+        cfg.ColorFilter, cfg.TopRange, cfg.ExactResolutions, cfg.UseBlacklist, cfg.DaySearch,
+        cfg.NightSearch, cfg.TimeOfDayEnabled, cfg.ImageQuality, cfg.OfflineOnlyMode,
+        cfg.FileTypeFilter, cfg.TagBlocklistJson, cfg.TagFavoritesJson, cfg.PreferSharpMatches,
+        cfg.WeatherReactiveEnabled, cfg.ScheduleEnabled, cfg.WeekdaySearch, cfg.WeekendSearch,
+        cfg.CollectionRotationEnabled, cfg.CollectionRotationJson, cfg.WallpaperOfDayEnabled,
+        cfg.WeatherReactiveEnabled ? cfg.WeatherTagCache : "",
+        root.meteredConnection,
+    ])
+    // The fingerprint the engine's current results were fetched for.
+    property string _appliedSearchFingerprint: ""
+
+    onSearchSettingsFingerprintChanged: {
+        if (root._configured) {
+            settingsResetTimer.restart();
+        }
+    }
+
+    // Call after the plugin itself writes one of those keys and a refetch is
+    // not wanted (liking a wallpaper must not replace it).
+    function acknowledgeSearchSettings() {
+        root._appliedSearchFingerprint = root.searchSettingsFingerprint;
+        settingsResetTimer.stop();
+    }
+
+    // The settings dialog applies many keys at once; refetch once for all of them.
+    Timer {
+        id: settingsResetTimer
+        interval: 250
+        repeat: false
+        onTriggered: {
+            if (root._configured && root.searchSettingsFingerprint !== root._appliedSearchFingerprint) {
+                engine.resetSlideshow();
+            }
+        }
+    }
+
+    readonly property string intervalSettingsFingerprint: [
+        cfg.SlideshowPaused, cfg.RandomInterval, cfg.DayIntervalMin, cfg.NightIntervalMin,
+        cfg.IntervalJitterPercent,
+    ].join("|")
+    onIntervalSettingsFingerprintChanged: {
+        if (root._configured) {
+            root.restartIntervalTimer();
+        }
+    }
+
+    readonly property string parallaxSettingsFingerprint: cfg.ParallaxEnabled + "|" + cfg.ParallaxStrength
+    onParallaxSettingsFingerprintChanged: {
+        if (!root._configured) {
+            return;
+        }
+        if (cfg.ParallaxEnabled) {
+            parallaxPhaseAnim.restart();
+        } else {
+            parallaxPhaseAnim.stop();
+            root.parallaxPhase = 0;
+        }
+    }
+
+    // Switching sync group applies that group's saved search profile.
+    readonly property string watchedSyncGroup: String(cfg.SyncAdvanceGroup || "")
+    // Set while the plugin renames the group itself and wants to keep the
+    // current search (it is then saved as the new group's profile).
+    property bool _adoptingSyncGroup: false
+    onWatchedSyncGroupChanged: {
+        if (!root._configured || !cfg.SyncProfilesEnabled || root._adoptingSyncGroup) {
+            return;
+        }
+        // After the settings dialog finished writing its other keys, so the
+        // profile is not half-overwritten by them.
+        Qt.callLater(function() {
             if (root._configured && cfg.SyncProfilesEnabled) {
                 root.applySyncProfileForGroup(cfg.SyncAdvanceGroup);
             }
+        });
+    }
+
+    readonly property bool watchedUseKWallet: !!cfg.UseKWalletForApiKey
+    onWatchedUseKWalletChanged: {
+        if (root._configured) {
+            root.loadApiKeyFromKWallet();
         }
-        function onBrowseModeChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onCollectionUserChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onCollectionIdChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onSortingsChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onLocalSortingsChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onOrderChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onCategoryGeneralChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onCategoryAnimeChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onCategoryPeopleChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onPuritySfwChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onPuritySketchyChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onPurityNsfwChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onMinWidthChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onMinHeightChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onRatioChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onColorFilterChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onTopRangeChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onExactResolutionsChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onUseBlacklistChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onDaySearchChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onNightSearchChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onTimeOfDayEnabledChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onImageQualityChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onKenBurnsEnabledChanged() { kenBurnsAnimation.restart(); }
-        function onKenBurnsSpeedChanged() { if (cfg.KenBurnsEnabled) kenBurnsAnimation.restart(); }
-        function onParallaxEnabledChanged() {
-            if (cfg.ParallaxEnabled) {
-                parallaxPhaseAnim.restart();
-            } else {
-                parallaxPhaseAnim.stop();
-                root.parallaxPhase = 0;
-            }
-        }
-        function onParallaxStrengthChanged() {
-            if (cfg.ParallaxEnabled) {
-                parallaxPhaseAnim.restart();
-            }
-        }
-        function onSlideshowPausedChanged() {
-            root.restartIntervalTimer();
-        }
-        function onOfflineOnlyModeChanged() {
-            if (root._configured) {
-                engine.resetSlideshow();
-            }
-        }
-        function onMeteredCacheOnlyChanged() {
-            if (root._configured && root.effectiveOfflineOnly()) {
-                engine.resetSlideshow();
-            }
-        }
-        function onRandomIntervalChanged() { root.restartIntervalTimer(); }
-        function onDayIntervalMinChanged() { root.restartIntervalTimer(); }
-        function onNightIntervalMinChanged() { root.restartIntervalTimer(); }
-        function onIntervalJitterPercentChanged() { root.restartIntervalTimer(); }
-        function onFileTypeFilterChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onTagBlocklistJsonChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onTagFavoritesJsonChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onPreferSharpMatchesChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onWeatherReactiveEnabledChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onWeatherTagCacheChanged() {
-            if (root._configured && cfg.WeatherReactiveEnabled) {
-                engine.resetSlideshow();
-            }
-        }
-        function onScheduleEnabledChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onWeekdaySearchChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onWeekendSearchChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onCollectionRotationEnabledChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onCollectionRotationJsonChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onWallpaperOfDayEnabledChanged() { if (root._configured) engine.resetSlideshow(); }
-        function onFavoritesRefreshMinChanged() { favoritesRefreshTimer.restart(); }
-        function onUseKWalletForApiKeyChanged() { root.loadApiKeyFromKWallet(); }
     }
 
     Timer {
@@ -4582,6 +4606,7 @@ WallpaperItem {
         // Put something on screen immediately (last preview / cache) so a slow
         // or offline network at login/wake never leaves a blank desktop.
         root.bootstrapWallpaperFromCache();
+        root._appliedSearchFingerprint = root.searchSettingsFingerprint;
         root._configured = true;
         scheduleConfigPreviewCapture();
         root.restartIntervalTimer();

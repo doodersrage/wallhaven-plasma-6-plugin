@@ -4340,34 +4340,19 @@ ColumnLayout {
         }
     }
 
-    Connections {
-        function onWallpaperHistoryJsonChanged() {
-            root.refreshHistoryModel();
-        }
+    // A Connections block on wallpaperConfiguration used to sit here. Its
+    // per-key handlers (onPreviewImageChanged, …) never ran: Qt does not
+    // connect them for capitalized KConfig keys. The thumbnail and history
+    // already follow their bindings/timer; only the file preview needs a nudge,
+    // because its path stays the same while the image behind it changes.
+    onPreviewWallpaperIdChanged: {
+        if (typeof filePreviewImage === "undefined" || !filePreviewImage)
+            return ;
 
-        function onPreviewImageChanged() {
-            filePreviewImage.source = "";
-            filePreviewImage.source = root.previewFileUrl;
-        }
-
-        function onPreviewThumbUrlChanged() {
-            thumbPreviewImage.source = "";
-            thumbPreviewImage.source = root.previewThumbUrl;
-        }
-
-        function onPreviewWallpaperIdChanged() {
-            thumbPreviewImage.source = "";
-            thumbPreviewImage.source = root.previewThumbUrl;
-        }
-
-        function onPreviewAttributionChanged() {
-            // Aspect may change between portrait/landscape wallpapers.
-            thumbPreviewImage.source = "";
-            thumbPreviewImage.source = root.previewThumbUrl;
-        }
-
-        target: wallpaperConfiguration
-        enabled: wallpaperConfiguration !== null
+        filePreviewImage.source = "";
+        filePreviewImage.source = Qt.binding(function() {
+            return root.previewFileUrl;
+        });
     }
 
 }

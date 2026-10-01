@@ -9,6 +9,15 @@ Item {
     required property var host   // wallpaper root (main.qml)
     readonly property var cfg: host.cfg
 
+    // Watched through a binding: per-key change handlers never fire for
+    // capitalized KConfig keys (see main.qml).
+    readonly property string settingsFingerprint: cfg.KenBurnsEnabled + "|" + cfg.KenBurnsSpeed
+    onSettingsFingerprintChanged: {
+        if (host._configured) {
+            restart();
+        }
+    }
+
     property real bgScale: 1
     property real fgScale: 1
     property real bgX: 0
