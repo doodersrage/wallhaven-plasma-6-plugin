@@ -10,11 +10,12 @@
       collections, favorites, filters, crossfade, Ken Burns, disk cache, and desktop actions.
     </p>
     <p>Requires network access to wallhaven.cc. An optional API key unlocks NSFW content and favorites.</p>
+    <p>This is an unofficial client and is not affiliated with wallhaven.cc.</p>
   </description>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-2.0-or-later</project_license>
-  <developer_name>Wallhaven Plasma Port</developer_name>
-  <url type="homepage">https://wallhaven.cc</url>
+  <developer_name>Robert McDowell</developer_name>
+  <url type="homepage">https://github.com/doodersrage/wallhaven-plasma-6-plugin</url>
   <url type="bugtracker">https://github.com/doodersrage/wallhaven-plasma-6-plugin/issues</url>
   <url type="vcs">https://github.com/doodersrage/wallhaven-plasma-6-plugin</url>
   <url type="details">https://www.opendesktop.org/p/2368647/</url>
@@ -42,6 +43,11 @@
     </screenshot>
   </screenshots>
     <releases>
+    <release version="3.7.0" date="2026-10-01">
+      <description>
+        <p>The API key loaded from KWallet now stays in memory instead of being copied into the settings file. Settings changed in the dialog apply immediately. The wallpaper and panel widget react to D-Bus signals instead of polling, and the D-Bus helper no longer runs shell scripts.</p>
+      </description>
+    </release>
     <release version="3.6.0" date="2026-09-27">
       <description>
         <p>Reorganize wallpaper settings into a short Essentials page and six task-based tabs (Wallpapers, Filters, Slideshow, Desktop, Storage, Maintenance), and complete all translations.</p>

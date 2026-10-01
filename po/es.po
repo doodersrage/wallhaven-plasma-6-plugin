@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: org.robertsm.wallhaven 3.6.0\n"
+"Project-Id-Version: org.robertsm.wallhaven 3.7.0\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -571,6 +571,9 @@ msgstr "No se pudo leer el archivo de configuración."
 
 msgid "Could not restore settings."
 msgstr "Could not restore settings."
+
+msgid "Could not save the API key to KWallet."
+msgstr "No se pudo guardar la clave de API en KWallet."
 
 msgid "Could not save wallpaper."
 msgstr "No se pudo guardar el fondo de escritorio."
@@ -1192,6 +1195,9 @@ msgstr "El modo similar necesita primero un fondo en pantalla."
 
 msgid "mountains nature"
 msgstr "montañas naturaleza"
+
+msgid "Moves the key into KWallet (folder org.robertsm.wallhaven, entry apikey) and removes it from the wallpaper settings file."
+msgstr "Mueve la clave a KWallet (carpeta org.robertsm.wallhaven, entrada apikey) y la elimina del archivo de configuración del fondo de pantalla."
 
 msgid "Multiple monitors"
 msgstr "Varios monitores"
@@ -1999,9 +2005,6 @@ msgstr "Iniciar servicio D-Bus"
 
 msgid "Storage"
 msgstr "Almacenamiento"
-
-msgid "Stores the key in KWallet folder org.robertsm.wallhaven (entry apikey). Prefer this over leaving the key only in wallpaper settings."
-msgstr "Guarda la clave en KWallet org.robertsm.wallhaven (entrada apikey). Mejor que solo en la config del fondo."
 
 msgid "Swipe the panel widget thumbnail left/right (or use its menu) to like/dislike the current wallpaper's tags."
 msgstr "Desliza la miniatura del widget a izquierda/derecha (o menú) para gustar/rechazar etiquetas."

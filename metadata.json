@@ -3,19 +3,19 @@
     "KPlugin": {
         "Authors": [
             {
-                "Name": "Wallhaven Plasma Port"
+                "Name": "Robert McDowell"
             }
         ],
         "Category": "Multimedia",
-        "Description": "Random and search-based wallpapers from wallhaven.cc with slideshow, filters, and effects.",
+        "Description": "Random and search-based wallpapers from wallhaven.cc with slideshow, filters, and effects (unofficial client).",
         "Icon": "preferences-desktop-wallpaper",
         "Id": "org.robertsm.wallhaven",
         "License": "GPL-2.0-or-later",
         "Name": "Wallhaven",
-        "Version": "3.6.0",
-        "Website": "https://wallhaven.cc"
+        "Version": "3.7.0",
+        "Website": "https://github.com/doodersrage/wallhaven-plasma-6-plugin"
     },
     "Keywords": "wallhaven,wallpaper,slideshow,anime",
     "X-KDE-ParentApp": "org.kde.plasmashell",
-    "X-Plasma-API-Minimum-Version": "6.0"
+    "X-Plasma-API-Minimum-Version": "6.2"
 }

@@ -573,6 +573,9 @@ msgstr ""
 msgid "Could not restore settings."
 msgstr ""
 
+msgid "Could not save the API key to KWallet."
+msgstr ""
+
 msgid "Could not save wallpaper."
 msgstr ""
 
@@ -1192,6 +1195,9 @@ msgid "More-like-current mode needs a wallpaper on screen first."
 msgstr ""
 
 msgid "mountains nature"
+msgstr ""
+
+msgid "Moves the key into KWallet (folder org.robertsm.wallhaven, entry apikey) and removes it from the wallpaper settings file."
 msgstr ""
 
 msgid "Multiple monitors"
@@ -1999,9 +2005,6 @@ msgid "Start D-Bus service"
 msgstr ""
 
 msgid "Storage"
-msgstr ""
-
-msgid "Stores the key in KWallet folder org.robertsm.wallhaven (entry apikey). Prefer this over leaving the key only in wallpaper settings."
 msgstr ""
 
 msgid "Swipe the panel widget thumbnail left/right (or use its menu) to like/dislike the current wallpaper's tags."

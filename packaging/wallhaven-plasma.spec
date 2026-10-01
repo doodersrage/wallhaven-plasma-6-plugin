@@ -1,5 +1,5 @@
 Name:           wallhaven-plasma
-Version:        3.6.0
+Version:        3.7.0
 Release:        1%{?dist}
 Summary:        Wallhaven wallpaper plugin for KDE Plasma 6
 License:        GPL-2.0-or-later
@@ -61,6 +61,9 @@ sed -i 's|/home/USER/.local/share/wallhaven-plasma/tools|%{_datadir}/wallhaven-p
 %{_datadir}/applications/wallhaven-preset.desktop
 
 %changelog
+* Thu Oct 01 2026 Wallhaven Plasma Port <wallhaven@local> - 3.7.0-1
+- Keep the KWallet API key out of the config file; D-Bus signals instead of polling;
+  settings changes apply immediately; no shell in the D-Bus helper
 * Sun Sep 27 2026 Wallhaven Plasma Port <wallhaven@local> - 3.6.0-1
 - Reorganize wallpaper settings: Essentials page plus six task-based tabs
 * Sun Sep 27 2026 Wallhaven Plasma Port <wallhaven@local> - 3.5.6-1

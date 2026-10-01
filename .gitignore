@@ -1,8 +1,11 @@
 # Build artifacts
 wallhaven-plasma-*.tar.xz
+dist/
 build-shortcuts/
 build/
-tools/__pycache__/
+.packaging-smoke/
+__pycache__/
+*.pyc
 .vscode/
 
 # Editor / OS

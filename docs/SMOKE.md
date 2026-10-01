@@ -2,6 +2,17 @@
 
 Run after `./dev-helper.sh deploy` and before tagging a release.
 
+## 3.7 — things only a person can check
+
+- [ ] Change the search text in settings and click **Apply**: the wallpaper refetches once, without pressing Reload
+- [ ] Change the interval and Apply: the widget countdown restarts with the new interval
+- [ ] Paste the API key → **Save current API key to KWallet**: the field empties, the hint shows the key's last four characters, and `grep -c '^ApiKey=.\+' ~/.config/plasma-org.kde.plasma.desktop-appletsrc` prints `0`
+- [ ] Log out and in: NSFW/favorites still work (key came from the wallet) and that `grep` still prints `0`
+- [ ] Lock and unlock the screen: wallpaper is on screen again within a couple of seconds on every monitor
+- [ ] With lock-screen sync on, the lock screen shows the current wallpaper; with it off everywhere and your own lock wallpaper set, that wallpaper stays
+- [ ] Add **Wallhaven Control** to a panel: next / pause react immediately and the thumbnail follows the wallpaper
+- [ ] Unplug a monitor: after 5 minutes it is gone from the widget's monitor picker
+
 ## D-Bus and control
 
 - [ ] `systemctl --user is-active wallhaven-dbus.service` → `active`

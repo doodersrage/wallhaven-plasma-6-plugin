@@ -2,7 +2,7 @@
 
 Fetch and cycle wallpapers from [wallhaven.cc](https://wallhaven.cc) on KDE Plasma 6: search, collections, favorites, slideshow effects, offline cache, presets, and full control from the panel, keyboard, KRunner, or D-Bus.
 
-**Current version:** 3.6.0  
+**Current version:** 3.7.0  
 **KDE Store / OpenDesktop:** [Wallhaven Extended (p/2368647)](https://www.opendesktop.org/p/2368647/)  
 **Releases:** [GitHub Releases](https://github.com/doodersrage/wallhaven-plasma-6-plugin/releases)
 
@@ -86,7 +86,7 @@ Full guide: [docs/CONTROL.md](docs/CONTROL.md).
 
 ## Requirements
 
-- **KDE Plasma 6** (`X-Plasma-API-Minimum-Version` 6.0)
+- **KDE Plasma 6.2 or newer** (the D-Bus QML API the plugin relies on arrived in 6.2; from 6.4 it uses signals instead of polling)
 - Network access to `wallhaven.cc` (unless using offline playlist / cached-only modes)
 - Optional: `realesrgan-ncnn-vulkan` on `PATH` for the upscaler hook
 - Optional: `kwallet-query` for API key storage
@@ -109,6 +109,13 @@ Full guide: [docs/CONTROL.md](docs/CONTROL.md).
 | [packaging/README.md](packaging/README.md) | Downstream packaging |
 
 ---
+
+## What's new in 3.7.0
+- **API key privacy**: with KWallet, the key is read straight from the wallet and kept in memory. It is no longer copied into the wallpaper settings file, a temp file, or a process command line (older copies are removed on upgrade)
+- **Settings apply immediately**: changing the search, filters or interval in the settings dialog now takes effect at once instead of at the next manual reload
+- **Much less background work**: the wallpaper and panel widget react to D-Bus signals instead of polling several times a second; the cache-size check no longer starts a process per cached file
+- **Hardened helper**: `wallhaven-dbus.py` no longer accepts shell scripts at all, and slow downloads no longer freeze it
+- Lock-screen repair leaves a lock wallpaper you picked yourself alone
 
 ## What's new in 3.6.0
 - Wallpaper settings reorganized: a short **Essentials** page by default, and **All settings** in six tabs (Wallpapers, Filters, Slideshow, Desktop, Storage, Maintenance)

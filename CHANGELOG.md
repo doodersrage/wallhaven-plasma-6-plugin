@@ -1,5 +1,41 @@
 # Changelog
 
+## 3.7.0 — 2026-10-01
+
+### Security
+- **KWallet no longer leaks the API key** — the key is read from the wallet over D-Bus (`GetApiKey` / `SetApiKey`) and held in memory only. Before, loading it wrote a plaintext `~/.cache/plasmashell/kwallet-apikey.txt` that was never deleted, copied the key back into the plain wallpaper config on every start, and saving passed it on a `bash -lc` command line. The leftover temp file is removed when the helper starts, and an identical plain-config copy is scrubbed the first time the wallet answers
+- **Sync-group profiles no longer store the API key** — saving a profile captured it into `SyncProfilesJson`; it is dropped on save and ignored on apply
+- **The D-Bus helper has no shell** — `bash` is gone from `RunArgv`. Lock-screen sync, lock-screen repair, the Variety symlink, accent sync and KWallet are dedicated methods (`SyncLockScreen`, `EnsureLockScreen`, `LinkVarietyCurrent`, `SyncSystemAccent`, `GetApiKey`, `SetApiKey`) that validate their arguments; no script text is accepted from a client any more
+
+### Fixed
+- **Settings changed in the dialog did nothing until a manual reload** — every `onSearchTextChanged`-style handler on the wallpaper configuration was dead: Qt never calls per-key handlers for KConfig's capitalized keys. Search, filter, purity, interval, Ken Burns, parallax, sync-group and KWallet settings are now watched through bindings, so they apply as soon as you click Apply (one refetch per Apply, however many keys changed)
+- **Resuming from a rule-based pause with only day/night intervals set** did not restart the slideshow timer
+- **Lock-screen repair could replace your own lock wallpaper** — on every start and wake it re-pointed the greeter at a Wallhaven copy even on setups that never enabled lock-screen sync. It now only repairs an image this plugin wrote, and leaves another lock-screen wallpaper plugin alone
+- **`wallhaven-dbus-write.log` grew without bound** (hundreds of MB): every status publish appended a line. Only rejected writes are logged now, capped at 256 KB, and an oversized log is removed at start
+- **A slow download or upscale froze the helper** — `RunArgv`, `Upscale`, lock sync and KWallet calls run off the main loop, so control commands and status keep flowing meanwhile
+- **Unplugged monitors lingered** — a status file left by a disconnected screen showed up as a ghost entry in the plasmoid's monitor picker and as a fan-out target nobody listened on. Status files older than 5 minutes are ignored
+- **"Offline only" still went online** — with attribution on or an API key set, every displayed wallpaper triggered a tag lookup, also in playlist, trip and metered-cache modes. Cache-only modes make no requests now and use the tags stored with the cached file
+- `TypeError: Cannot read property 'retryAfterReconnect' of null` when a connectivity check answered after the wallpaper item was destroyed
+- Pausing by lock/idle/battery rules now publishes the paused state immediately instead of at the next heartbeat
+
+### Performance
+- **No more polling** — the helper emits `ControlChanged`, `SyncAdvanced` and `StatusChanged` signals (including for files written by `wallhaven-ctl.sh` or scripts, via a directory monitor). Per monitor this removes a control-file read every 400 ms, a sync read every 800 ms, a `Ping` + upscaler probe every 5 s and a `GetActive` call every 5 s; the plasmoid drops its two calls per second. Without `SignalWatcher` (older Plasma) the previous polling is used automatically
+- Screen lock/unlock comes from `org.freedesktop.ScreenSaver.ActiveChanged`
+- The status heartbeat is 30 s instead of 5 s (real changes still publish at once)
+- The cache size quota is checked once a minute with a single `StatCacheFiles` call instead of one `stat` process per cached file every 5 s
+
+### Changed
+- **`main.qml` split by concern** (6291 → ~4600 lines): `DBusHelper`, `ApiKeyStore`, `ApiHealth` (outage / rate-limit state machine), `DiskCache`, `LockScreenSync`, `ControlBus` + `BusSignals`, `SessionMonitors` (battery, idle, music, weather), `KenBurns`, and the three overlays. Control/sync watermark logic, wallet key resolution and path helpers moved into `wallhaven.js` with unit tests
+- Changing the API key refetches only when online; liking a wallpaper or the smart colour filter never replaces the wallpaper on screen
+- Removed unused `isSettingsControlCommand`, `writeControlCommand`, `isUpscalerAvailable`, `isUpscalerStatusKnown`
+- **Minimum Plasma version is declared as 6.2** (was 6.0): the D-Bus QML API the plugin has long depended on only exists from 6.2, so on older versions it failed to load instead of being refused. Signals need 6.4; 6.2/6.3 use the polling fallback
+- Plugin metadata names the author and links the project page instead of wallhaven.cc; descriptions say this is an unofficial client
+
+### Tests
+- `tests/test-qml-runtime.py` loads the real wallpaper and plasmoid QML headless against the real helper on a private bus (fake wallet/kwriteconfig, no network) and drives it like the CLI does: signals, polling fallback, cache slideshow, wallet key handling, lock sync, lock/unlock recovery, applied settings, every control command
+- `tests/test-dbus-service.py` exercises the helper's methods and signals on a private bus
+- `tests/check-qml-refs.py` fails on dangling QML references, missing `liveWallpaper.*` entry points and dead per-key config handlers
+
 ## 3.6.0 — 2026-09-27
 
 ### Changed

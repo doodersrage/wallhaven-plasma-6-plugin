@@ -1,15 +1,15 @@
 {
     "KPlugin": {
-        "Authors": [{ "Name": "Wallhaven Plasma Port" }],
+        "Authors": [{ "Name": "Robert McDowell" }],
         "Category": "Utilities",
         "Description": "Control the Wallhaven wallpaper (next, previous, pause, reload).",
         "Icon": "preferences-desktop-wallpaper",
         "Id": "org.robertsm.wallhaven.control",
         "License": "GPL-2.0-or-later",
         "Name": "Wallhaven Control",
-        "Version": "3.6.0",
-        "Website": "https://wallhaven.cc"
+        "Version": "3.7.0",
+        "Website": "https://github.com/doodersrage/wallhaven-plasma-6-plugin"
     },
     "KPackageStructure": "Plasma/Applet",
-    "X-Plasma-API-Minimum-Version": "6.0"
+    "X-Plasma-API-Minimum-Version": "6.2"
 }

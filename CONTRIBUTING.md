@@ -33,6 +33,9 @@ Wallhaven uses JSON translation catalogs under `po/catalog/` and compiles them t
 | fr | French | `po/catalog/fr.json` |
 | es | Spanish | `po/catalog/es.json` |
 | it | Italian | `po/catalog/it.json` |
+| pt_BR | Portuguese (Brazil) | `po/catalog/pt_BR.json` |
+| nl | Dutch | `po/catalog/nl.json` |
+| pl | Polish | `po/catalog/pl.json` |
 | en | English (source) | keys in POT / `po/en.po` |
 
 ## Development workflow
@@ -42,6 +45,25 @@ Wallhaven uses JSON translation catalogs under `po/catalog/` and compiles them t
 ./dev-helper.sh deploy
 ./dev-helper.sh install-shortcuts   # optional Meta+Ctrl+Alt+arrows
 ```
+
+### Tests
+
+`./dev-helper.sh test` runs everything that can run on your machine and says what it skipped:
+
+| Step | Needs |
+|------|-------|
+| `wallhaven.js` unit tests | `node` |
+| QML structure + reference checks (`tests/validate-qml.sh`) | `python3`, `ripgrep`; `qmllint` if installed |
+| D-Bus helper tests on a private bus (`tests/test-dbus-service.py`) | `python-dbus`, `python-gobject`, `dbus-run-session` |
+| Headless load of the wallpaper and plasmoid (`tests/test-qml-runtime.py`) | PyQt6 or PySide6, plus Plasma 6 (`plasma-workspace`, Kirigami, KNotifications QML) |
+| Live storm/queue regressions | the wallpaper deployed and running (`./dev-helper.sh deploy`) |
+
+None of the first four touches your real wallet, lock-screen config, wallpaper or the network: they run against a throwaway home directory with fake `kwallet-query` / `kwriteconfig6`.
+
+Two rules the checks enforce, because breaking them fails silently in Plasma:
+
+- Do not react to a setting with `Connections { function onFooChanged() }` on the configuration: Qt never calls it for capitalized keys. Add the key to a fingerprint binding in `main.qml` (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
+- A function the settings dialog calls as `liveWallpaper.something()` must exist on the root of `main.qml`.
 
 ## Screenshots (KDE Store)
 

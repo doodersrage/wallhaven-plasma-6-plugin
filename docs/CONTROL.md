@@ -68,6 +68,25 @@ qdbus6 org.robertsm.Wallhaven /Wallhaven org.robertsm.Wallhaven.CommandWithQuery
 
 Query-bearing commands use `CommandWithQuery` (or `Search` for plain search). Simple commands use `CommandInGroup`.
 
+### Signals
+
+The helper announces changes, so nothing needs to poll:
+
+| Signal | Arguments | Meaning |
+|--------|-----------|---------|
+| `ControlChanged` | `payload` | a control command was issued (JSON as in `wallhaven-control.json`) |
+| `SyncAdvanced` | `group`, `payload` | a monitor in a sync group advanced |
+| `StatusChanged` | `namespace`, `payload` | a status snapshot was published (`""` = shared status, else the monitor's cache namespace) |
+
+```bash
+# follow what the wallpaper is showing
+gdbus monitor --session --dest org.robertsm.Wallhaven --object-path /Wallhaven
+```
+
+A command written straight to `~/.cache/plasmashell/wallhaven-control.json` (what `wallhaven-ctl.sh` does when `qdbus6` is missing) is picked up by the helper and announced the same way.
+
+The helper runs no shell. `RunArgv` accepts a short allow-list of fixed command shapes only; lock-screen sync, KWallet, the Variety symlink and accent sync are separate methods (see [ARCHITECTURE.md](ARCHITECTURE.md)).
+
 MPRIS media keys work via `org.mpris.MediaPlayer2.wallhaven`. Wallhaven also *reads* any other running MPRIS player (Spotify, VLC, …) when **Music-reactive pacing** is enabled, to speed up the Ken Burns pan while music is playing.
 
 
