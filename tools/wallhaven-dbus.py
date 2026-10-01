@@ -3,18 +3,21 @@
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 
 try:
     import dbus
     import dbus.service
-    from dbus.mainloop.glib import DBusGMainLoop
+    from dbus.mainloop.glib import DBusGMainLoop, threads_init as dbus_threads_init
     from gi.repository import Gio, GLib
 except ImportError as exc:  # pragma: no cover
     print("Requires python3-dbus and python3-gi:", exc, file=sys.stderr)
@@ -39,17 +42,19 @@ PLASMA_CACHE = os.path.join(CACHE, "plasmashell")
 CONTROL_FILE = os.path.join(PLASMA_CACHE, "wallhaven-control.json")
 STATUS_FILE = os.path.join(PLASMA_CACHE, "wallhaven-status.json")
 DBUS_CONFIG_FILE = os.path.join(PLASMA_CACHE, "wallhaven-dbus-config.json")
+WRITE_LOG_NAME = "wallhaven-dbus-write.log"
+WRITE_LOG_MAX_BYTES = 256 * 1024
+# Every command here has its own argv policy below. There is deliberately no
+# shell: lock-screen sync, Variety symlinks, accent sync and KWallet access are
+# purpose-built D-Bus methods, so clients never hand this service a script.
 ALLOWED_COMMANDS = {
-    "bash",
     "rm",
     "cp",
     "curl",
     "test",
     "stat",
     "systemsettings",
-    "kwallet-query",
     "plasma-apply-colors",
-    "kwriteconfig6",
 }
 # Only realesrgan-ncnn-vulkan is driven directly (its "-i <in> -o <out> -n <model>"
 # invocation is hardcoded below); other ncnn-vulkan-family tools take different
@@ -62,40 +67,39 @@ HOME_READ_BLOCKED = (".ssh", ".gnupg", ".local/share/keyrings/")
 CURL_HOST_RE = re.compile(r"^https://([a-z0-9-]+\.)*wallhaven\.cc(?:/|$)", re.IGNORECASE)
 CONTROL_CMD_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 MAX_CONTROL_QUERY_CHARS = 2000
-MAX_BASH_SCRIPT_CHARS = 8000
 
-# bash -lc scripts the wallpaper/plasmoid are allowed to run (whole-string match).
-BASH_SCRIPT_ALLOWLIST = (
-    # Non-empty cache file probe (legacy callers; prefer argv ["test","-s",path]).
-    re.compile(r"^test -s (?:'[^']+'|\"[^\"]+\")$"),
-    # Lock-screen sync: flock + copy + kwriteconfig6 + age-gated prune.
-    re.compile(
-        r"^flock -w 30 '[^']+' bash -c '.+kwriteconfig6 --file kscreenlockerrc.+$",
-        re.DOTALL,
-    ),
-    # Variety wallpaper symlink under a user-chosen folder.
-    re.compile(
-        r"^mkdir -p '[^']+' && ln -sf '[^']+' '[^']+/wallhaven-current(?:\.[A-Za-z0-9]+)?'$"
-    ),
-    # Plasma accent color helper.
-    re.compile(
-        r"^command -v plasma-apply-colors >/dev/null && plasma-apply-colors --accent-color '#[0-9A-Fa-f]{6}' \|\| true$"
-    ),
-    # KDE (+ optional GNOME) accent sync.
-    re.compile(
-        r"^kwriteconfig6 --file kdeglobals --group General --key AccentColor '[0-9]+,[0-9]+,[0-9]+';\s*"
-        r"(?:command -v gsettings >/dev/null 2>&1 && gsettings set org\.gnome\.desktop\.interface accent-color "
-        r"'[a-z]+' 2>/dev/null; true)?$"
-    ),
-    # KWallet write (API key).
-    re.compile(
-        r"^printf '%s' '[^']*' \| kwallet-query -w apikey -f org\.robertsm\.wallhaven kdewallet 2>/dev/null$"
-    ),
-    # KWallet read into a plasmashell-cache temp file.
-    re.compile(
-        r"^kwallet-query -r apikey -f org\.robertsm\.wallhaven kdewallet > '[^']+' 2>/dev/null$"
-    ),
+KWALLET_WALLET = "kdewallet"
+KWALLET_FOLDER = "org.robertsm.wallhaven"
+KWALLET_ENTRY = "apikey"
+# Reading may wait on the wallet-unlock dialog, so allow for a slow human.
+KWALLET_TIMEOUT_SEC = 120
+MAX_API_KEY_CHARS = 256
+
+LOCK_SCREEN_PREFIX = "wallhaven-lockscreen-"
+LOCK_SCREEN_CURRENT_NAME = "wallhaven-lockscreen-current.jpg"
+LOCK_SCREEN_LEGACY_NAME = "wallhaven-lockscreen.jpg"
+LOCK_SCREEN_FLOCK_NAME = "wallhaven-lockscreen.lock"
+LOCK_SCREEN_DEST_RE = re.compile(r"^wallhaven-lockscreen-[A-Za-z0-9_-]+\.jpg$")
+LOCK_SCREEN_FLOCK_TIMEOUT_SEC = 30
+LOCK_SCREEN_PRUNE_AGE_SEC = 30 * 60
+# A greeter Image= this fresh was just written by a sibling monitor; reuse it
+# instead of stampeding new repaired-*.jpg paths.
+LOCK_SCREEN_FRESH_SEC = 90
+GREETER_IMAGE_GROUPS = (
+    "--group", "Greeter", "--group", "Wallpaper",
+    "--group", "org.kde.image", "--group", "General",
 )
+KCONFIG_TIMEOUT_SEC = 15
+
+VARIETY_SYMLINK_NAME = "wallhaven-current.jpg"
+KDE_ACCENT_RE = re.compile(r"^\d{1,3},\d{1,3},\d{1,3}$")
+GNOME_ACCENT_RE = re.compile(r"^[a-z]{1,32}$")
+SYNC_FILE_RE = re.compile(r"^wallhaven-sync-([A-Za-z0-9_-]{1,64})\.json$")
+MAX_STAT_PATHS = 512
+# A running wallpaper republishes its status at least every 30 s. A file this
+# old belongs to a monitor that was unplugged (or a wallpaper that is gone).
+STATUS_STALE_SEC = 300
+
 
 def config_home() -> str:
     return os.path.realpath(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")))
@@ -181,28 +185,6 @@ def _deny(reason: str) -> None:
     )
 
 
-def _bash_script_allowed(script: str) -> bool:
-    text = str(script or "")
-    if not text or len(text) > MAX_BASH_SCRIPT_CHARS:
-        return False
-    # Backticks are never allowed (easy escape hatch).
-    if "`" in text:
-        return False
-    # Lock-screen flock scripts intentionally use $(...) / ${...} for
-    # kreadconfig/prune/ensure. Other bash -lc callers must stay expansion-free.
-    is_lock_flock = (
-        text.startswith("flock -w 30 ")
-        and "kwriteconfig6 --file kscreenlockerrc" in text
-        and "wallhaven-lockscreen" in text
-    )
-    if not is_lock_flock and ("$(" in text or "${" in text):
-        return False
-    for pattern in BASH_SCRIPT_ALLOWLIST:
-        if pattern.match(text):
-            return True
-    return False
-
-
 def _validate_curl_argv(argv: list[str]) -> list[str]:
     # curl -fsSL --max-time N -o <cache> <https://*.wallhaven.cc/...>
     if len(argv) != 7:
@@ -273,35 +255,6 @@ def _validate_plasma_apply_colors_argv(argv: list[str]) -> list[str]:
     return ["plasma-apply-colors", "--accent-color", color]
 
 
-def _validate_bash_argv(argv: list[str]) -> list[str]:
-    if len(argv) != 3 or argv[1] != "-lc":
-        _deny("bash: only 'bash -lc <script>' is allowed")
-    script = argv[2]
-    if not _bash_script_allowed(script):
-        _deny("bash: script not on allowlist")
-    # Extra path checks for test -s / kwallet redirect / lock dest.
-    if script.startswith("test -s "):
-        quoted = script[len("test -s "):]
-        path = quoted[1:-1] if len(quoted) >= 2 and quoted[0] in "'\"" else quoted
-        validate_cache_path(path)
-    elif "kwallet-query -r apikey" in script and " > '" in script:
-        out = script.split(" > '", 1)[1].rsplit("' 2>/dev/null", 1)[0]
-        validate_cache_path(out)
-    elif script.startswith("flock -w 30 "):
-        if "kwriteconfig6 --file kscreenlockerrc" not in script:
-            _deny("bash: lock sync missing kscreenlockerrc writes")
-        if "wallhaven-lockscreen" not in script:
-            _deny("bash: lock sync missing wallhaven-lockscreen path")
-        head = re.match(r"^flock -w 30 '([^']+)' bash -c '", script)
-        if not head:
-            _deny("bash: lock sync flock shape invalid")
-        validate_cache_path(head.group(1))
-        cache_base = os.path.realpath(PLASMA_CACHE)
-        if cache_base not in script and PLASMA_CACHE not in script:
-            _deny("bash: lock sync must reference plasmashell cache")
-    return ["bash", "-lc", script]
-
-
 def validate_run_argv(argv: list[str]) -> list[str]:
     """Return a sanitized argv or raise AccessDenied/InvalidArgs."""
     if not argv:
@@ -335,11 +288,6 @@ def validate_run_argv(argv: list[str]) -> list[str]:
         return _validate_systemsettings_argv(cleaned)
     if program == "plasma-apply-colors":
         return _validate_plasma_apply_colors_argv(cleaned)
-    if program == "bash":
-        return _validate_bash_argv(cleaned)
-    if program in {"kwallet-query", "kwriteconfig6"}:
-        # Direct invocations are unused by the plugin today; keep deny-by-default.
-        _deny(f"{program}: use the approved bash -lc wrappers")
     _deny(f"no policy for {program}")
     return cleaned
 
@@ -348,6 +296,464 @@ def run_argv(argv: list[str]) -> int:
     safe = validate_run_argv(argv)
     result = subprocess.run(safe, check=False)
     return int(result.returncode or 0)
+
+
+def log_rejected_write(path: str, reason: object) -> None:
+    """Record a refused WriteTextFile. Successful writes are not logged: status
+    is published every few seconds per monitor and used to grow this file
+    without bound (hundreds of MB)."""
+    log_path = os.path.join(PLASMA_CACHE, WRITE_LOG_NAME)
+    try:
+        if os.path.getsize(log_path) > WRITE_LOG_MAX_BYTES:
+            os.remove(log_path)
+    except OSError:
+        pass
+    try:
+        with open(log_path, "a", encoding="utf-8") as handle:
+            handle.write(f"REJECT {path!r} err={reason}\n")
+    except OSError:
+        pass
+
+
+def trim_write_log() -> None:
+    """Drop an oversized write log left behind by older service builds."""
+    log_path = os.path.join(PLASMA_CACHE, WRITE_LOG_NAME)
+    try:
+        if os.path.getsize(log_path) > WRITE_LOG_MAX_BYTES:
+            os.remove(log_path)
+    except OSError:
+        pass
+
+
+def sanitize_api_key(value: object) -> str:
+    """A Wallhaven API token, or "" for anything that cannot be one."""
+    key = str(value or "").strip()
+    if not key or len(key) > MAX_API_KEY_CHARS:
+        return ""
+    # kwallet-query prints a sentence when the entry is missing; tokens have
+    # no whitespace or control characters.
+    if any(ch.isspace() or ord(ch) < 32 for ch in key):
+        return ""
+    return key
+
+
+def _kwallet_argv(mode: str) -> list[str]:
+    # kwallet-query [options] <wallet>: the wallet is positional.
+    return ["kwallet-query", mode, KWALLET_ENTRY, "-f", KWALLET_FOLDER, KWALLET_WALLET]
+
+
+def wallet_read_api_key() -> str:
+    """API key stored in KWallet, or "" when missing/unavailable.
+
+    The secret only ever travels over pipes: it is never written to disk and
+    never appears in a process argument list.
+    """
+    if not shutil.which("kwallet-query"):
+        return ""
+    try:
+        proc = subprocess.run(
+            _kwallet_argv("-r"),
+            capture_output=True, text=True, timeout=KWALLET_TIMEOUT_SEC, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    if proc.returncode != 0:
+        return ""
+    return sanitize_api_key(proc.stdout)
+
+
+def wallet_write_api_key(key: str) -> bool:
+    clean = sanitize_api_key(key)
+    if not clean or not shutil.which("kwallet-query"):
+        return False
+    try:
+        proc = subprocess.run(
+            _kwallet_argv("-w"),
+            input=clean, capture_output=True, text=True,
+            timeout=KWALLET_TIMEOUT_SEC, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return proc.returncode == 0
+
+
+def remove_legacy_api_key_file() -> bool:
+    """Delete the plaintext key copy that builds before 3.7 left in the cache."""
+    path = os.path.join(PLASMA_CACHE, "kwallet-apikey.txt")
+    if not os.path.lexists(path):
+        return False
+    _silent_remove(path)
+    return True
+
+
+def _nonempty_file(path: str) -> bool:
+    try:
+        return os.path.isfile(path) and os.path.getsize(path) > 0
+    except OSError:
+        return False
+
+
+def _atomic_copy(src: str, dst: str) -> None:
+    tmp = dst + ".tmp"
+    shutil.copyfile(src, tmp)
+    os.replace(tmp, dst)
+
+
+def _kwriteconfig(file: str, groups: tuple[str, ...], key: str, value: str) -> None:
+    subprocess.run(
+        ["kwriteconfig6", "--file", file, *groups, "--key", key, value],
+        check=True, timeout=KCONFIG_TIMEOUT_SEC,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+
+
+def _kreadconfig(file: str, groups: tuple[str, ...], key: str) -> str:
+    try:
+        proc = subprocess.run(
+            ["kreadconfig6", "--file", file, *groups, "--key", key],
+            capture_output=True, text=True, timeout=KCONFIG_TIMEOUT_SEC, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return (proc.stdout or "").strip()
+
+
+def greeter_image_path() -> str:
+    """Local path kscreenlockerrc's org.kde.image wallpaper points at ("" if unset)."""
+    return normalize_local_path(_kreadconfig("kscreenlockerrc", GREETER_IMAGE_GROUPS, "Image"))
+
+
+def greeter_wallpaper_plugin() -> str:
+    return _kreadconfig("kscreenlockerrc", ("--group", "Greeter"), "WallpaperPlugin")
+
+
+def point_greeter_at(path: str) -> None:
+    url = "file://" + path
+    _kwriteconfig("kscreenlockerrc", ("--group", "Greeter"), "WallpaperPlugin", "org.kde.image")
+    _kwriteconfig("kscreenlockerrc", GREETER_IMAGE_GROUPS, "Image", url)
+    _kwriteconfig("kscreenlockerrc", GREETER_IMAGE_GROUPS, "PreviewImage", url)
+    _kwriteconfig("kscreenlockerrc", GREETER_IMAGE_GROUPS, "FillMode", "2")
+
+
+def is_wallhaven_lock_image(path: str) -> bool:
+    """True for lock-screen copies this plugin wrote into the plasmashell cache."""
+    if not path:
+        return False
+    full = os.path.realpath(path)
+    name = os.path.basename(full)
+    return (
+        os.path.dirname(full) == os.path.realpath(PLASMA_CACHE)
+        and (name.startswith(LOCK_SCREEN_PREFIX) or name == LOCK_SCREEN_LEGACY_NAME)
+    )
+
+
+@contextlib.contextmanager
+def lock_screen_flock(timeout: float = LOCK_SCREEN_FLOCK_TIMEOUT_SEC):
+    """Serialize multi-monitor lock-screen writers (same flock(2) the old
+    `flock -w 30` shell pipeline took, so mixed versions still exclude)."""
+    os.makedirs(PLASMA_CACHE, exist_ok=True)
+    fd = os.open(os.path.join(PLASMA_CACHE, LOCK_SCREEN_FLOCK_NAME), os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("lock-screen flock timed out") from None
+                time.sleep(0.1)
+        yield
+    finally:
+        os.close(fd)
+
+
+def prune_lock_screen_copies(keep_names: set[str]) -> None:
+    """Age-gated cleanup of old unique lock images; never the ones still in use."""
+    cache = os.path.realpath(PLASMA_CACHE)
+    cutoff = time.time() - LOCK_SCREEN_PRUNE_AGE_SEC
+    try:
+        names = os.listdir(cache)
+    except OSError:
+        return
+    for name in names:
+        is_copy = name == LOCK_SCREEN_LEGACY_NAME or (
+            name.startswith(LOCK_SCREEN_PREFIX) and name.endswith(".jpg")
+        )
+        if not is_copy or name in keep_names:
+            continue
+        path = os.path.join(cache, name)
+        try:
+            if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
+                os.remove(path)
+        except OSError:
+            continue
+
+
+def lock_screen_sync(source: str, dest: str) -> str:
+    """Copy `source` to the unique lock image `dest` and point the greeter at it.
+
+    Returns "ok" or "fail:<reason>". A unique path per wallpaper makes
+    kscreenlocker reload; wallhaven-lockscreen-current.jpg is the stable mirror
+    that monitors without SyncLockScreen (and wake recovery) fall back to.
+    """
+    src = validate_read_path(source)
+    dst = validate_cache_path(dest)
+    name = os.path.basename(dst)
+    if os.path.dirname(dst) != os.path.realpath(PLASMA_CACHE) or not LOCK_SCREEN_DEST_RE.match(name):
+        _deny("lock screen: destination must be a wallhaven-lockscreen-<id>.jpg in the cache")
+    current = os.path.join(os.path.realpath(PLASMA_CACHE), LOCK_SCREEN_CURRENT_NAME)
+    try:
+        with lock_screen_flock():
+            if not os.path.isfile(src):
+                return "fail:source-missing"
+            if src != dst:
+                _atomic_copy(src, dst)
+            if not _nonempty_file(dst):
+                return "fail:dest-empty"
+            if dst != current:
+                _atomic_copy(dst, current)
+            if not _nonempty_file(current):
+                return "fail:mirror-empty"
+            point_greeter_at(dst)
+            # Whatever kscreenlockerrc references now (repaired/stale ids) stays too.
+            active = os.path.basename(greeter_image_path() or "")
+            prune_lock_screen_copies({name, LOCK_SCREEN_CURRENT_NAME, active})
+            if not _nonempty_file(dst) or not _nonempty_file(current):
+                return "fail:vanished"
+    except TimeoutError:
+        return "fail:busy"
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"fail:{type(exc).__name__}"
+    return "ok"
+
+
+def newest_lock_screen_copy() -> str:
+    cache = os.path.realpath(PLASMA_CACHE)
+    best = ""
+    best_mtime = -1.0
+    try:
+        names = os.listdir(cache)
+    except OSError:
+        return ""
+    for name in names:
+        if not (name.startswith(LOCK_SCREEN_PREFIX) and name.endswith(".jpg")):
+            continue
+        path = os.path.join(cache, name)
+        try:
+            mtime = os.path.getmtime(path)
+        except OSError:
+            continue
+        if mtime > best_mtime and _nonempty_file(path):
+            best, best_mtime = path, mtime
+    return best
+
+
+def lock_screen_ensure() -> str:
+    """Repair a blank lock screen from the last image a syncing monitor published.
+
+    Returns "ok", "skip:<why>" when the greeter is not ours to touch, or
+    "fail:<reason>". Safe from monitors without SyncLockScreen: it only ever
+    re-points the greeter at an image this plugin already wrote, and leaves a
+    lock wallpaper the user picked themselves (or another wallpaper plugin)
+    alone.
+    """
+    cache = os.path.realpath(PLASMA_CACHE)
+    current = os.path.join(cache, LOCK_SCREEN_CURRENT_NAME)
+    try:
+        with lock_screen_flock():
+            plugin = greeter_wallpaper_plugin()
+            if plugin and plugin != "org.kde.image":
+                return "skip:foreign-plugin"
+            img = greeter_image_path()
+            img_ok = bool(img) and _nonempty_file(img)
+            if img_ok and not is_wallhaven_lock_image(img):
+                return "skip:foreign-image"
+            if img_ok:
+                age = time.time() - os.path.getmtime(img)
+                if age < LOCK_SCREEN_FRESH_SEC:
+                    if os.path.realpath(img) != current:
+                        _atomic_copy(img, current)
+                    _kwriteconfig(
+                        "kscreenlockerrc", ("--group", "Greeter"), "WallpaperPlugin", "org.kde.image",
+                    )
+                    return "ok"
+            if img_ok:
+                src = os.path.realpath(img)
+            elif _nonempty_file(current):
+                src = current
+            else:
+                src = newest_lock_screen_copy()
+            if not src or not _nonempty_file(src):
+                return "fail:no-source"
+            # Stale or missing Image= gets a new unique path so Plasma reloads textures.
+            dst = os.path.join(cache, f"{LOCK_SCREEN_PREFIX}repaired-{int(time.time())}.jpg")
+            if src != dst:
+                _atomic_copy(src, dst)
+            _atomic_copy(dst, current)
+            if not _nonempty_file(dst) or not _nonempty_file(current):
+                return "fail:copy-empty"
+            point_greeter_at(dst)
+    except TimeoutError:
+        return "fail:busy"
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"fail:{type(exc).__name__}"
+    return "ok"
+
+
+def link_variety_current(folder: str, source: str) -> str:
+    """Point <folder>/wallhaven-current.jpg at the wallpaper on screen."""
+    target_dir = validate_home_path(os.path.expanduser(str(folder or "").strip()))
+    src = validate_read_path(source)
+    link = os.path.join(target_dir, VARIETY_SYMLINK_NAME)
+    try:
+        os.makedirs(target_dir, exist_ok=True)
+        tmp = link + ".tmp"
+        with contextlib.suppress(OSError):
+            os.remove(tmp)
+        os.symlink(src, tmp)
+        os.replace(tmp, link)
+    except OSError as exc:
+        return f"fail:{type(exc).__name__}"
+    return "ok"
+
+
+def sync_system_accent(kde_color: str, gnome_accent: str = "") -> str:
+    """Write the wallpaper's accent to kdeglobals (and GNOME's enum when asked)."""
+    kde = str(kde_color or "").strip()
+    if not KDE_ACCENT_RE.match(kde) or any(int(part) > 255 for part in kde.split(",")):
+        _deny("accent: expected 'r,g,b'")
+    gnome = str(gnome_accent or "").strip()
+    if gnome and not GNOME_ACCENT_RE.match(gnome):
+        _deny("accent: invalid GNOME accent name")
+    try:
+        _kwriteconfig("kdeglobals", ("--group", "General"), "AccentColor", kde)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"fail:{type(exc).__name__}"
+    if gnome and shutil.which("gsettings"):
+        with contextlib.suppress(OSError, subprocess.SubprocessError):
+            subprocess.run(
+                ["gsettings", "set", "org.gnome.desktop.interface", "accent-color", gnome],
+                check=False, timeout=KCONFIG_TIMEOUT_SEC,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+    return "ok"
+
+
+def stat_cache_files(paths_json: str) -> str:
+    """Sizes of plasmashell-cache files as a JSON {path: bytes} map (0 if missing)."""
+    try:
+        paths = json.loads(paths_json or "[]")
+    except json.JSONDecodeError as exc:
+        raise dbus.exceptions.DBusException(
+            f"org.freedesktop.DBus.Error.InvalidArgs: invalid paths json: {exc}",
+        ) from exc
+    if not isinstance(paths, list) or len(paths) > MAX_STAT_PATHS:
+        raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: paths must be a short list")
+    sizes: dict[str, int] = {}
+    for raw in paths:
+        key = str(raw)
+        try:
+            sizes[key] = os.path.getsize(validate_cache_path(key))
+        except (OSError, dbus.exceptions.DBusException):
+            sizes[key] = 0
+    return json.dumps(sizes)
+
+
+class BusNotifier:
+    """Turns control/sync/status writes into D-Bus signals.
+
+    The wallpaper used to poll wallhaven-control.json every 400 ms on every
+    monitor. Writers inside this service notify directly; a directory monitor
+    covers external writers (wallhaven-ctl.sh fallback, scripts, tests). Both
+    paths can report the same write, so identical content is emitted once.
+    """
+
+    def __init__(self) -> None:
+        self.control = None  # WallhavenControl once exported
+        self.mpris = None
+        self._last: dict[str, str] = {}
+        self._monitor = None
+
+    def file_written(self, path: str, content: str | None = None) -> None:
+        if self.control is None:
+            return
+        name = os.path.basename(path)
+        sync = SYNC_FILE_RE.match(name)
+        if name != os.path.basename(CONTROL_FILE) and not sync:
+            return
+        if content is None:
+            try:
+                with open(path, encoding="utf-8") as handle:
+                    content = handle.read()
+            except (OSError, UnicodeDecodeError):
+                return
+        # Truncate-then-write shows up as an empty read first; wait for the body.
+        if not content.strip() or self._last.get(name) == content:
+            return
+        self._last[name] = content
+        if sync:
+            self.control.SyncAdvanced(sync.group(1), content)
+        else:
+            self.control.ControlChanged(content)
+
+    def status_published(self, namespace: str, content: str) -> None:
+        if self.control is not None:
+            self.control.StatusChanged(namespace, content)
+        if self.mpris is not None and not namespace:
+            self.mpris.refresh_status()
+
+    def watch_cache_dir(self) -> None:
+        os.makedirs(PLASMA_CACHE, exist_ok=True)
+
+        def on_event(_monitor, gfile, _other, event) -> None:
+            if event in (Gio.FileMonitorEvent.DELETED, Gio.FileMonitorEvent.ATTRIBUTE_CHANGED):
+                return
+            path = gfile.get_path() if gfile is not None else ""
+            if path:
+                self.file_written(path)
+
+        try:
+            monitor = Gio.File.new_for_path(PLASMA_CACHE).monitor_directory(
+                Gio.FileMonitorFlags.NONE, None,
+            )
+            # Default coalescing is 800 ms per file; control commands are interactive.
+            monitor.set_rate_limit(50)
+            monitor.connect("changed", on_event)
+            self._monitor = monitor
+        except GLib.Error as exc:
+            print(f"cache dir monitor failed ({exc}); polling control file", flush=True)
+            GLib.timeout_add(500, lambda: (self.file_written(CONTROL_FILE), True)[1])
+
+
+NOTIFIER = BusNotifier()
+
+
+def run_async(work, reply, error) -> None:
+    """Run blocking `work()` off the main loop and answer the D-Bus call later.
+
+    curl downloads, the upscaler and KWallet prompts can take minutes; run
+    inline they froze every other method (and signal) of this service.
+    """
+
+    def finish(callback, value) -> bool:
+        callback(value)
+        return False
+
+    def target() -> None:
+        try:
+            result = work()
+        except dbus.exceptions.DBusException as exc:
+            GLib.idle_add(finish, error, exc)
+        except Exception as exc:  # noqa: BLE001 - must always answer the caller
+            GLib.idle_add(
+                finish, error,
+                dbus.exceptions.DBusException(f"org.freedesktop.DBus.Error.Failed: {exc}"),
+            )
+        else:
+            GLib.idle_add(finish, reply, result)
+
+    threading.Thread(target=target, daemon=True).start()
 
 
 def parse_variety_search(ini_text: str) -> str:
@@ -447,13 +853,37 @@ def watch_variety_config(group: str) -> None:
     on_change()
 
 
+def monitor_status_files() -> list[str]:
+    """Names of per-monitor status files that belong to a live wallpaper.
+
+    Status files of unplugged monitors stay behind forever; they used to show
+    up as ghost entries in the plasmoid's monitor picker and as fan-out targets
+    nobody listens on. If every file is old (just woke from suspend, wallpaper
+    not running yet) all of them are returned rather than none.
+    """
+    try:
+        names = sorted(
+            name for name in os.listdir(PLASMA_CACHE)
+            if name.startswith("wallhaven-status-") and name.endswith(".json")
+        )
+    except OSError:
+        return []
+    cutoff = time.time() - STATUS_STALE_SEC
+    fresh = []
+    for name in names:
+        try:
+            if os.path.getmtime(os.path.join(PLASMA_CACHE, name)) >= cutoff:
+                fresh.append(name)
+        except OSError:
+            continue
+    return fresh or names
+
+
 def list_sync_groups() -> list[str]:
     """Unique sync groups from per-monitor status files (fallback: namespaces / default)."""
     groups: list[str] = []
     try:
-        for name in os.listdir(PLASMA_CACHE):
-            if not name.startswith("wallhaven-status-") or not name.endswith(".json"):
-                continue
+        for name in monitor_status_files():
             ns = name[len("wallhaven-status-") : -len(".json")].strip()
             path = os.path.join(PLASMA_CACHE, name)
             try:
@@ -515,6 +945,13 @@ def primary_sync_group() -> str:
     return str(data.get("syncGroup") or data.get("cacheNamespace") or "").strip()
 
 
+def write_control_file(content: str) -> None:
+    os.makedirs(os.path.dirname(CONTROL_FILE), exist_ok=True)
+    with open(CONTROL_FILE, "w", encoding="utf-8") as handle:
+        handle.write(content)
+    NOTIFIER.file_written(CONTROL_FILE, content)
+
+
 def write_command(cmd: str, group: str = "default", query: str = "") -> None:
     name = str(cmd or "").strip().lower()
     if not CONTROL_CMD_RE.match(name):
@@ -529,12 +966,10 @@ def write_command(cmd: str, group: str = "default", query: str = "") -> None:
     text = str(query or "")
     if len(text) > MAX_CONTROL_QUERY_CHARS:
         text = text[:MAX_CONTROL_QUERY_CHARS]
-    os.makedirs(os.path.dirname(CONTROL_FILE), exist_ok=True)
     payload: dict[str, object] = {"cmd": name, "ts": int(time.time() * 1000), "group": target}
     if text:
         payload["query"] = text
-    with open(CONTROL_FILE, "w", encoding="utf-8") as handle:
-        json.dump(payload, handle)
+    write_control_file(json.dumps(payload))
 
 
 _NAV_FANOUT = {
@@ -562,9 +997,7 @@ def write_command_fanout(cmd: str, group: str = "default", query: str = "") -> N
             if text:
                 entry["query"] = text
             commands.append(entry)
-        os.makedirs(os.path.dirname(CONTROL_FILE), exist_ok=True)
-        with open(CONTROL_FILE, "w", encoding="utf-8") as handle:
-            json.dump({"commands": commands}, handle)
+        write_control_file(json.dumps({"commands": commands}))
         return
     write_command(name, target, text)
 
@@ -688,18 +1121,14 @@ class WallhavenControl(dbus.service.Object):
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def GetPluginVersion(self) -> str:
-        return "3.6.0"
+        return "3.7.0"
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def ListMonitorStatuses(self) -> str:
         """Return JSON array of per-monitor status snapshots (wallhaven-status-*.json)."""
         out: list[dict] = []
         try:
-            for name in sorted(os.listdir(PLASMA_CACHE)):
-                if not (name.startswith("wallhaven-status-") and name.endswith(".json")):
-                    continue
-                if name == "wallhaven-status.json":
-                    continue
+            for name in monitor_status_files():
                 path = os.path.join(PLASMA_CACHE, name)
                 try:
                     with open(path, encoding="utf-8") as handle:
@@ -743,37 +1172,48 @@ class WallhavenControl(dbus.service.Object):
 
     @dbus.service.method(INTERFACE, in_signature="ss", out_signature="s")
     def WriteTextFile(self, path: str, content: str) -> str:
-        log_path = os.path.join(PLASMA_CACHE, "wallhaven-dbus-write.log")
         try:
             target = validate_cache_path(path)
         except dbus.exceptions.DBusException as exc:
-            try:
-                with open(log_path, "a", encoding="utf-8") as handle:
-                    handle.write(f"REJECT {path!r} err={exc}\n")
-            except OSError:
-                pass
+            log_rejected_write(path, exc)
             raise
         os.makedirs(os.path.dirname(target), exist_ok=True)
         with open(target, "w", encoding="utf-8") as handle:
             handle.write(content)
-        try:
-            with open(log_path, "a", encoding="utf-8") as handle:
-                handle.write(f"OK {target} bytes={len(content or '')}\n")
-        except OSError:
-            pass
+        NOTIFIER.file_written(target, content)
         return "ok"
 
     @dbus.service.method(INTERFACE, in_signature="s", out_signature="s")
     def PublishStatusJson(self, content: str) -> str:
         """Write status JSON to the plasmashell cache (no client-supplied path)."""
-        return self.WriteTextFile(STATUS_FILE, content or "{}")
+        text = content or "{}"
+        reply = self.WriteTextFile(STATUS_FILE, text)
+        NOTIFIER.status_published("", text)
+        return reply
 
     @dbus.service.method(INTERFACE, in_signature="ss", out_signature="s")
     def PublishMonitorStatusJson(self, namespace: str, content: str) -> str:
         """Write per-monitor status JSON under the plasmashell cache."""
         safe = re.sub(r"[^A-Za-z0-9._-]+", "_", str(namespace or "default"))[:80] or "default"
         target = os.path.join(PLASMA_CACHE, f"wallhaven-status-{safe}.json")
-        return self.WriteTextFile(target, content or "{}")
+        text = content or "{}"
+        reply = self.WriteTextFile(target, text)
+        NOTIFIER.status_published(safe, text)
+        return reply
+
+    # --- change notifications (replace file polling in the wallpaper/plasmoid)
+
+    @dbus.service.signal(INTERFACE, signature="s")
+    def ControlChanged(self, payload):  # noqa: N802
+        """wallhaven-control.json was rewritten; payload is its JSON text."""
+
+    @dbus.service.signal(INTERFACE, signature="ss")
+    def SyncAdvanced(self, group, payload):  # noqa: N802
+        """wallhaven-sync-<group>.json was rewritten."""
+
+    @dbus.service.signal(INTERFACE, signature="ss")
+    def StatusChanged(self, namespace, payload):  # noqa: N802
+        """A status snapshot was published ("" namespace = shared primary status)."""
 
     @dbus.service.method(INTERFACE, in_signature="s", out_signature="s")
     def ReadTextFile(self, path: str) -> str:
@@ -798,8 +1238,10 @@ class WallhavenControl(dbus.service.Object):
             handle.write(append_debug_log_line(existing, line))
         return "ok"
 
-    @dbus.service.method(INTERFACE, in_signature="s", out_signature="s")
-    def RunArgv(self, argv_json: str) -> str:
+    @dbus.service.method(
+        INTERFACE, in_signature="s", out_signature="s", async_callbacks=("reply", "error"),
+    )
+    def RunArgv(self, argv_json: str, reply, error) -> None:
         try:
             argv = json.loads(argv_json)
         except json.JSONDecodeError as exc:
@@ -808,16 +1250,73 @@ class WallhavenControl(dbus.service.Object):
             ) from exc
         if not isinstance(argv, list):
             raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: argv must be a list")
-        code = run_argv([str(part) for part in argv])
-        return "ok" if code == 0 else f"fail:{code}"
+        # Refuse on the caller's turn; only the (possibly slow) process is deferred.
+        safe = validate_run_argv([str(part) for part in argv])
+
+        def work() -> str:
+            code = int(subprocess.run(safe, check=False).returncode or 0)
+            return "ok" if code == 0 else f"fail:{code}"
+
+        run_async(work, reply, error)
+
+    @dbus.service.method(INTERFACE, in_signature="s", out_signature="s")
+    def StatCacheFiles(self, paths_json: str) -> str:
+        """JSON {path: size} for cache files, in one call instead of a `stat` per file."""
+        return stat_cache_files(paths_json)
+
+    @dbus.service.method(INTERFACE, out_signature="s", async_callbacks=("reply", "error"))
+    def GetApiKey(self, reply, error) -> None:
+        """API key from KWallet ("" when none). Never touches disk."""
+        remove_legacy_api_key_file()
+        run_async(wallet_read_api_key, reply, error)
+
+    @dbus.service.method(
+        INTERFACE, in_signature="s", out_signature="s", async_callbacks=("reply", "error"),
+    )
+    def SetApiKey(self, key: str, reply, error) -> None:
+        """Store the API key in KWallet (fed on stdin, never as an argument)."""
+        clean = sanitize_api_key(key)
+        if not clean:
+            raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: not an API key")
+        remove_legacy_api_key_file()
+        run_async(lambda: "ok" if wallet_write_api_key(clean) else "fail", reply, error)
+
+    @dbus.service.method(
+        INTERFACE, in_signature="ss", out_signature="s", async_callbacks=("reply", "error"),
+    )
+    def SyncLockScreen(self, source: str, dest: str, reply, error) -> None:
+        """Copy a wallpaper to its unique lock-screen image and point the greeter at it."""
+        validate_read_path(source)
+        validate_cache_path(dest)
+        run_async(lambda: lock_screen_sync(source, dest), reply, error)
+
+    @dbus.service.method(INTERFACE, out_signature="s", async_callbacks=("reply", "error"))
+    def EnsureLockScreen(self, reply, error) -> None:
+        """Repair a blank lock-screen image from the last synced copy."""
+        run_async(lock_screen_ensure, reply, error)
+
+    @dbus.service.method(INTERFACE, in_signature="ss", out_signature="s")
+    def LinkVarietyCurrent(self, folder: str, source: str) -> str:
+        return link_variety_current(folder, source)
+
+    @dbus.service.method(
+        INTERFACE, in_signature="ss", out_signature="s", async_callbacks=("reply", "error"),
+    )
+    def SyncSystemAccent(self, kde_color: str, gnome_accent: str, reply, error) -> None:
+        kde = str(kde_color or "").strip()
+        if not KDE_ACCENT_RE.match(kde):
+            raise dbus.exceptions.DBusException("org.freedesktop.DBus.Error.InvalidArgs: expected 'r,g,b'")
+        run_async(lambda: sync_system_accent(kde, gnome_accent), reply, error)
 
     @dbus.service.method(INTERFACE, out_signature="s")
     def UpscalerAvailable(self) -> str:
         """Resolved path of the external upscaler binary, or "" if not installed."""
         return find_upscaler()
 
-    @dbus.service.method(INTERFACE, in_signature="ss", out_signature="b")
-    def Upscale(self, input_path: str, output_path: str) -> bool:
+    @dbus.service.method(
+        INTERFACE, in_signature="ss", out_signature="b", async_callbacks=("reply", "error"),
+    )
+    def Upscale(self, input_path: str, output_path: str, reply, error) -> None:
         """Run the external upscaler on input_path, writing to output_path.
 
         input_path and output_path may be the same file: the upscaled result
@@ -831,36 +1330,40 @@ class WallhavenControl(dbus.service.Object):
         the tool isn't installed, times out, or fails, so QML callers can
         treat any falsy result as "fall back to plain scaling".
         """
-        binary = find_upscaler()
-        if not binary:
-            return False
-        try:
-            src = validate_cache_path(input_path)
-            dst = validate_cache_path(output_path)
-        except dbus.exceptions.DBusException:
-            return False
-        if not os.path.isfile(src):
-            return False
-        tmp_dst = dst + ".upscale.tmp"
-        try:
-            result = subprocess.run(
-                [binary, "-i", src, "-o", tmp_dst, "-n", UPSCALER_MODEL],
-                check=False,
-                capture_output=True,
-                timeout=UPSCALE_TIMEOUT_SEC,
-            )
-        except (OSError, subprocess.TimeoutExpired, subprocess.SubprocessError):
-            _silent_remove(tmp_dst)
-            return False
-        if result.returncode != 0 or not os.path.isfile(tmp_dst):
-            _silent_remove(tmp_dst)
-            return False
-        try:
-            os.replace(tmp_dst, dst)
-        except OSError:
-            _silent_remove(tmp_dst)
-            return False
-        return True
+        run_async(lambda: upscale_file(input_path, output_path), reply, error)
+
+
+def upscale_file(input_path: str, output_path: str) -> bool:
+    binary = find_upscaler()
+    if not binary:
+        return False
+    try:
+        src = validate_cache_path(input_path)
+        dst = validate_cache_path(output_path)
+    except dbus.exceptions.DBusException:
+        return False
+    if not os.path.isfile(src):
+        return False
+    tmp_dst = dst + ".upscale.tmp"
+    try:
+        result = subprocess.run(
+            [binary, "-i", src, "-o", tmp_dst, "-n", UPSCALER_MODEL],
+            check=False,
+            capture_output=True,
+            timeout=UPSCALE_TIMEOUT_SEC,
+        )
+    except (OSError, subprocess.TimeoutExpired, subprocess.SubprocessError):
+        _silent_remove(tmp_dst)
+        return False
+    if result.returncode != 0 or not os.path.isfile(tmp_dst):
+        _silent_remove(tmp_dst)
+        return False
+    try:
+        os.replace(tmp_dst, dst)
+    except OSError:
+        _silent_remove(tmp_dst)
+        return False
+    return True
 
 
 class WallhavenPlayer(dbus.service.Object):
@@ -1135,8 +1638,9 @@ def main() -> int:
         return 2
 
     DBusGMainLoop(set_as_default=True)
+    dbus_threads_init()
     bus = dbus.SessionBus()
-    WallhavenControl(bus, group)
+    control = WallhavenControl(bus, group)
     WallhavenRunner(bus, group)
     WallhavenPlayer(bus, group)
     mpris = MprisMediaPlayer2(bus, group)
@@ -1151,9 +1655,13 @@ def main() -> int:
     if not bus.name_has_owner(SERVICE):
         print(f"Failed to claim {SERVICE} on the session bus", file=sys.stderr)
         return 1
+    trim_write_log()
+    remove_legacy_api_key_file()
+    NOTIFIER.control = control
+    NOTIFIER.mpris = mpris
+    NOTIFIER.watch_cache_dir()
     watch_status_file(mpris)
     watch_variety_config(group)
-    GLib.timeout_add_seconds(2, lambda: mpris.refresh_status() or True)
     print(f"D-Bus services {SERVICE}, {MPRIS_SERVICE}", flush=True)
     try:
         GLib.MainLoop().run()
